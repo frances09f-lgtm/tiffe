@@ -305,14 +305,16 @@ void main() {
     await t.pumpAndSettle();
     await capture(t, 'menu');
     expect(t.takeException(), isNull);
-    await t.tap(find.text('Home').last);
-    await t.pumpAndSettle();
-    await t.scrollUntilVisible(
-      find.text('Choose your bhaji'),
-      200,
-      scrollable: find.byType(Scrollable).first,
+    // A future delivery keeps this save test independent of runner timezone.
+    final selectionContext = t.element(find.byType(Shell));
+    Navigator.of(selectionContext).push(
+      MaterialPageRoute<void>(
+        builder: (_) => SelectionPage(
+          store: s,
+          date: DateTime.now().add(const Duration(days: 1)),
+        ),
+      ),
     );
-    await t.tap(find.text('Choose your bhaji'));
     await t.pumpAndSettle();
     await t.tap(find.text('Batata Bhaji'));
     await t.tap(find.text('Matki Usal'));
@@ -324,7 +326,10 @@ void main() {
     await t.tap(find.text('Save choices'));
     await t.pumpAndSettle();
     expect(find.text('Your choices are saved'), findsOneWidget);
-    expect(s.selected(DateTime.now(), 0).length, 3);
+    expect(
+      s.selected(DateTime.now().add(const Duration(days: 1)), 0).length,
+      3,
+    );
     await t.tap(find.text('Done'));
     await t.pumpAndSettle();
     await t.pageBack();
