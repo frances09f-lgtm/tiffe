@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../data/store.dart';
 import '../domain/tiffin.dart';
+import 'subscriber_orders.dart';
 
 const cream = Color(0xFFFAF8F0),
     green = Color(0xFF285A3F),
@@ -778,34 +779,36 @@ class _ShellState extends State<Shell> {
     ),
     FilledButton(onPressed: select, child: const Text('Choose for this date')),
   ]);
-  Widget orders(BuildContext c) => scroll([
-    title('Your dabbas', 'One less thing to think about.'),
-    panel(
-      child: const Column(
-        children: [
-          SizedBox(height: 28),
-          Icon(Icons.lunch_dining_outlined, size: 64, color: green),
-          SizedBox(height: 20),
-          Text(
-            'Your first Tiffe is waiting.',
-            style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700),
+  Widget orders(BuildContext c) => widget.store.plan != Plan.none
+      ? SubscriberOrders(store: widget.store)
+      : scroll([
+          title('Your dabbas', 'One less thing to think about.'),
+          panel(
+            child: const Column(
+              children: [
+                SizedBox(height: 28),
+                Icon(Icons.lunch_dining_outlined, size: 64, color: green),
+                SizedBox(height: 20),
+                Text(
+                  'Your first Tiffe is waiting.',
+                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700),
+                ),
+                SizedBox(height: 10),
+                Text(
+                  'Your dabbas will appear here. Choose your bhajis and start your daily routine.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: muted),
+                ),
+                SizedBox(height: 28),
+              ],
+            ),
           ),
-          SizedBox(height: 10),
-          Text(
-            'Your dabbas will appear here. Choose your bhajis and start your daily routine.',
-            textAlign: TextAlign.center,
-            style: TextStyle(color: muted),
+          const SizedBox(height: 20),
+          FilledButton(
+            onPressed: () => select(oneTime: true),
+            child: const Text('Try a one-time Tiffe · ₹80'),
           ),
-          SizedBox(height: 28),
-        ],
-      ),
-    ),
-    const SizedBox(height: 20),
-    FilledButton(
-      onPressed: () => select(oneTime: true),
-      child: const Text('Try a one-time Tiffe · ₹80'),
-    ),
-  ]);
+        ]);
   Widget plans(BuildContext c) => scroll([
     title(
       'A little routine.\nA lot of comfort.',
@@ -1214,6 +1217,16 @@ class _SelectionPageState extends State<SelectionPage> {
   }
 
   Future<void> confirm() async {
+    if (!widget.oneTime &&
+        widget.store.plan != Plan.none &&
+        !canChangeBhaji(widget.date, DateTime.now())) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Selection cutoff has passed for this delivery.'),
+        ),
+      );
+      return;
+    }
     if (picked.any((ids) => ids.length < 2)) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(

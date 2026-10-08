@@ -9,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:tiffe/data/store.dart';
 import 'package:tiffe/domain/tiffin.dart';
 import 'package:tiffe/ui/app.dart';
+import 'package:tiffe/ui/subscriber_orders.dart';
 
 Future<TiffeStore> store({bool onboarded = true}) async {
   SharedPreferences.setMockInitialValues({});
@@ -79,6 +80,73 @@ void main() {
     final icons = FontLoader('MaterialIcons')
       ..addFont(rootBundle.load('assets/fonts/MaterialIcons-Regular.otf'));
     await icons.load();
+  });
+  test('subscriber cutoff locks at 9 AM on delivery date', () {
+    final day = DateTime(2026, 10, 10);
+    expect(canChangeBhaji(day, DateTime(2026, 10, 10, 8, 59)), isTrue);
+    expect(canChangeBhaji(day, DateTime(2026, 10, 10, 9)), isFalse);
+    expect(canChangeBhaji(day, DateTime(2026, 10, 11)), isFalse);
+  });
+  testWidgets('subscriber daily double and Sunday orders previews', (t) async {
+    final s = await store();
+    await open(t, s);
+    final theme = Theme.of(t.element(find.byType(Shell)));
+    for (final plan in [Plan.daily, Plan.double]) {
+      s.plan = plan;
+      await s.saveSelection(DateTime(2026, 10, 9), 0, ['aloo', 'matki']);
+      await s.saveSelection(DateTime(2026, 10, 10), 0, ['baingan', 'mix']);
+      if (plan == Plan.double) {
+        await s.saveSelection(DateTime(2026, 10, 9), 1, ['batata', 'cabbage']);
+        await s.saveSelection(DateTime(2026, 10, 10), 1, ['vatana', 'mix']);
+      }
+      await t.pumpWidget(
+        RepaintBoundary(
+          child: MaterialApp(
+            theme: theme,
+            debugShowCheckedModeBanner: false,
+            home: Scaffold(
+              body: SafeArea(
+                child: SubscriberOrders(
+                  key: UniqueKey(),
+                  store: s,
+                  clock: DateTime(2026, 10, 9, 10),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await capture(t, 'subscriber-${plan.name}');
+      expect(find.text('My Tiffe Plan'), findsOneWidget);
+      expect(find.textContaining('₹80'), findsNothing);
+      await t.drag(find.byType(ListView), const Offset(0, -480));
+      await t.pumpAndSettle();
+      await capture(t, 'subscriber-${plan.name}-tomorrow');
+      expect(t.takeException(), isNull);
+    }
+    s.plan = Plan.daily;
+    await t.pumpWidget(
+      RepaintBoundary(
+        child: MaterialApp(
+          theme: theme,
+          debugShowCheckedModeBanner: false,
+          home: Scaffold(
+            body: SafeArea(
+              child: SubscriberOrders(
+                key: UniqueKey(),
+                store: s,
+                clock: DateTime(2026, 10, 11, 10),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await t.drag(find.byType(ListView), const Offset(0, 2000));
+    await t.pumpAndSettle();
+    await capture(t, 'subscriber-sunday');
+    expect(find.textContaining('Sunday Sweet Included'), findsWidgets);
+    expect(t.takeException(), isNull);
   });
   testWidgets('preview confirmation reaches success without payment', (
     t,
