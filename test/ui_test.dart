@@ -83,6 +83,47 @@ void main() {
       ..addFont(rootBundle.load('assets/fonts/MaterialIcons-Regular.otf'));
     await icons.load();
   });
+  testWidgets('dark mode toggle persists and customer routes render', (
+    t,
+  ) async {
+    final s = await store();
+    await open(t, s);
+    await t.tap(find.text('Profile').last);
+    await t.pumpAndSettle();
+    await t.scrollUntilVisible(
+      find.text('Dark mode'),
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await t.tap(find.byType(SwitchListTile));
+    await t.pumpAndSettle();
+    expect(s.darkMode, isTrue);
+    expect(TiffeStore(s.prefs).darkMode, isTrue);
+    expect(Theme.of(t.element(find.byType(Shell))).brightness, Brightness.dark);
+    await capture(t, 'profile-dark-toggle');
+    for (final tab in ['Home', 'Menu', 'Orders', 'Plan']) {
+      await t.tap(find.text(tab).last);
+      await t.pumpAndSettle();
+      await capture(t, '${tab.toLowerCase()}-dark');
+      expect(t.takeException(), isNull);
+    }
+    final theme = Theme.of(t.element(find.byType(Shell)));
+    await t.pumpWidget(
+      RepaintBoundary(
+        child: MaterialApp(
+          debugShowCheckedModeBanner: false,
+          theme: theme,
+          home: ScheduledTracking(
+            plan: Plan.daily,
+            clock: DateTime.utc(2026, 10, 9, 14, 44),
+          ),
+        ),
+      ),
+    );
+    await capture(t, 'tracking-dark');
+    expect(t.takeException(), isNull);
+    await t.pumpWidget(const SizedBox());
+  });
   testWidgets(
     'daily notification tap opens tracker and plan removal cancels alarms',
     (t) async {
@@ -217,8 +258,8 @@ void main() {
     await t.pumpWidget(
       RepaintBoundary(
         child: MaterialApp(
-          theme: theme,
           debugShowCheckedModeBanner: false,
+          theme: theme,
           home: Scaffold(
             body: SafeArea(
               child: SubscriberOrders(

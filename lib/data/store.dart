@@ -10,6 +10,7 @@ class TiffeStore extends ChangeNotifier {
   String name = '', phone = '', address = '', area = 'Kothrud';
   Plan plan = Plan.none;
   bool onboarded = false;
+  bool darkMode = false;
   final Map<String, List<String>> selections = {};
   List<String> usual = ['batata', 'matki'];
   TiffeStore(this.prefs) {
@@ -22,6 +23,7 @@ class TiffeStore extends ChangeNotifier {
       address = d['address'] ?? '';
       area = d['area'] ?? 'Kothrud';
       onboarded = d['onboarded'] == true;
+      darkMode = d['darkMode'] == true;
       plan = Plan.values.firstWhere(
         (p) => p.name == d['plan'],
         orElse: () => Plan.none,
@@ -35,6 +37,11 @@ class TiffeStore extends ChangeNotifier {
       /* Corrupt local preview state falls back safely. */
     }
   }
+  Future<void> setDarkMode(bool value) async {
+    darkMode = value;
+    await save();
+  }
+
   List<String> selected(DateTime date, int tiffin) =>
       List.of(selections['${Pricing.dateKey(date)}:$tiffin'] ?? []);
   Future<void> saveSelection(
@@ -58,6 +65,7 @@ class TiffeStore extends ChangeNotifier {
         'area': area,
         'plan': plan.name,
         'onboarded': onboarded,
+        'darkMode': darkMode,
         'selections': selections,
         'usual': usual,
       }),
