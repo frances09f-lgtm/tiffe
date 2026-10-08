@@ -83,6 +83,32 @@ void main() {
       ..addFont(rootBundle.load('assets/fonts/MaterialIcons-Regular.otf'));
     await icons.load();
   });
+  testWidgets(
+    'active plans show no purchase CTA and non-subscribers keep plans',
+    (t) async {
+      final s = await store();
+      await open(t, s);
+      await t.tap(find.text('Plan').last);
+      await t.pumpAndSettle();
+      expect(find.text('Active subscription'), findsOneWidget);
+      expect(find.text('Subscribe'), findsNothing);
+      expect(find.text('View plan'), findsNothing);
+      await capture(t, 'active-plan');
+      await t.tap(find.text('Profile').last);
+      await t.pumpAndSettle();
+      expect(find.text('View or change plan'), findsNothing);
+      expect(find.text('Daily Tiffe · Active subscription'), findsOneWidget);
+      s.plan = Plan.none;
+      await s.save();
+      await t.pumpAndSettle();
+      expect(find.text('Explore plans'), findsOneWidget);
+      await t.tap(find.text('Plan').last);
+      await t.pumpAndSettle();
+      expect(find.text('Subscribe'), findsWidgets);
+      await capture(t, 'non-subscriber-plans');
+      expect(t.takeException(), isNull);
+    },
+  );
   testWidgets('dark mode toggle persists and customer routes render', (
     t,
   ) async {

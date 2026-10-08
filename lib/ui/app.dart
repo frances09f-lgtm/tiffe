@@ -745,10 +745,11 @@ class _ShellState extends TiffeState<Shell> {
               ],
             ),
           ),
-          IconButton(
-            onPressed: () => setState(() => tab = 3),
-            icon: Icon(Icons.arrow_forward, color: tgreen),
-          ),
+          if (widget.store.plan == Plan.none)
+            IconButton(
+              onPressed: () => setState(() => tab = 3),
+              icon: Icon(Icons.arrow_forward, color: tgreen),
+            ),
         ],
       ),
     ),
@@ -959,53 +960,98 @@ class _ShellState extends TiffeState<Shell> {
             child: Text('Try a one-time Tiffe · ₹80'),
           ),
         ]);
-  Widget plans(BuildContext c) => scroll([
-    title(
-      'A little routine.\nA lot of comfort.',
-      'Your daily food, without the daily planning.',
-    ),
-    Text(
-      'SUBSCRIPTIONS',
-      style: TextStyle(
-        fontSize: 11,
-        letterSpacing: 2,
-        color: tmuted,
-        fontWeight: FontWeight.w700,
-      ),
-    ),
-    SizedBox(height: 16),
-    planCard(Plan.daily, 'Daily', 'One good meal, every day.', '1'),
-    SizedBox(height: 18),
-    planCard(Plan.double, 'Double', 'Two dabbas. Twice the comfort.', '2'),
-    SizedBox(height: 20),
-    panel(
-      color: Color(0xFFF1EADF),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
+  Widget plans(BuildContext c) => widget.store.plan != Plan.none
+      ? scroll([
+          title('Your Tiffe plan', 'A little routine. A lot of comfort.'),
+          panel(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.check_circle_outline, color: tgreen),
+                    SizedBox(width: 8),
+                    Text(
+                      'Active subscription',
+                      style: TextStyle(
+                        color: tgreen,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+                SizedBox(height: 18),
+                Text(
+                  widget.store.plan == Plan.daily
+                      ? 'Daily Tiffe'
+                      : 'Double Tiffe',
+                  style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800),
+                ),
+                SizedBox(height: 8),
+                Text(
+                  '₹${Pricing.monthly(widget.store.plan)}/month · ${Pricing.quantity(widget.store.plan)} tiffin${widget.store.plan == Plan.double ? 's' : ''} every day',
+                ),
+                SizedBox(height: 16),
+                Text(
+                  '2 bhajis per tiffin included · Sunday sweet included',
+                  style: TextStyle(color: tmuted),
+                ),
+              ],
+            ),
+          ),
+        ])
+      : scroll([
+          title(
+            'A little routine.\nA lot of comfort.',
+            'Your daily food, without the daily planning.',
+          ),
           Text(
-            'Just want one today?',
-            style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+            'SUBSCRIPTIONS',
+            style: TextStyle(
+              fontSize: 11,
+              letterSpacing: 2,
+              color: tmuted,
+              fontWeight: FontWeight.w700,
+            ),
           ),
-          SizedBox(height: 6),
+          SizedBox(height: 16),
+          planCard(Plan.daily, 'Daily', 'One good meal, every day.', '1'),
+          SizedBox(height: 18),
+          planCard(
+            Plan.double,
+            'Double',
+            'Two dabbas. Twice the comfort.',
+            '2',
+          ),
+          SizedBox(height: 20),
+          panel(
+            color: Color(0xFFF1EADF),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Just want one today?',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+                ),
+                SizedBox(height: 6),
+                Text(
+                  'One-time Tiffe · ₹80\n3 chapatis, rice and 2 bhajis. No Sunday sweet.',
+                  style: TextStyle(color: tmuted),
+                ),
+                SizedBox(height: 12),
+                OutlinedButton(
+                  onPressed: () => select(oneTime: true),
+                  child: Text('Try a Tiffe →'),
+                ),
+              ],
+            ),
+          ),
+          SizedBox(height: 18),
           Text(
-            'One-time Tiffe · ₹80\n3 chapatis, rice and 2 bhajis. No Sunday sweet.',
-            style: TextStyle(color: tmuted),
+            '3 chapatis. Rice. Your favourites. Every day.',
+            style: TextStyle(color: tmuted, fontSize: 12),
           ),
-          SizedBox(height: 12),
-          OutlinedButton(
-            onPressed: () => select(oneTime: true),
-            child: Text('Try a Tiffe →'),
-          ),
-        ],
-      ),
-    ),
-    SizedBox(height: 18),
-    Text(
-      '3 chapatis. Rice. Your favourites. Every day.',
-      style: TextStyle(color: tmuted, fontSize: 12),
-    ),
-  ]);
+        ]);
   Widget planCard(Plan p, String label, String sub, String qty) => panel(
     color: p == Plan.daily ? tgreen : Colors.white,
     child: DefaultTextStyle(
@@ -1221,10 +1267,26 @@ class _ShellState extends TiffeState<Shell> {
       ),
     ),
     SizedBox(height: 20),
-    OutlinedButton(
-      onPressed: () => setState(() => tab = 3),
-      child: Text('View or change plan'),
-    ),
+    if (widget.store.plan == Plan.none)
+      OutlinedButton(
+        onPressed: () => setState(() => tab = 3),
+        child: Text('Explore plans'),
+      )
+    else
+      panel(
+        child: Row(
+          children: [
+            Icon(Icons.check_circle_outline, color: tgreen),
+            SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                '${widget.store.plan == Plan.daily ? 'Daily' : 'Double'} Tiffe · Active subscription',
+                style: TextStyle(fontWeight: FontWeight.w600),
+              ),
+            ),
+          ],
+        ),
+      ),
     SizedBox(height: 20),
     panel(
       child: Column(
