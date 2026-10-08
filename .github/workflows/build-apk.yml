@@ -1,0 +1,37 @@
+name: Build APK
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: '3.47.6'
+      - run: flutter pub get
+      - run: flutter analyze
+      - run: flutter test
+      - name: Build with permanent Tiffe signing identity
+        env:
+          TIFFE_KEYSTORE_BASE64: ${{ secrets.TIFFE_KEYSTORE_BASE64 }}
+          TIFFE_KEYSTORE_FILE: ${{ runner.temp }}/tiffe-release.jks
+          TIFFE_KEYSTORE_PASSWORD: ${{ secrets.TIFFE_KEYSTORE_PASSWORD }}
+          TIFFE_KEY_PASSWORD: ${{ secrets.TIFFE_KEY_PASSWORD }}
+        run: |
+          printf '%s' "$TIFFE_KEYSTORE_BASE64" | base64 -d > "$TIFFE_KEYSTORE_FILE"
+          flutter build apk --release --target-platform android-arm64
+          mv build/app/outputs/flutter-apk/app-release.apk build/app/outputs/flutter-apk/Tiffe.apk
+          rm -f "$TIFFE_KEYSTORE_FILE"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tiffe-release-apk
+          path: build/app/outputs/flutter-apk/Tiffe.apk
