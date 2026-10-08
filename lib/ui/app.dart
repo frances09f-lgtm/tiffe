@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../data/store.dart';
 import '../domain/tiffin.dart';
@@ -957,6 +958,31 @@ class _ShellState extends State<Shell> {
       ),
     ),
   );
+  Future<void> openHelpline(BuildContext context, Uri uri) async {
+    try {
+      final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (!opened && context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Could not open this app. Call +91 72491 19955, or add this number in WhatsApp.',
+            ),
+          ),
+        );
+      }
+    } catch (_) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Could not open this app. Call +91 72491 19955, or add this number in WhatsApp.',
+            ),
+          ),
+        );
+      }
+    }
+  }
+
   Widget profile(BuildContext c) => scroll([
     title('Your corner', 'Make Tiffe feel like you.'),
     panel(
@@ -1022,7 +1048,7 @@ class _ShellState extends State<Shell> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-            '♡ My Usual',
+            'My Usual',
             style: TextStyle(fontWeight: FontWeight.w700, fontSize: 20),
           ),
           const SizedBox(height: 8),
@@ -1044,9 +1070,91 @@ class _ShellState extends State<Shell> {
       onPressed: () => setState(() => tab = 3),
       child: const Text('View or change preview plan'),
     ),
+    const SizedBox(height: 20),
+    panel(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Help & support',
+            style: TextStyle(fontWeight: FontWeight.w700, fontSize: 20),
+          ),
+          const SizedBox(height: 12),
+          const Text(
+            'Sourabh - CEO',
+            style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            'Tiffe helpline',
+            style: TextStyle(color: muted, fontSize: 13),
+          ),
+          const SizedBox(height: 6),
+          const SelectableText(
+            '+91 72491 19955',
+            style: TextStyle(
+              color: green,
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: SizedBox(
+                  height: 54,
+                  child: FilledButton.icon(
+                    style: FilledButton.styleFrom(
+                      backgroundColor: green,
+                      foregroundColor: cream,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                    ),
+                    onPressed: () => openHelpline(
+                      c,
+                      Uri(scheme: 'tel', path: '+917249119955'),
+                    ),
+                    icon: const Icon(Icons.call_outlined, size: 18),
+                    label: const Text('Call'),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: SizedBox(
+                  height: 54,
+                  child: FilledButton.icon(
+                    style: FilledButton.styleFrom(
+                      backgroundColor: const Color(0xFFDCF0DE),
+                      foregroundColor: green,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                    ),
+                    onPressed: () =>
+                        openHelpline(c, Uri.https('wa.me', '917249119955')),
+                    icon: const Icon(Icons.chat_bubble_outline, size: 18),
+                    label: const Text('WhatsApp'),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          const Text(
+            'Opens your dialler or WhatsApp. Nothing is called or sent automatically.',
+            style: TextStyle(color: muted, fontSize: 12),
+          ),
+        ],
+      ),
+    ),
     const SizedBox(height: 24),
     const Text(
-      'Tiffe v1 · UI preview\nReal OTP, payments, subscription pause, notifications, kitchen and delivery services are not connected yet.',
+      'Tiffe v2 · UI preview\nReal OTP, payments, subscription pause, notifications, kitchen and delivery services are not connected yet.',
       textAlign: TextAlign.center,
       style: TextStyle(color: muted, fontSize: 12),
     ),

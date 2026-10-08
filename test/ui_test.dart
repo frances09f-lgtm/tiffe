@@ -80,6 +80,27 @@ void main() {
       ..addFont(rootBundle.load('assets/fonts/MaterialIcons-Regular.otf'));
     await icons.load();
   });
+  testWidgets('helpline contact and responsive screenshot', (t) async {
+    final s = await store();
+    await open(t, s);
+    await t.tap(find.text('Profile').last);
+    await t.pumpAndSettle();
+    await t.scrollUntilVisible(
+      find.text('Help & support'),
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await capture(t, 'help-support');
+    expect(find.text('Sourabh - CEO'), findsOneWidget);
+    expect(find.text('+91 72491 19955'), findsOneWidget);
+    expect(find.text('Call'), findsOneWidget);
+    expect(
+      t.getSize(find.widgetWithText(FilledButton, 'Call')),
+      t.getSize(find.widgetWithText(FilledButton, 'WhatsApp')),
+    );
+    expect(find.text('WhatsApp'), findsOneWidget);
+    expect(t.takeException(), isNull);
+  });
   testWidgets('home selection pricing and plans screenshots', (t) async {
     final s = await store();
     await open(t, s);
