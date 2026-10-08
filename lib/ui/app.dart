@@ -260,15 +260,13 @@ class _OnboardingState extends State<Onboarding> {
               Text(
                 [
                   'Fresh home-cooked food. Your choice of bhaji. Every single day.',
-                  'Enter the preview code to explore Tiffe. No SMS is sent in this version.',
+                  'Enter your code and make yourself at home.',
                   'Just your name and where your Tiffe should arrive.',
                 ][step],
                 style: const TextStyle(color: muted, fontSize: 16),
               ),
               const SizedBox(height: 28),
-              const Chip(
-                label: Text('UI preview · no live orders or payments'),
-              ),
+              const Chip(label: Text('Tiffe Demo')),
               const SizedBox(height: 20),
               if (step == 0)
                 TextFormField(
@@ -288,7 +286,7 @@ class _OnboardingState extends State<Onboarding> {
                 ),
               if (step == 1) ...[
                 Text(
-                  'Preview OTP: 123456 • +91 ${phone.text}',
+                  'Demo OTP: 123456 • +91 ${phone.text}',
                   style: const TextStyle(color: green),
                 ),
                 const SizedBox(height: 16),
@@ -301,7 +299,7 @@ class _OnboardingState extends State<Onboarding> {
                   ],
                   decoration: const InputDecoration(labelText: '6-digit OTP'),
                   validator: (v) =>
-                      v == '123456' ? null : 'Use the preview code 123456',
+                      v == '123456' ? null : 'Use the demo code 123456',
                 ),
               ],
               if (step == 2) ...[
@@ -325,9 +323,7 @@ class _OnboardingState extends State<Onboarding> {
                 const SizedBox(height: 16),
                 DropdownButtonFormField<String>(
                   initialValue: area,
-                  decoration: const InputDecoration(
-                    labelText: 'Pune area · sample coverage',
-                  ),
+                  decoration: const InputDecoration(labelText: 'Pune area'),
                   items:
                       [
                             'Kothrud',
@@ -343,7 +339,7 @@ class _OnboardingState extends State<Onboarding> {
                           .toList(),
                   onChanged: (a) => setState(() => area = a!),
                   validator: (v) => v == 'Other area'
-                      ? "Tiffe isn't delivering to your area yet. Preview areas only."
+                      ? "Tiffe isn't delivering to your area yet."
                       : null,
                 ),
                 if (area == 'Other area')
@@ -353,7 +349,7 @@ class _OnboardingState extends State<Onboarding> {
                       builder: (_) => AlertDialog(
                         title: const Text('Not in your area yet'),
                         content: const Text(
-                          'The real waitlist will open when the backend is connected. Your number has not been submitted.',
+                          'The waitlist is not open yet. Check back soon.',
                         ),
                         actions: [
                           TextButton(
@@ -363,7 +359,7 @@ class _OnboardingState extends State<Onboarding> {
                         ],
                       ),
                     ),
-                    child: const Text('Join waitlist · coming with backend'),
+                    child: const Text('View waitlist'),
                   ),
               ],
               const SizedBox(height: 28),
@@ -375,7 +371,7 @@ class _OnboardingState extends State<Onboarding> {
                     step == 0
                         ? 'Continue'
                         : step == 1
-                        ? 'Verify preview code'
+                        ? 'Verify code'
                         : 'Meet your Tiffe',
                   ),
                 ),
@@ -576,8 +572,8 @@ class _ShellState extends State<Shell> {
                   widget.store.plan == Plan.none
                       ? 'Your daily routine starts here'
                       : widget.store.plan == Plan.daily
-                      ? 'Daily Plan · preview'
-                      : 'Double Plan · preview',
+                      ? 'Daily Plan'
+                      : 'Double Plan',
                   style: const TextStyle(
                     fontWeight: FontWeight.w700,
                     color: ink,
@@ -717,7 +713,7 @@ class _ShellState extends State<Shell> {
     ],
     const SizedBox(height: 18),
     const Text(
-      'UI PREVIEW · SAMPLE MENU & COVERAGE',
+      'MADE AT HOME. MADE FOR PUNE.',
       textAlign: TextAlign.center,
       style: TextStyle(fontSize: 10, color: muted, letterSpacing: 1),
     ),
@@ -739,7 +735,7 @@ class _ShellState extends State<Shell> {
     ),
     const SizedBox(height: 6),
     const Text(
-      'Sample menu · kitchen publishing comes later',
+      'Eight fresh choices from our kitchen.',
       style: TextStyle(color: muted, fontSize: 12),
     ),
     const SizedBox(height: 20),
@@ -796,7 +792,7 @@ class _ShellState extends State<Shell> {
           ),
           SizedBox(height: 10),
           Text(
-            'No live orders yet. Explore the menu and checkout preview. Your kitchen and delivery updates will appear here once the backend is connected.',
+            'Your dabbas will appear here. Choose your bhajis and start your daily routine.',
             textAlign: TextAlign.center,
             style: TextStyle(color: muted),
           ),
@@ -853,7 +849,7 @@ class _ShellState extends State<Shell> {
     ),
     const SizedBox(height: 18),
     const Text(
-      'Plans are previews. Activating one here does not create a subscription or charge you.',
+      '3 chapatis. Rice. Your favourites. Every day.',
       style: TextStyle(color: muted, fontSize: 12),
     ),
   ]);
@@ -947,11 +943,7 @@ class _ShellState extends State<Shell> {
                   ),
                 ),
               ),
-              child: Text(
-                widget.store.plan == p
-                    ? 'View preview plan'
-                    : 'Subscribe · preview',
-              ),
+              child: Text(widget.store.plan == p ? 'View plan' : 'Subscribe'),
             ),
           ),
         ],
@@ -1059,7 +1051,7 @@ class _ShellState extends State<Shell> {
           ),
           const SizedBox(height: 8),
           const Text(
-            'Save your favourites from the bhaji selection screen. Automatic cutoff selection arrives with the backend.',
+            'Your favourites, one tap away. Save them from the bhaji selection screen.',
             style: TextStyle(color: muted, fontSize: 12),
           ),
         ],
@@ -1068,7 +1060,7 @@ class _ShellState extends State<Shell> {
     const SizedBox(height: 20),
     OutlinedButton(
       onPressed: () => setState(() => tab = 3),
-      child: const Text('View or change preview plan'),
+      child: const Text('View or change plan'),
     ),
     const SizedBox(height: 20),
     panel(
@@ -1154,7 +1146,7 @@ class _ShellState extends State<Shell> {
     ),
     const SizedBox(height: 24),
     const Text(
-      'Tiffe v2 · UI preview\nReal OTP, payments, subscription pause, notifications, kitchen and delivery services are not connected yet.',
+      'Tiffe v3 · Demo',
       textAlign: TextAlign.center,
       style: TextStyle(color: muted, fontSize: 12),
     ),
@@ -1253,7 +1245,7 @@ class _SelectionPageState extends State<SelectionPage> {
       builder: (c) => AlertDialog(
         title: const Text('Your choices are saved'),
         content: Text(
-          '${dayLabel(widget.date)} · $quantity tiffin${quantity > 1 ? 's' : ''}\n${picked.map((ids) => ids.map((id) => menu.firstWhere((b) => b.id == id).name).join(' + ')).join('\n')}\n${extra == 0 ? '2 bhajis per tiffin included' : 'Extra bhajis: ₹$extra'}\n\nSaved on this device only. No kitchen order or payment has been sent.',
+          '${dayLabel(widget.date)} · $quantity tiffin${quantity > 1 ? 's' : ''}\n${picked.map((ids) => ids.map((id) => menu.firstWhere((b) => b.id == id).name).join(' + ')).join('\n')}\n${extra == 0 ? '2 bhajis per tiffin included' : 'Extra bhajis: ₹$extra'}',
         ),
         actions: [
           TextButton(
@@ -1336,9 +1328,7 @@ class _SelectionPageState extends State<SelectionPage> {
                             if (c.mounted) {
                               ScaffoldMessenger.of(c).showSnackBar(
                                 const SnackBar(
-                                  content: Text(
-                                    'My Usual saved on this device.',
-                                  ),
+                                  content: Text('My Usual saved.'),
                                 ),
                               );
                             }
@@ -1488,7 +1478,7 @@ class _SelectionPageState extends State<SelectionPage> {
                     child: Text(
                       widget.oneTime || widget.store.plan == Plan.none
                           ? 'Review tiffin'
-                          : 'Save choices · preview',
+                          : 'Save choices',
                     ),
                   ),
                 ),
@@ -1527,6 +1517,7 @@ class _CheckoutState extends State<Checkout> {
 
   int get extra =>
       widget.selections.fold(0, (sum, ids) => sum + Pricing.extras(ids.length));
+  int get delivery => Pricing.deliveryFor(widget.plan);
   int get base => widget.plan == Plan.none ? 80 : Pricing.monthly(widget.plan);
   Widget line(String text, String amount, {bool total = false}) => Padding(
     padding: const EdgeInsets.symmetric(vertical: 10),
@@ -1556,9 +1547,9 @@ class _CheckoutState extends State<Checkout> {
     final yes = await showDialog<bool>(
       context: context,
       builder: (c) => AlertDialog(
-        title: const Text('Preview only'),
+        title: const Text('Confirm your Tiffe'),
         content: Text(
-          '₹${base + extra + Pricing.delivery} shown including ₹199 delivery.\n\nNo payment is collected and no real order or subscription is created. ${widget.plan == Plan.none ? 'Your bhaji choices will be saved locally.' : 'This only activates the plan preview on this device.'}',
+          '₹${base + extra + delivery} including ₹$delivery ${widget.plan == Plan.none ? 'delivery' : 'monthly delivery'}.\n\nDemo checkout. No money is charged.',
         ),
         actions: [
           TextButton(
@@ -1567,7 +1558,7 @@ class _CheckoutState extends State<Checkout> {
           ),
           FilledButton(
             onPressed: () => Navigator.pop(c, true),
-            child: const Text('Continue preview'),
+            child: const Text('Continue'),
           ),
         ],
       ),
@@ -1585,13 +1576,17 @@ class _CheckoutState extends State<Checkout> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          widget.plan == Plan.none
-              ? 'Choices saved locally. No real order placed.'
-              : 'Plan preview activated. No charge or real subscription.',
+          widget.plan == Plan.none ? 'Choices saved.' : 'Your plan is ready.',
         ),
       ),
     );
-    Navigator.pop(context);
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (_) =>
+            PaymentSuccessPreview(plan: widget.plan, date: widget.date),
+      ),
+    );
   }
 
   @override
@@ -1610,7 +1605,7 @@ class _CheckoutState extends State<Checkout> {
         ),
         const SizedBox(height: 8),
         const Text(
-          'UI preview · no live payment method',
+          'Fresh food. Clear prices.',
           style: TextStyle(color: muted, fontSize: 13),
         ),
         const SizedBox(height: 24),
@@ -1663,15 +1658,22 @@ class _CheckoutState extends State<Checkout> {
               ),
               if (extra > 0) line('Extra bhajis', '₹$extra'),
               line('Subtotal', '₹${base + extra}'),
-              line('Delivery', '₹199'),
+              line(
+                widget.plan == Plan.none ? 'Delivery' : 'Delivery / month',
+                '₹$delivery',
+              ),
               const Divider(),
-              line('Total', '₹${base + extra + 199}', total: true),
+              line(
+                widget.plan == Plan.none ? 'Total' : 'Total / month',
+                '₹${base + extra + delivery}',
+                total: true,
+              ),
             ],
           ),
         ),
         const SizedBox(height: 10),
         const Text(
-          'Delivery is shown before confirmation. Subscription delivery billing frequency must be confirmed with the kitchen before the live checkout launches.',
+          'Delivery is ₹199/month for subscriptions and ₹20 for a one-time tiffin. Shown clearly before confirmation.',
           style: TextStyle(color: muted, fontSize: 12),
         ),
         const SizedBox(height: 20),
@@ -1688,10 +1690,7 @@ class _CheckoutState extends State<Checkout> {
                 '${widget.store.name}\n${widget.store.address}\n${widget.store.area}, Pune',
               ),
               const SizedBox(height: 8),
-              const Text(
-                'This is your locally saved preview address.',
-                style: TextStyle(color: muted, fontSize: 12),
-              ),
+              const Text('', style: TextStyle(color: muted, fontSize: 12)),
             ],
           ),
         ),
@@ -1709,16 +1708,353 @@ class _CheckoutState extends State<Checkout> {
         const ListTile(
           contentPadding: EdgeInsets.zero,
           leading: Icon(Icons.lock_outline, color: green),
-          title: Text('Payment is not connected'),
+          title: Text('Demo payment'),
           subtitle: Text('No card, UPI or wallet is charged in this build.'),
         ),
         const SizedBox(height: 18),
         FilledButton(
           onPressed: finish,
-          child: const Text('Confirm preview · no payment'),
+          child: const Text('Complete demo payment'),
         ),
         const SizedBox(height: 16),
       ],
+    ),
+  );
+}
+
+class DeliveryTrackingPreview extends StatefulWidget {
+  final Plan plan;
+  final DateTime date;
+  const DeliveryTrackingPreview({
+    super.key,
+    required this.plan,
+    required this.date,
+  });
+  @override
+  State<DeliveryTrackingPreview> createState() =>
+      _DeliveryTrackingPreviewState();
+}
+
+class _DeliveryTrackingPreviewState extends State<DeliveryTrackingPreview> {
+  Timer? timer;
+  bool? notificationsEnabled;
+  int minutes = 24;
+  Future<void> startNotifications() async {
+    try {
+      final enabled = await const MethodChannel('tiffe/delivery_notifications')
+          .invokeMethod<bool>('start');
+      if (mounted) setState(() => notificationsEnabled = enabled == true);
+    } catch (_) {
+      if (mounted) setState(() => notificationsEnabled = false);
+    }
+  }
+
+  String get status => minutes == 0
+      ? 'Tiffin arrived'
+      : minutes <= 18
+      ? 'Tiffin is coming'
+      : minutes <= 22
+      ? 'Tiffin left'
+      : 'Getting your Tiffe ready';
+  @override
+  void initState() {
+    super.initState();
+    startNotifications();
+    timer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!mounted) return;
+      if (minutes > 0) {
+        setState(() => minutes--);
+      } else {
+        timer?.cancel();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    body: SafeArea(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          children: [
+            const SizedBox(height: 8),
+            const Logo(size: 42),
+            const SizedBox(height: 20),
+            Container(
+              width: 72,
+              height: 72,
+              decoration: const BoxDecoration(
+                color: Color(0xFFE3EEDB),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.check_rounded, size: 44, color: green),
+            ),
+            const SizedBox(height: 18),
+            const Text(
+              'Your Tiffe journey',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 29,
+                fontWeight: FontWeight.w800,
+                color: ink,
+                letterSpacing: -.8,
+              ),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Your daily dabba is on its way.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: muted, fontSize: 15),
+            ),
+            const SizedBox(height: 20),
+            panel(
+              color: const Color(0xFFEFF3E8),
+              child: Column(
+                children: [
+                  Text(
+                    minutes == 0
+                        ? 'Your Tiffin has arrived!'
+                        : 'Will deliver in a few minutes',
+                    style: const TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w700,
+                      color: ink,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    minutes == 0 ? 'Enjoy your meal.' : '$minutes min',
+                    style: const TextStyle(
+                      fontSize: 38,
+                      fontWeight: FontWeight.w800,
+                      color: green,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    status,
+                    style: const TextStyle(
+                      color: green,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  LinearProgressIndicator(
+                    value: (24 - minutes) / 24,
+                    color: green,
+                    backgroundColor: const Color(0xFFD7E4CD),
+                    borderRadius: BorderRadius.circular(10),
+                    minHeight: 5,
+                  ),
+                  const SizedBox(height: 10),
+                  const Text(
+                    'Simulated delivery · 1 second = 1 minute',
+                    style: TextStyle(color: muted, fontSize: 11),
+                  ),
+                ],
+              ),
+            ),
+            if (notificationsEnabled == false)
+              const Padding(
+                padding: EdgeInsets.only(top: 10),
+                child: Text(
+                  'Phone notifications are off. Allow notifications in App settings for delivery alerts.',
+                  style: TextStyle(color: muted, fontSize: 12),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            const SizedBox(height: 14),
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 200),
+              child: Container(
+                key: ValueKey(status),
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  border: Border.all(color: const Color(0xFFE0E7D8)),
+                  borderRadius: BorderRadius.circular(18),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      minutes == 0
+                          ? Icons.notifications_active_outlined
+                          : Icons.delivery_dining,
+                      color: green,
+                      size: 30,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            status,
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          Text(
+                            minutes == 0
+                                ? 'Your Tiffe is here. Enjoy your meal!'
+                                : minutes <= 18
+                                ? 'A warm meal is getting closer.'
+                                : minutes <= 22
+                                ? 'Your dabba has left the kitchen.'
+                                : 'The kitchen is getting your dabba ready.',
+                            style: const TextStyle(color: muted, fontSize: 12),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 14),
+            panel(
+              child: Column(
+                children: [
+                  Text(
+                    widget.plan == Plan.none
+                        ? 'Your Tiffe'
+                        : widget.plan == Plan.daily
+                        ? 'Daily Tiffe'
+                        : 'Double Tiffe',
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  const Text(
+                    '3 chapatis · Rice · Your chosen bhajis',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: green, fontSize: 13),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Back to Tiffe'),
+              ),
+            ),
+            const SizedBox(height: 10),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+class PaymentSuccessPreview extends StatelessWidget {
+  final Plan plan;
+  final DateTime date;
+  const PaymentSuccessPreview({
+    super.key,
+    required this.plan,
+    required this.date,
+  });
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    body: SafeArea(
+      child: Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(28),
+          child: Column(
+            children: [
+              const Logo(size: 54),
+              const SizedBox(height: 40),
+              Container(
+                width: 108,
+                height: 108,
+                decoration: const BoxDecoration(
+                  color: Color(0xFFE3EEDB),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.check_rounded, size: 64, color: green),
+              ),
+              const SizedBox(height: 28),
+              const Text(
+                'Payment successful',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 32,
+                  fontWeight: FontWeight.w800,
+                  color: ink,
+                  letterSpacing: -.8,
+                ),
+              ),
+              const SizedBox(height: 10),
+              const Text(
+                'Your Tiffe is confirmed.\nA little home is on its way.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: muted, fontSize: 16),
+              ),
+              const SizedBox(height: 28),
+              panel(
+                child: Column(
+                  children: [
+                    Text(
+                      plan == Plan.none
+                          ? 'Your Tiffe'
+                          : plan == Plan.daily
+                          ? 'Daily Tiffe'
+                          : 'Double Tiffe',
+                      style: const TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    const Text(
+                      '3 chapatis · Rice · Your chosen bhajis',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: green, fontSize: 14),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 28),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: () => Navigator.pushReplacement(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) =>
+                          DeliveryTrackingPreview(plan: plan, date: date),
+                    ),
+                  ),
+                  child: const Text('Track my Tiffe'),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Back to Tiffe'),
+              ),
+              const SizedBox(height: 28),
+              const Text(
+                'Rozcha dabba. Tumchya choice cha.',
+                style: TextStyle(color: muted, fontSize: 13),
+              ),
+            ],
+          ),
+        ),
+      ),
     ),
   );
 }

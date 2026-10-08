@@ -2,6 +2,18 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:tiffe/domain/tiffin.dart';
 
 void main() {
+  test('delivery totals use monthly vs one-time scope', () {
+    expect(Pricing.oneTime + Pricing.deliveryFor(Plan.none), 100);
+    expect(
+      Pricing.oneTime + Pricing.extras(3) + Pricing.deliveryFor(Plan.none),
+      110,
+    );
+    expect(Pricing.monthly(Plan.daily) + Pricing.deliveryFor(Plan.daily), 1699);
+    expect(
+      Pricing.monthly(Plan.double) + Pricing.deliveryFor(Plan.double),
+      3199,
+    );
+  });
   test('two included and all extra counts correct', () {
     for (var i = 0; i <= 8; i++) {
       expect(Pricing.extras(i), i > 2 ? (i - 2) * 10 : 0);
@@ -12,7 +24,9 @@ void main() {
     expect(Pricing.monthly(Plan.double), 3000);
     expect(Pricing.quantity(Plan.double), 2);
     expect(Pricing.oneTime, 80);
-    expect(Pricing.delivery, 199);
+    expect(Pricing.deliveryFor(Plan.none), 20);
+    expect(Pricing.deliveryFor(Plan.daily), 199);
+    expect(Pricing.deliveryFor(Plan.double), 199);
   });
   test('Sunday sweet only active subscribers', () {
     final sunday = DateTime(2026, 10, 11);

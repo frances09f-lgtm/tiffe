@@ -80,6 +80,133 @@ void main() {
       ..addFont(rootBundle.load('assets/fonts/MaterialIcons-Regular.otf'));
     await icons.load();
   });
+  testWidgets('preview confirmation reaches success without payment', (
+    t,
+  ) async {
+    final s = await store();
+    await open(t, s);
+    final shellContext = t.element(find.byType(Shell));
+    Navigator.of(shellContext).push(
+      MaterialPageRoute(
+        builder: (_) => Checkout(
+          store: s,
+          plan: Plan.daily,
+          date: DateTime(2026, 10, 9),
+          selections: const [],
+        ),
+      ),
+    );
+    await t.pumpAndSettle();
+    await t.scrollUntilVisible(
+      find.text('Complete demo payment'),
+      250,
+      scrollable: find
+          .descendant(
+            of: find.byType(Checkout),
+            matching: find.byType(Scrollable),
+          )
+          .first,
+    );
+    await t.tap(find.text('Complete demo payment'));
+    await t.pumpAndSettle();
+    expect(find.text('Confirm your Tiffe'), findsOneWidget);
+    await t.tap(find.text('Continue'));
+    await t.pumpAndSettle();
+    expect(find.text('Payment successful'), findsOneWidget);
+    await t.tap(find.text('Back to Tiffe'));
+    await t.pumpAndSettle();
+    expect(find.byType(Shell), findsOneWidget);
+    expect(t.takeException(), isNull);
+  });
+  testWidgets('payment and tracking are separate screens', (t) async {
+    final s = await store();
+    await open(t, s);
+    final theme = Theme.of(t.element(find.byType(Shell)));
+    await t.pumpWidget(
+      RepaintBoundary(
+        child: MaterialApp(
+          debugShowCheckedModeBanner: false,
+          theme: theme,
+          home: PaymentSuccessPreview(
+            plan: Plan.daily,
+            date: DateTime(2026, 10, 9),
+          ),
+        ),
+      ),
+    );
+    await capture(t, 'payment-success-preview');
+    expect(find.text('Payment successful'), findsOneWidget);
+    expect(find.text('Will deliver in a few minutes'), findsNothing);
+    expect(find.text('Track my Tiffe'), findsOneWidget);
+    await t.tap(find.text('Track my Tiffe'));
+    await t.pumpAndSettle();
+    expect(find.text('Payment successful'), findsNothing);
+    expect(find.byType(DeliveryTrackingPreview), findsOneWidget);
+    await capture(t, 'tracking-preview');
+    await t.pump(const Duration(seconds: 2));
+    await t.pumpAndSettle();
+    expect(find.text('Tiffin left'), findsWidgets);
+    await capture(t, 'delivery-left-preview');
+    await t.pump(const Duration(seconds: 4));
+    await t.pumpAndSettle();
+    expect(find.text('Tiffin is coming'), findsWidgets);
+    await capture(t, 'delivery-coming-preview');
+    await t.pump(const Duration(seconds: 24));
+    await t.pumpAndSettle();
+    expect(find.text('Tiffin arrived'), findsWidgets);
+    await capture(t, 'delivery-arrived-preview');
+    expect(t.takeException(), isNull);
+    await t.pumpWidget(const SizedBox());
+  });
+  testWidgets('checkout prices monthly and one-time delivery', (t) async {
+    final s = await store();
+    await open(t, s);
+    final checkoutTheme = Theme.of(t.element(find.byType(Shell)));
+    t.view.physicalSize = const Size(430, 932);
+    t.view.devicePixelRatio = 1;
+    await t.pumpWidget(
+      RepaintBoundary(
+        child: MaterialApp(
+          debugShowCheckedModeBanner: false,
+          theme: checkoutTheme,
+          home: Checkout(
+            store: s,
+            plan: Plan.none,
+            date: DateTime(2026, 10, 9),
+            selections: const [
+              ['batata', 'matki', 'baingan'],
+            ],
+          ),
+        ),
+      ),
+    );
+    await capture(t, 'checkout-one-time');
+    expect(find.text('₹20'), findsOneWidget);
+    expect(find.text('₹110'), findsOneWidget);
+    expect(find.text('Delivery'), findsOneWidget);
+    expect(t.takeException(), isNull);
+    await t.pumpWidget(
+      RepaintBoundary(
+        child: MaterialApp(
+          debugShowCheckedModeBanner: false,
+          theme: checkoutTheme,
+          home: Checkout(
+            key: const ValueKey('monthly'),
+            store: s,
+            plan: Plan.daily,
+            date: DateTime(2026, 10, 9),
+            selections: const [],
+          ),
+        ),
+      ),
+    );
+    await capture(t, 'checkout-monthly');
+    expect(find.text('₹199'), findsOneWidget);
+    expect(find.text('₹1699'), findsOneWidget);
+    expect(find.text('Delivery / month'), findsOneWidget);
+    expect(find.text('Total / month'), findsOneWidget);
+    expect(t.takeException(), isNull);
+  });
   testWidgets('helpline contact and responsive screenshot', (t) async {
     final s = await store();
     await open(t, s);
@@ -126,7 +253,7 @@ void main() {
     expect(find.text('Extra bhaji +₹10'), findsOneWidget);
     await capture(t, 'selection-extra');
     expect(t.takeException(), isNull);
-    await t.tap(find.text('Save choices · preview'));
+    await t.tap(find.text('Save choices'));
     await t.pumpAndSettle();
     expect(find.text('Your choices are saved'), findsOneWidget);
     expect(s.selected(DateTime.now(), 0).length, 3);
@@ -154,7 +281,7 @@ void main() {
     await t.pumpAndSettle();
     await capture(t, 'otp');
     await t.enterText(find.byType(TextFormField), '123456');
-    await t.tap(find.text('Verify preview code'));
+    await t.tap(find.text('Verify code'));
     await t.pumpAndSettle();
     await capture(t, 'address');
     expect(t.takeException(), isNull);

@@ -13,7 +13,12 @@ class Bhaji {
 }
 
 class Pricing {
-  static const extraBhaji = 10, oneTime = 80, delivery = 199;
+  static const extraBhaji = 10,
+      oneTime = 80,
+      monthlyDelivery = 199,
+      oneTimeDelivery = 20;
+  static int deliveryFor(Plan plan) =>
+      plan == Plan.none ? oneTimeDelivery : monthlyDelivery;
   static int extras(int count) => count > 2 ? (count - 2) * extraBhaji : 0;
   static int monthly(Plan plan) => switch (plan) {
     Plan.daily => 1500,
