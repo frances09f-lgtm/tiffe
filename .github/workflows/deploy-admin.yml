@@ -1,6 +1,8 @@
 name: Deploy Tiffe Admin
 on:
   workflow_dispatch:
+  push:
+    branches: [admin-web]
 permissions:
   contents: read
   pages: write
