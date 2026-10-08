@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 
+import 'scheduled_tracking.dart';
+import '../domain/delivery_schedule.dart';
+
 import '../data/store.dart';
 import '../domain/tiffin.dart';
 import 'app.dart' show green, cream, ink, muted, panel, dayLabel, SelectionPage;
@@ -151,7 +154,13 @@ class SubscriberOrders extends StatelessWidget {
                 ),
               ),
             ),
-            pill(future ? 'Scheduled' : 'Preparing'),
+            pill(
+              future
+                  ? 'Scheduled'
+                  : DeliverySchedule.status(now) == 'Scheduled'
+                  ? 'Preparing'
+                  : DeliverySchedule.status(now),
+            ),
           ],
         ),
         const SizedBox(height: 4),
@@ -263,6 +272,17 @@ class SubscriberOrders extends StatelessWidget {
               const SizedBox(height: 10),
             ],
           ),
+        ),
+        SizedBox(height: 14),
+        OutlinedButton.icon(
+          onPressed: () => Navigator.push(
+            c,
+            MaterialPageRoute(
+              builder: (_) => ScheduledTracking(plan: store.plan),
+            ),
+          ),
+          icon: const Icon(Icons.delivery_dining),
+          label: const Text('Track daily delivery · 8 PM'),
         ),
         label('Today'),
         dayCard(c, today, future: false),

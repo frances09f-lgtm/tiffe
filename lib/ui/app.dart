@@ -7,6 +7,8 @@ import 'package:url_launcher/url_launcher.dart';
 import '../data/store.dart';
 import '../domain/tiffin.dart';
 import 'subscriber_orders.dart';
+import 'scheduled_tracking.dart';
+import '../domain/delivery_schedule.dart';
 
 const cream = Color(0xFFFAF8F0),
     green = Color(0xFF285A3F),
@@ -409,6 +411,73 @@ class Shell extends StatefulWidget {
 class _ShellState extends State<Shell> {
   int tab = 0;
   bool tomorrow = false;
+  Timer? dailyTimer;
+  String? openedJourney;
+  Plan? scheduledPlan;
+  Future<void> syncDailyReminders() async {
+    if (scheduledPlan == widget.store.plan) return;
+    scheduledPlan = widget.store.plan;
+    try {
+      await const MethodChannel('tiffe/delivery_notifications')
+          .invokeMethod<bool>(
+            widget.store.plan == Plan.none ? 'cancelDaily' : 'scheduleDaily',
+          );
+    } catch (_) {
+      /* Device reminders are unavailable on non-Android builds. */
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    widget.store.addListener(syncDailyReminders);
+    syncDailyReminders();
+    dailyTimer = Timer.periodic(
+      const Duration(seconds: 1),
+      (_) => checkDailyJourney(),
+    );
+  }
+
+  bool checkingJourney = false;
+  Future<void> checkDailyJourney() async {
+    if (checkingJourney ||
+        !mounted ||
+        WidgetsBinding.instance.lifecycleState != AppLifecycleState.resumed ||
+        ModalRoute.of(context)?.isCurrent != true ||
+        widget.store.plan == Plan.none) {
+      return;
+    }
+    checkingJourney = true;
+    bool tapped = false;
+    try {
+      tapped =
+          await const MethodChannel('tiffe/delivery_notifications')
+              .invokeMethod<bool>('consumeDailyTap') ??
+          false;
+    } catch (_) {}
+    checkingJourney = false;
+    final now = DateTime.now();
+    final key = DeliverySchedule.departure(now).toIso8601String();
+    if (mounted &&
+        (tapped || (DeliverySchedule.inJourney(now) && openedJourney != key)) &&
+        ModalRoute.of(context)?.isCurrent == true) {
+      openedJourney = key;
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => ScheduledTracking(plan: widget.store.plan),
+        ),
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    widget.store.removeListener(syncDailyReminders);
+    dailyTimer?.cancel();
+    super.dispose();
+  }
+
   DateTime get date => DateTime.now().add(Duration(days: tomorrow ? 1 : 0));
   @override
   Widget build(BuildContext c) => ListenableBuilder(

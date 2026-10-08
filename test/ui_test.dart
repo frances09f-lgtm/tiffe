@@ -10,6 +10,8 @@ import 'package:tiffe/data/store.dart';
 import 'package:tiffe/domain/tiffin.dart';
 import 'package:tiffe/ui/app.dart';
 import 'package:tiffe/ui/subscriber_orders.dart';
+import 'package:tiffe/ui/scheduled_tracking.dart';
+import 'package:tiffe/domain/delivery_schedule.dart';
 
 Future<TiffeStore> store({bool onboarded = true}) async {
   SharedPreferences.setMockInitialValues({});
@@ -80,6 +82,93 @@ void main() {
     final icons = FontLoader('MaterialIcons')
       ..addFont(rootBundle.load('assets/fonts/MaterialIcons-Regular.otf'));
     await icons.load();
+  });
+  testWidgets(
+    'daily notification tap opens tracker and plan removal cancels alarms',
+    (t) async {
+      const channel = MethodChannel('tiffe/delivery_notifications');
+      final calls = <String>[];
+      bool pendingTap = true;
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (call) async {
+            calls.add(call.method);
+            if (call.method == 'consumeDailyTap') {
+              final tapped = pendingTap;
+              pendingTap = false;
+              return tapped;
+            }
+            return true;
+          });
+      final s = await store();
+      t.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await open(t, s);
+      await t.pump(const Duration(seconds: 1));
+      await t.pumpAndSettle();
+      expect(calls, contains('scheduleDaily'));
+      expect(find.byType(ScheduledTracking), findsOneWidget);
+      await t.tap(find.text('Back to my Tiffe'));
+      await t.pumpAndSettle();
+      s.plan = Plan.none;
+      await s.save();
+      await t.pump();
+      expect(calls, contains('cancelDaily'));
+      await t.pumpWidget(const SizedBox());
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, null);
+    },
+  );
+  test('daily schedule uses Pune 8 PM across device zones', () {
+    expect(
+      DeliverySchedule.status(DateTime.utc(2026, 10, 9, 14, 29, 59)),
+      'Scheduled',
+    );
+    expect(
+      DeliverySchedule.status(DateTime.utc(2026, 10, 9, 14, 30)),
+      'Tiffe left',
+    );
+    expect(
+      DeliverySchedule.status(DateTime.utc(2026, 10, 9, 14, 36)),
+      'On the way',
+    );
+    expect(
+      DeliverySchedule.status(DateTime.utc(2026, 10, 9, 14, 54)),
+      'Tiffe arrived',
+    );
+    expect(
+      DeliverySchedule.remainingMinutes(DateTime.utc(2026, 10, 9, 14, 40)),
+      14,
+    );
+    expect(
+      DeliverySchedule.status(DateTime.utc(2026, 10, 10, 14, 30)),
+      'Tiffe left',
+    );
+  });
+  testWidgets('daily scheduled tracking screenshots', (t) async {
+    final s = await store();
+    await open(t, s);
+    final theme = Theme.of(t.element(find.byType(Shell)));
+    for (final entry in [
+      ('scheduled', DateTime.utc(2026, 10, 9, 14, 25)),
+      ('left', DateTime.utc(2026, 10, 9, 14, 30)),
+      ('on-way', DateTime.utc(2026, 10, 9, 14, 44)),
+      ('arrived', DateTime.utc(2026, 10, 9, 14, 54)),
+    ]) {
+      await t.pumpWidget(
+        RepaintBoundary(
+          child: MaterialApp(
+            theme: theme,
+            debugShowCheckedModeBanner: false,
+            home: ScheduledTracking(
+              key: UniqueKey(),
+              plan: Plan.daily,
+              clock: entry.$2,
+            ),
+          ),
+        ),
+      );
+      await capture(t, 'daily-tracking-${entry.$1}');
+      expect(t.takeException(), isNull);
+    }
   });
   test('subscriber cutoff locks at 9 AM on delivery date', () {
     final day = DateTime(2026, 10, 10);
