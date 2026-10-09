@@ -104,7 +104,8 @@ void main() {
                   as RenderRepaintBoundary)
               .toImage();
       final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
-      await File('/downloads/tiffe-v16-onboarding.png')
+      await Directory('test-artifacts').create(recursive: true);
+      await File('test-artifacts/tiffe-v16-onboarding.png')
           .writeAsBytes(bytes!.buffer.asUint8List());
     });
     await t.enterText(find.byType(TextField).at(0), 'Test customer');
@@ -136,7 +137,8 @@ void main() {
                   as RenderRepaintBoundary)
               .toImage();
       final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
-      await File('/downloads/tiffe-v16-profile.png')
+      await Directory('test-artifacts').create(recursive: true);
+      await File('test-artifacts/tiffe-v16-profile.png')
           .writeAsBytes(bytes!.buffer.asUint8List());
     });
     expect(t.takeException(), isNull);
