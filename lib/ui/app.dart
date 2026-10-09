@@ -113,7 +113,8 @@ String dayLabel(DateTime d) {
 
 class TiffeApp extends StatelessWidget {
   final TiffeStore store;
-  const TiffeApp({super.key, required this.store});
+  final Widget? startScreen;
+  const TiffeApp({super.key, required this.store, this.startScreen});
   @override
   Widget build(BuildContext context) => ListenableBuilder(
     listenable: store,
@@ -172,7 +173,7 @@ class TiffeApp extends StatelessWidget {
           contentPadding: const EdgeInsets.all(18),
         ),
       ),
-      home: Splash(store: store),
+      home: startScreen ?? Splash(store: store),
     ),
   );
 }
@@ -1398,11 +1399,13 @@ class SelectionPage extends StatefulWidget {
   final TiffeStore store;
   final DateTime date;
   final bool oneTime;
+  final DateTime? clock;
   const SelectionPage({
     super.key,
     required this.store,
     required this.date,
     this.oneTime = false,
+    this.clock,
   });
   @override
   State<SelectionPage> createState() => _SelectionPageState();
@@ -1411,13 +1414,23 @@ class SelectionPage extends StatefulWidget {
 class _SelectionPageState extends TiffeState<SelectionPage> {
   int tiffin = 0;
   late List<List<String>> picked;
+  late DateTime deliveryDate;
+  bool movedToTomorrow = false;
+  DateTime get now => widget.clock ?? DateTime.now();
   int get quantity => widget.oneTime ? 1 : Pricing.quantity(widget.store.plan);
   @override
   void initState() {
     super.initState();
+    deliveryDate = widget.date;
+    if (!widget.oneTime &&
+        widget.store.plan != Plan.none &&
+        !canChangeBhaji(deliveryDate, now)) {
+      deliveryDate = DateTime(now.year, now.month, now.day + 1);
+      movedToTomorrow = true;
+    }
     picked = List.generate(
       quantity,
-      (i) => widget.store.selected(widget.date, i),
+      (i) => widget.store.selected(deliveryDate, i),
     );
   }
 
@@ -1444,7 +1457,7 @@ class _SelectionPageState extends TiffeState<SelectionPage> {
   Future<void> confirm() async {
     if (!widget.oneTime &&
         widget.store.plan != Plan.none &&
-        !canChangeBhaji(widget.date, DateTime.now())) {
+        !canChangeBhaji(deliveryDate, now)) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Selection cutoff has passed for this delivery.'),
@@ -1465,7 +1478,7 @@ class _SelectionPageState extends TiffeState<SelectionPage> {
           builder: (_) => Checkout(
             store: widget.store,
             plan: Plan.none,
-            date: widget.date,
+            date: deliveryDate,
             selections: picked,
           ),
         ),
@@ -1473,7 +1486,7 @@ class _SelectionPageState extends TiffeState<SelectionPage> {
       return;
     }
     for (var i = 0; i < picked.length; i++) {
-      await widget.store.saveSelection(widget.date, i, picked[i]);
+      await widget.store.saveSelection(deliveryDate, i, picked[i]);
     }
     if (!mounted) return;
     await showDialog(
@@ -1481,7 +1494,7 @@ class _SelectionPageState extends TiffeState<SelectionPage> {
       builder: (c) => AlertDialog(
         title: Text('Your choices are saved'),
         content: Text(
-          '${dayLabel(widget.date)} · $quantity tiffin${quantity > 1 ? 's' : ''}\n${picked.map((ids) => ids.map((id) => menu.firstWhere((b) => b.id == id).name).join(' + ')).join('\n')}\n${extra == 0 ? '2 bhajis per tiffin included' : 'Extra bhajis: ₹$extra'}',
+          '${dayLabel(deliveryDate)} · $quantity tiffin${quantity > 1 ? 's' : ''}\n${picked.map((ids) => ids.map((id) => menu.firstWhere((b) => b.id == id).name).join(' + ')).join('\n')}\n${extra == 0 ? '2 bhajis per tiffin included' : 'Extra bhajis: ₹$extra'}',
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(c), child: Text('Done')),
@@ -1505,13 +1518,26 @@ class _SelectionPageState extends TiffeState<SelectionPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              if (movedToTomorrow) ...[
+                Text(
+                  "Today's menu is locked - you're picking for tomorrow",
+                  style: TextStyle(
+                    color: tgreen,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 12,
+                  ),
+                ),
+                SizedBox(height: 10),
+              ],
               Row(
                 children: [
-                  Text(
-                    '${dayLabel(widget.date)} · ${widget.oneTime ? 'One-time Tiffe' : 'Your daily dabba'}',
-                    style: TextStyle(color: tmuted, fontSize: 12),
+                  Expanded(
+                    child: Text(
+                      '${dayLabel(deliveryDate)} · ${widget.oneTime ? 'One-time Tiffe' : 'Your daily dabba'}',
+                      style: TextStyle(color: tmuted, fontSize: 12),
+                    ),
                   ),
-                  Spacer(),
+                  SizedBox(width: 8),
                   Text(
                     '${selected.length} / 2 selected',
                     style: TextStyle(
@@ -1544,14 +1570,15 @@ class _SelectionPageState extends TiffeState<SelectionPage> {
                 ),
               ],
               SizedBox(height: 10),
-              Row(
+              Wrap(
+                alignment: WrapAlignment.spaceBetween,
+                spacing: 12,
                 children: [
                   TextButton.icon(
                     onPressed: usual,
                     icon: Icon(Icons.favorite_border, size: 18),
                     label: Text('Use My Usual'),
                   ),
-                  Spacer(),
                   TextButton(
                     onPressed: selected.length < 2
                         ? null
@@ -1578,7 +1605,8 @@ class _SelectionPageState extends TiffeState<SelectionPage> {
               crossAxisCount: 2,
               crossAxisSpacing: 14,
               mainAxisSpacing: 14,
-              mainAxisExtent: 228,
+              mainAxisExtent:
+                  130 + 98 * MediaQuery.textScalerOf(c).scale(1).clamp(1, 2),
             ),
             itemCount: 8,
             itemBuilder: (c, i) {
@@ -1595,7 +1623,7 @@ class _SelectionPageState extends TiffeState<SelectionPage> {
                   child: AnimatedContainer(
                     duration: Duration(milliseconds: 180),
                     decoration: BoxDecoration(
-                      color: checked ? Color(0xFFEFF3E8) : surface,
+                      color: checked ? tone(Color(0xFFEFF3E8)) : surface,
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(
                         color: checked ? tgreen : Color(0xFFE4E8DC),
@@ -1636,7 +1664,7 @@ class _SelectionPageState extends TiffeState<SelectionPage> {
                                 ),
                                 child: Icon(
                                   checked ? Icons.check : Icons.add,
-                                  color: checked ? Colors.white : tgreen,
+                                  color: checked ? onAccent : green,
                                   size: 18,
                                 ),
                               ),
@@ -1647,7 +1675,11 @@ class _SelectionPageState extends TiffeState<SelectionPage> {
                           padding: EdgeInsets.fromLTRB(12, 10, 10, 0),
                           child: Text(
                             b.name,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
                             style: TextStyle(
+                              color: tink,
+                              height: 1.2,
                               fontWeight: FontWeight.w700,
                               fontSize: 14,
                             ),
@@ -1686,13 +1718,15 @@ class _SelectionPageState extends TiffeState<SelectionPage> {
               children: [
                 Row(
                   children: [
-                    Text(
-                      extra == 0
-                          ? '2 bhajis per tiffin included'
-                          : 'Extra bhaji +₹$extra',
-                      style: TextStyle(fontWeight: FontWeight.w700),
+                    Expanded(
+                      child: Text(
+                        extra == 0
+                            ? '2 bhajis per tiffin included'
+                            : 'Extra bhaji +₹$extra',
+                        style: TextStyle(fontWeight: FontWeight.w700),
+                      ),
                     ),
-                    Spacer(),
+                    SizedBox(width: 8),
                     Text(
                       '${picked.fold<int>(0, (sum, p) => sum + p.length)} selected',
                       style: TextStyle(color: tmuted, fontSize: 12),
@@ -1798,10 +1832,9 @@ class _CheckoutState extends TiffeState<Checkout> {
     if (widget.plan != Plan.none) {
       widget.store.plan = widget.plan;
       await widget.store.save();
-    } else {
-      for (var i = 0; i < widget.selections.length; i++) {
-        await widget.store.saveSelection(widget.date, i, widget.selections[i]);
-      }
+    }
+    for (var i = 0; i < widget.selections.length; i++) {
+      await widget.store.saveSelection(widget.date, i, widget.selections[i]);
     }
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
