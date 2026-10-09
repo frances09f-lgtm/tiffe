@@ -2412,8 +2412,13 @@ class _EditProfilePageState extends TiffeState<EditProfilePage> {
     await widget.store.save();
     if (!mounted) return;
     Navigator.pop(context);
-    ScaffoldMessenger.of(context)
-        .showSnackBar(const SnackBar(content: Text('Profile saved.')));
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Profile updated successfully'),
+        duration: Duration(seconds: 2),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
   }
 
   @override

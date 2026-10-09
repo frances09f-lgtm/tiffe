@@ -1,0 +1,1 @@
+Owner exact save-profile feedback: floating SnackBar Profile updated successfully for2seconds.31tests/analyze clean and original profile/logout behavior retained. Narrowapp.dartpatch, no auth/backend/native/CI/signing changes. Local APK caveats remain.
