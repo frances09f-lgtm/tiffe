@@ -59,6 +59,31 @@ class OwnerBackend extends TiffeBackend {
     advancedTo = status;
     advancedEta = eta;
   }
+  @override
+  Future<List<Map<String, dynamic>>> allSubscriptions() async => subs;
+  @override
+  Future<List<Map<String, dynamic>>> customers() async => [
+    {'id': 'cust-1', 'name': 'Asha', 'phone': '9898989898', 'area': 'Baner'},
+  ];
+  @override
+  Future<void> saveSubscription({
+    required String customerId,
+    required String plan,
+    required String startsOn,
+    required String endsOn,
+    required bool verified,
+  }) async {
+    savedSub = {
+      'customer_id': customerId,
+      'plan': plan,
+      'starts_on': startsOn,
+      'ends_on': endsOn,
+      'verified': verified,
+    };
+    subs.add(savedSub!);
+  }
+  List<Map<String, dynamic>> subs = [];
+  Map<String, dynamic>? savedSub;
 }
 
 void main() {
@@ -106,5 +131,45 @@ void main() {
     await t.pumpAndSettle();
     expect(b.advancedTo, 'Out for Delivery');
     expect(b.advancedEta, isNotNull);
+  });
+
+  testWidgets('owner adds a verified subscription for a customer', (t) async {
+    SharedPreferences.setMockInitialValues({});
+    final s = TiffeStore(await SharedPreferences.getInstance());
+    t.view.physicalSize = const Size(430, 1400);
+    t.view.devicePixelRatio = 1;
+    final b = OwnerBackend();
+    await t.pumpWidget(
+      TiffeApp(
+        store: s,
+        startScreen: LiveWorkspace(backend: b, store: s, role: 'owner'),
+      ),
+    );
+    await t.pumpAndSettle();
+    await t.tap(find.text('Plans').last);
+    await t.pumpAndSettle();
+    expect(find.text('No subscriptions yet'), findsOneWidget);
+    await t.tap(find.text('Add subscription'));
+    await t.pumpAndSettle();
+    await t.tap(find.text('Customer'));
+    await t.pumpAndSettle();
+    await t.tap(find.textContaining('Asha').last);
+    await t.pumpAndSettle();
+    await t.enterText(
+      find.widgetWithText(TextField, 'Starts on (YYYY-MM-DD)'),
+      '2026-10-10',
+    );
+    await t.enterText(
+      find.widgetWithText(TextField, 'Ends on (YYYY-MM-DD)'),
+      '2026-11-09',
+    );
+    await t.tap(find.text('Save'));
+    await t.pumpAndSettle();
+    expect(b.savedSub, isNotNull);
+    expect(b.savedSub!['plan'], 'daily');
+    expect(b.savedSub!['verified'], true);
+    expect(find.text('Asha'), findsOneWidget);
+    expect(find.textContaining('2026-10-10 to 2026-11-09'), findsOneWidget);
+    expect(find.text('Payment verified'), findsOneWidget);
   });
 }

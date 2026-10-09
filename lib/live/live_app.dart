@@ -835,6 +835,206 @@ class _LiveWorkspaceState extends State<LiveWorkspace> {
                 .toList(),
           );
   });
+  int plansVersion = 0;
+
+  Future<void> editSubscription() async {
+    List<Map<String, dynamic>> customers;
+    try {
+      customers = await widget.backend.customers();
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not load customers. Try again.')),
+        );
+      }
+      return;
+    }
+    if (!mounted) return;
+    if (customers.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No customer profiles yet.')),
+      );
+      return;
+    }
+    String? customerId;
+    String plan = 'daily';
+    bool verified = true, busy = false;
+    String? error;
+    final start = TextEditingController(), end = TextEditingController();
+    await showDialog(
+      context: context,
+      builder: (c) => StatefulBuilder(
+        builder: (c, set) => AlertDialog(
+          title: const Text('Add subscription'),
+          content: SizedBox(
+            width: 320,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                DropdownButtonFormField<String>(
+                  initialValue: customerId,
+                  isExpanded: true,
+                  decoration: const InputDecoration(labelText: 'Customer'),
+                  items: customers
+                      .map(
+                        (cu) => DropdownMenuItem(
+                          value: cu['id'] as String,
+                          child: Text(
+                            '${cu['name'] ?? 'Unnamed'} · ${cu['phone'] ?? ''}',
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: busy ? null : (v) => set(() => customerId = v),
+                ),
+                DropdownButtonFormField<String>(
+                  initialValue: plan,
+                  decoration: const InputDecoration(labelText: 'Plan'),
+                  items: const [
+                    DropdownMenuItem(value: 'daily', child: Text('Daily Tiffe')),
+                    DropdownMenuItem(value: 'double', child: Text('Double Tiffe')),
+                  ],
+                  onChanged: busy ? null : (v) => set(() => plan = v ?? 'daily'),
+                ),
+                TextField(
+                  controller: start,
+                  decoration: const InputDecoration(
+                    labelText: 'Starts on (YYYY-MM-DD)',
+                  ),
+                ),
+                TextField(
+                  controller: end,
+                  decoration: const InputDecoration(
+                    labelText: 'Ends on (YYYY-MM-DD)',
+                  ),
+                ),
+                SwitchListTile(
+                  title: const Text('Payment verified'),
+                  value: verified,
+                  onChanged: busy ? null : (v) => set(() => verified = v),
+                ),
+                if (error != null)
+                  Text(error!, style: const TextStyle(color: Colors.redAccent)),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: busy ? null : () => Navigator.pop(c),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: busy
+                  ? null
+                  : () async {
+                      final dateOk = RegExp(r'^\d{4}-\d{2}-\d{2}$');
+                      if (customerId == null ||
+                          !dateOk.hasMatch(start.text.trim()) ||
+                          !dateOk.hasMatch(end.text.trim())) {
+                        set(() => error = 'Pick a customer and valid dates.');
+                        return;
+                      }
+                      set(() {
+                        busy = true;
+                        error = null;
+                      });
+                      try {
+                        await widget.backend.saveSubscription(
+                          customerId: customerId!,
+                          plan: plan,
+                          startsOn: start.text.trim(),
+                          endsOn: end.text.trim(),
+                          verified: verified,
+                        );
+                        if (c.mounted) Navigator.pop(c);
+                        if (mounted) setState(() => plansVersion++);
+                      } catch (_) {
+                        if (c.mounted) {
+                          set(() {
+                            busy = false;
+                            error = 'Could not save. Try again.';
+                          });
+                        }
+                      }
+                    },
+              child: Text(busy ? 'Saving...' : 'Save'),
+            ),
+          ],
+        ),
+      ),
+    );
+    Future.delayed(const Duration(milliseconds: 400), () {
+      start.dispose();
+      end.dispose();
+    });
+  }
+
+  Widget plansAdmin() => FutureBuilder<List<List<Map<String, dynamic>>>>(
+    key: ValueKey(plansVersion),
+    future: Future.wait([widget.backend.allSubscriptions(), widget.backend.customers()]),
+    builder: (c, s) {
+      if (s.hasError) {
+        return empty(
+          'Could not load plans',
+          'Check your connection and try again.',
+          Icons.cloud_off,
+        );
+      }
+      if (!s.hasData) {
+        return const Center(
+          child: Padding(
+            padding: EdgeInsets.all(30),
+            child: CircularProgressIndicator(),
+          ),
+        );
+      }
+      final subs = s.data![0];
+      final names = {for (final cu in s.data![1]) cu['id']: cu['name']};
+      return Column(
+        children: [
+          ...subs.map(
+            (p) => Padding(
+              padding: const EdgeInsets.only(bottom: 14),
+              child: panel(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      names[p['customer_id']] as String? ?? 'Unknown customer',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 18,
+                      ),
+                    ),
+                    Text(
+                      '${p['plan'] == 'double' ? 'Double Tiffe' : 'Daily Tiffe'} · ${p['starts_on']} to ${p['ends_on']}',
+                    ),
+                    Text(
+                      p['verified'] == true ? 'Payment verified' : 'Unverified',
+                      style: TextStyle(color: palette(c).muted),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          if (subs.isEmpty)
+            empty(
+              'No subscriptions yet',
+              'Add one after a customer pays for a monthly plan.',
+              Icons.calendar_month_outlined,
+            ),
+          FilledButton.icon(
+            onPressed: editSubscription,
+            icon: const Icon(Icons.add),
+            label: const Text('Add subscription'),
+          ),
+        ],
+      );
+    },
+  );
+
   Widget orderCta() => Padding(
     padding: const EdgeInsets.only(top: 8),
     child: FilledButton.icon(
@@ -1009,7 +1209,7 @@ class _LiveWorkspaceState extends State<LiveWorkspace> {
   Widget build(BuildContext c) {
     final admin = widget.role != null;
     final titles = admin
-        ? ['Kitchen overview', 'Menu', 'Orders', 'Workspace']
+        ? ['Kitchen overview', 'Menu', 'Orders', 'Plans', 'Workspace']
         : [
             'Today\'s Tiffe',
             'Menu',
@@ -1056,7 +1256,8 @@ class _LiveWorkspaceState extends State<LiveWorkspace> {
             if (tab == 1) ...[menus(), if (!admin) orderCta()],
             if (tab == 2) orders(),
             if (tab == 3 && !admin) plan(),
-            if (tab == (admin ? 3 : 4)) profile(),
+            if (tab == 3 && admin) plansAdmin(),
+            if (tab == (admin ? 4 : 4)) profile(),
           ],
         ),
       ),
@@ -1080,6 +1281,11 @@ class _LiveWorkspaceState extends State<LiveWorkspace> {
             const NavigationDestination(
               icon: Icon(Icons.calendar_month_outlined),
               label: 'Plan',
+            ),
+          if (admin)
+            const NavigationDestination(
+              icon: Icon(Icons.card_membership_outlined),
+              label: 'Plans',
             ),
           const NavigationDestination(
             icon: Icon(Icons.person_outline),

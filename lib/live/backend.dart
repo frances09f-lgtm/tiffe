@@ -122,6 +122,28 @@ class TiffeBackend {
     )) as String;
   }
 
+  Future<List<Map<String, dynamic>>> customers() async =>
+      client.from('profiles').select('id, name, phone, area');
+
+  Future<List<Map<String, dynamic>>> allSubscriptions() async => client
+      .from('subscriptions')
+      .select()
+      .order('starts_on', ascending: false);
+
+  Future<void> saveSubscription({
+    required String customerId,
+    required String plan,
+    required String startsOn,
+    required String endsOn,
+    required bool verified,
+  }) async => client.from('subscriptions').insert({
+    'customer_id': customerId,
+    'plan': plan,
+    'starts_on': startsOn,
+    'ends_on': endsOn,
+    'verified': verified,
+  });
+
   Future<void> verifyPayment(String orderId) async =>
       client.rpc('verify_payment', params: {'p_order': orderId});
 
