@@ -113,7 +113,8 @@ String dayLabel(DateTime d) {
 
 class TiffeApp extends StatelessWidget {
   final TiffeStore store;
-  const TiffeApp({super.key, required this.store});
+  final Widget? startScreen;
+  const TiffeApp({super.key, required this.store, this.startScreen});
   @override
   Widget build(BuildContext context) => ListenableBuilder(
     listenable: store,
@@ -172,7 +173,7 @@ class TiffeApp extends StatelessWidget {
           contentPadding: const EdgeInsets.all(18),
         ),
       ),
-      home: Splash(store: store),
+      home: startScreen ?? Splash(store: store),
     ),
   );
 }
