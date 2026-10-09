@@ -96,6 +96,8 @@ void main() {
     await capture(t, 'live-menu-empty');
     await t.tap(find.text('Orders').last);
     await t.pumpAndSettle();
+    await t.scrollUntilVisible(find.text('No orders yet'), 500, scrollable: find.byType(Scrollable).first);
+    await t.pumpAndSettle();
     expect(find.text('No orders yet'), findsOneWidget);
     expect(find.text('Delivered'), findsNothing);
     await capture(t, 'live-orders-empty');

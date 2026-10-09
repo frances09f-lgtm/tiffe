@@ -114,15 +114,17 @@ void main() {
       ),
     );
     await shot(t, 'v19-order-review');
-    await t.drag(find.byType(SingleChildScrollView), const Offset(0, -550));
+    await t.drag(find.byType(ListView), const Offset(0, -550));
     await t.pump();
     await shot(t, 'v19-order-review-bill');
     await t.ensureVisible(find.text('Add a second tiffin'));
     await t.pumpAndSettle();
     await t.tap(find.text('Add a second tiffin'));
     await t.pumpAndSettle();
-    expect(find.text('To pay · ₹180'), findsOneWidget);
-    expect(find.text('Delivery · ₹20'), findsOneWidget);
+    expect(find.text('₹180'), findsWidgets);
+    expect(find.text('To pay'), findsOneWidget);
+    expect(find.text('Delivery'), findsOneWidget);
+    expect(find.text('₹20'), findsOneWidget);
     expect(t.takeException(), isNull);
   });
   testWidgets(

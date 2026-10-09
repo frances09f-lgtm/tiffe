@@ -1654,7 +1654,7 @@ class _LiveWorkspaceState extends State<LiveWorkspace> {
                 runSpacing: 6,
                 children: [
                   for (final l in [
-                    ['Delivered', const Color(0xFF012D1D)],
+                    if (completed > 0) ['Delivered', const Color(0xFF012D1D)],
                     ['Today', const Color(0xFFFF8843)],
                     ['Order placed', const Color(0xFF9E4300)],
                   ])
@@ -1779,7 +1779,7 @@ class _LiveWorkspaceState extends State<LiveWorkspace> {
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         itemCount: 7,
-        separatorBuilder: (_, __) => const SizedBox(width: 8),
+        separatorBuilder: (_, _) => const SizedBox(width: 8),
         itemBuilder: (_, i) {
           final d = now.add(Duration(days: i));
           final today = i == 0;
@@ -2779,15 +2779,19 @@ class _LiveWorkspaceState extends State<LiveWorkspace> {
   );
 
   Future<void> openOrder({String? date}) async {
-    final placed = await showModalBottomSheet<bool>(
-      context: routeContext,
-      isScrollControlled: true,
-      builder: (c) => OrderSheet(
-        backend: widget.backend,
-        cfg: cfg!,
-        menuRows: menuRows,
-        subscription: activeSubscription,
-        date: date,
+    final placed = await Navigator.of(routeContext).push<bool>(
+      MaterialPageRoute<bool>(
+        builder: (c) => OrderSheet(
+          backend: widget.backend,
+          cfg: cfg!,
+          menuRows: menuRows,
+          subscription: activeSubscription,
+          date: date,
+          customerName: name.text.trim(),
+          phone: phone.text.trim(),
+          area: area.text.trim(),
+          address: address.text.trim(),
+        ),
       ),
     );
     if (placed == true && mounted) {
@@ -3855,6 +3859,7 @@ class OrderSheet extends StatefulWidget {
   final List<Map<String, dynamic>> menuRows;
   final Map<String, dynamic>? subscription;
   final String? date;
+  final String customerName, phone, area, address;
   const OrderSheet({
     super.key,
     required this.backend,
@@ -3862,6 +3867,10 @@ class OrderSheet extends StatefulWidget {
     required this.menuRows,
     this.subscription,
     this.date,
+    this.customerName = '',
+    this.phone = '',
+    this.area = '',
+    this.address = '',
   });
   @override
   State<OrderSheet> createState() => _OrderSheetState();
@@ -3961,183 +3970,329 @@ class _OrderSheetState extends State<OrderSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final available = widget.cfg;
-    final extra = (available['extra_bhaji_paise'] as int? ?? 0) ~/ 100;
-    return Padding(
-      padding: EdgeInsets.only(
-        left: 24,
-        right: 24,
-        top: 24,
-        bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+    final c = context;
+    final dark = Theme.of(c).brightness == Brightness.dark;
+    final surface = dark ? const Color(0xFF202D24) : Colors.white;
+    final box = dark ? const Color(0xFF2C3D30) : const Color(0xFFF3F3F6);
+    final muted = palette(c).muted;
+    final extra = (widget.cfg['extra_bhaji_paise'] as int? ?? 0) ~/ 100;
+    final rows = widget.menuRows.where((m) => m['available'] == true).toList();
+    final extras =
+        tiffins.fold<int>(
+          0,
+          (sum, t) => sum + (t.length > 2 ? t.length - 2 : 0),
+        ) *
+        extra;
+    Widget card(Widget child) => Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: surface,
+        borderRadius: BorderRadius.circular(28),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x0F000000),
+            blurRadius: 16,
+            offset: Offset(0, 4),
+          ),
+        ],
       ),
-      child: Builder(
-        builder: (c) {
-          final rows = widget.menuRows
-              .where((m) => m['available'] == true)
-              .toList();
-          return SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  'Order a tiffin',
-                  style: TextStyle(
-                    color: palette(c).ink,
-                    fontSize: 24,
-                    fontFamily: 'PlusJakartaSans',
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  'Delivery date: ${deliveryDate()}',
-                  style: TextStyle(color: palette(c).muted),
-                ),
-                const SizedBox(height: 16),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(24),
-                  child: Image.asset(
-                    'assets/food/hero.jpg',
-                    height: 105,
-                    width: double.infinity,
-                    fit: BoxFit.cover,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                const Text(
-                  'MAKE IT YOUR DABBA',
-                  style: TextStyle(
-                    color: Color(0xFF9E4300),
-                    fontSize: 11,
-                    letterSpacing: 1,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                for (var i = 0; i < tiffins.length; i++) ...[
-                  Text(
-                    'Tiffin ${i + 1}: pick 2 to 8 bhajis'
-                    '${extra > 0 ? ' (extra ₹$extra each after the first two)' : ''}',
-                    style: const TextStyle(fontWeight: FontWeight.w700),
-                  ),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: rows
-                        .map(
-                          (m) => FilterChip(
-                            label: Text(m['name'] as String),
-                            selected: tiffins[i].contains(m['id'] as String),
-                            onSelected: busy
-                                ? null
-                                : (v) => setState(() {
-                                    error = null;
-                                    if (v) {
-                                      tiffins[i].add(m['id'] as String);
-                                    } else {
-                                      tiffins[i].remove(m['id'] as String);
-                                    }
-                                  }),
-                          ),
-                        )
-                        .toList(),
-                  ),
-                  const SizedBox(height: 14),
-                ],
-                if (tiffins.length < 2 && widget.subscription == null)
-                  TextButton.icon(
-                    onPressed: busy
-                        ? null
-                        : () => setState(() => tiffins.add({})),
-                    icon: const Icon(Icons.add),
-                    label: const Text('Add a second tiffin'),
-                  ),
-                TextField(
-                  controller: instructions,
-                  maxLength: 200,
-                  decoration: const InputDecoration(
-                    labelText: 'Note for the kitchen (optional)',
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: Theme.of(c).brightness == Brightness.dark
-                        ? const Color(0xFF202D24)
-                        : Colors.white,
-                    borderRadius: BorderRadius.circular(24),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Bill details',
-                        style: TextStyle(
-                          fontFamily: 'PlusJakartaSans',
-                          fontSize: 19,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        widget.subscription == null
-                            ? '${tiffins.length} tiffin${tiffins.length == 1 ? '' : 's'} · ₹${((widget.cfg['one_time_price_paise'] as int? ?? 0) * tiffins.length) ~/ 100}'
-                            : 'Base meals covered by your active plan',
-                      ),
-                      if (widget.subscription == null)
-                        Text(
-                          'Delivery · ₹${(widget.cfg['one_time_delivery_paise'] as int? ?? 0) ~/ 100}',
-                        ),
-                      Text(
-                        'Extra bhajis · ₹${(tiffins.fold<int>(0, (sum, t) => sum + (t.length > 2 ? t.length - 2 : 0)) * extra)}',
-                      ),
-                      const Divider(height: 28),
-                      Text(
-                        widget.subscription == null
-                            ? 'To pay · ₹${pricePaise ~/ 100}'
-                            : 'Extras to pay · ₹${pricePaise ~/ 100}',
-                        style: const TextStyle(
-                          fontSize: 22,
-                          fontWeight: FontWeight.w700,
-                          color: Color(0xFF012D1D),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  widget.subscription != null
-                      ? pricePaise == 0
-                            ? 'Covered by your Tiffe plan.'
-                            : 'Extras: ₹${pricePaise ~/ 100}. The rest is covered by your plan.'
-                      : 'Total: ₹${pricePaise ~/ 100}. Online payment is not in the app yet - Tiffe confirms payment with you directly.',
-                  style: TextStyle(color: palette(c).muted),
-                ),
-                if (error != null)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 8),
-                    child: Text(
-                      error!,
-                      style: const TextStyle(color: Colors.redAccent),
-                    ),
-                  ),
-                const SizedBox(height: 16),
-                SizedBox(
-                  width: double.infinity,
-                  child: FilledButton(
-                    onPressed: busy ? null : place,
-                    child: Text(busy ? 'Placing...' : 'Place order'),
-                  ),
-                ),
-              ],
+      child: child,
+    );
+    Widget h(String t) => Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Text(
+        t,
+        style: const TextStyle(
+          fontFamily: 'PlusJakartaSans',
+          fontSize: 20,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+    Widget line(String l, String r) => Padding(
+      padding: const EdgeInsets.symmetric(vertical: 5),
+      child: Row(
+        children: [
+          Expanded(child: Text(l)),
+          Text(r),
+        ],
+      ),
+    );
+    final toPay = widget.subscription == null ? 'To pay' : 'Extras to pay';
+    return Theme(
+      data: Theme.of(c).copyWith(
+        scaffoldBackgroundColor: dark
+            ? const Color(0xFF131C17)
+            : const Color(0xFFF9F9FB),
+        textTheme: Theme.of(c).textTheme.apply(fontFamily: 'Inter'),
+        filledButtonTheme: FilledButtonThemeData(
+          style: FilledButton.styleFrom(
+            backgroundColor: const Color(0xFFFF8843),
+            foregroundColor: const Color(0xFF341100),
+            minimumSize: const Size(48, 52),
+            textStyle: const TextStyle(
+              fontFamily: 'PlusJakartaSans',
+              fontWeight: FontWeight.w700,
             ),
-          );
-        },
+            shape: const StadiumBorder(),
+          ),
+        ),
+      ),
+      child: Scaffold(
+        appBar: AppBar(
+          scrolledUnderElevation: 0,
+          backgroundColor: dark
+              ? const Color(0xFF131C17)
+              : const Color(0xFFF9F9FB),
+          title: const Text(
+            'Review & Place Order',
+            style: TextStyle(
+              fontFamily: 'PlusJakartaSans',
+              fontSize: 18,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ),
+        body: SafeArea(
+          child: Column(
+            children: [
+              Expanded(
+                child: ListView(
+                  padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 8,
+                      ),
+                      margin: const EdgeInsets.only(bottom: 14),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFEDEEF0),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Text(
+                        'Delivery date: ${deliveryDate()}',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF1A1C1E),
+                        ),
+                      ),
+                    ),
+                    card(
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'MAKE IT YOUR DABBA',
+                            style: TextStyle(
+                              color: Color(0xFF9E4300),
+                              fontSize: 11,
+                              letterSpacing: 1,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          for (var i = 0; i < tiffins.length; i++) ...[
+                            Text(
+                              'Tiffin ${i + 1}: pick 2 to 8 bhajis'
+                              '${extra > 0 ? ' (extra ₹$extra each after the first two)' : ''}',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: rows
+                                  .map(
+                                    (m) => FilterChip(
+                                      label: Text(m['name'] as String),
+                                      selected: tiffins[i].contains(
+                                        m['id'] as String,
+                                      ),
+                                      onSelected: busy
+                                          ? null
+                                          : (v) => setState(() {
+                                              error = null;
+                                              if (v) {
+                                                tiffins[i].add(
+                                                  m['id'] as String,
+                                                );
+                                              } else {
+                                                tiffins[i].remove(
+                                                  m['id'] as String,
+                                                );
+                                              }
+                                            }),
+                                    ),
+                                  )
+                                  .toList(),
+                            ),
+                            const SizedBox(height: 14),
+                          ],
+                          if (tiffins.length < 2 && widget.subscription == null)
+                            TextButton.icon(
+                              onPressed: busy
+                                  ? null
+                                  : () => setState(() => tiffins.add({})),
+                              icon: const Icon(Icons.add),
+                              label: const Text('Add a second tiffin'),
+                            ),
+                        ],
+                      ),
+                    ),
+                    card(
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          h('Delivery Address'),
+                          if (widget.customerName.isNotEmpty)
+                            Text(
+                              widget.customerName,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          const SizedBox(height: 4),
+                          if (widget.address.isNotEmpty)
+                            Text(
+                              widget.address,
+                              style: TextStyle(color: muted),
+                            ),
+                          if (widget.area.isNotEmpty)
+                            Text(widget.area, style: TextStyle(color: muted)),
+                          if (widget.phone.isNotEmpty)
+                            Text(widget.phone, style: TextStyle(color: muted)),
+                        ],
+                      ),
+                    ),
+                    card(
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          h('Kitchen Notes'),
+                          TextField(
+                            controller: instructions,
+                            maxLength: 200,
+                            decoration: const InputDecoration(
+                              labelText: 'Note for the kitchen (optional)',
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    card(
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          h('Bill Details'),
+                          line(
+                            widget.subscription == null
+                                ? '${tiffins.length} tiffin${tiffins.length == 1 ? '' : 's'}'
+                                : 'Base meals covered by your active plan',
+                            widget.subscription == null
+                                ? '₹${((widget.cfg['one_time_price_paise'] as int? ?? 0) * tiffins.length) ~/ 100}'
+                                : '₹0',
+                          ),
+                          if (widget.subscription == null)
+                            line(
+                              'Delivery',
+                              '₹${(widget.cfg['one_time_delivery_paise'] as int? ?? 0) ~/ 100}',
+                            ),
+                          line('Extra bhajis', '₹$extras'),
+                          const SizedBox(height: 10),
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: box,
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    toPay,
+                                    style: const TextStyle(
+                                      fontFamily: 'PlusJakartaSans',
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                                Text(
+                                  '₹${pricePaise ~/ 100}',
+                                  style: const TextStyle(
+                                    fontFamily: 'PlusJakartaSans',
+                                    fontSize: 22,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          Text(
+                            widget.subscription != null
+                                ? pricePaise == 0
+                                      ? 'Covered by your Tiffe plan.'
+                                      : 'Extras: ₹${pricePaise ~/ 100}. The rest is covered by your plan.'
+                                : 'Total: ₹${pricePaise ~/ 100}. Online payment is not in the app yet - Tiffe confirms payment with you directly.',
+                            style: TextStyle(color: muted, fontSize: 13),
+                          ),
+                          if (error != null)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 8),
+                              child: Text(
+                                error!,
+                                style: const TextStyle(color: Colors.redAccent),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
+                decoration: BoxDecoration(
+                  color: surface,
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Color(0x14000000),
+                      blurRadius: 16,
+                      offset: Offset(0, -4),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    Text(
+                      '₹${pricePaise ~/ 100}',
+                      style: const TextStyle(
+                        fontFamily: 'PlusJakartaSans',
+                        fontSize: 20,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Text('Total', style: TextStyle(color: muted, fontSize: 12)),
+                    const Spacer(),
+                    FilledButton(
+                      onPressed: busy ? null : place,
+                      child: Text(busy ? 'Placing...' : 'Place order'),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

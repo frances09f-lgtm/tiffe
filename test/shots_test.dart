@@ -101,6 +101,15 @@ void main() {
     await t.tap(find.text('Subscribe to this plan').first);
     await t.pumpAndSettle();
     await capture(t, 'review');
+    await t.pageBack();
+    await t.pumpAndSettle();
+    await t.tap(find.text('Home').last);
+    await t.pumpAndSettle();
+    await t.tap(find.text('Choose my dabba'));
+    await t.pumpAndSettle();
+    await t.tap(find.widgetWithText(FilterChip, 'Batata Bhaji'));
+    await t.tap(find.widgetWithText(FilterChip, 'Matki Usal'));
+    await capture(t, 'checkout');
     await t.pumpWidget(const SizedBox());
   });
 }
