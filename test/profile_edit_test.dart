@@ -60,6 +60,13 @@ void main() {
           feedback.style?.color,
           dark ? Colors.white : const Color(0xFF303030),
         );
+        final shape = snack.shape! as RoundedRectangleBorder;
+        expect(
+          shape.side,
+          dark
+              ? BorderSide.none
+              : const BorderSide(color: Colors.black, width: 1),
+        );
         expect(find.byIcon(Icons.check_circle), findsWidgets);
         await helpers.capture(
           t,

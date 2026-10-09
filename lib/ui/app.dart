@@ -2433,7 +2433,10 @@ class _EditProfilePageState extends TiffeState<EditProfilePage> {
         backgroundColor: dark ? const Color(0xFF303030) : Colors.white,
         elevation: 0,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.all(Radius.circular(14)),
+          borderRadius: const BorderRadius.all(Radius.circular(14)),
+          side: dark
+              ? BorderSide.none
+              : const BorderSide(color: Colors.black, width: 1),
         ),
         margin: EdgeInsets.fromLTRB(16, 0, 16, 12),
         duration: Duration(seconds: 2),
