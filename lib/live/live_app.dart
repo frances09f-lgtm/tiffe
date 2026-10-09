@@ -2473,7 +2473,7 @@ class _OrderSheetState extends State<OrderSheet> {
     }
     final oneTime = widget.cfg['one_time_price_paise'] as int? ?? 0;
     final delivery = widget.cfg['one_time_delivery_paise'] as int? ?? 0;
-    var total = (oneTime + delivery) * tiffins.length;
+    var total = oneTime * tiffins.length + delivery;
     for (final t in tiffins) {
       if (t.length > 2) total += (t.length - 2) * extra;
     }
@@ -2650,7 +2650,7 @@ class _OrderSheetState extends State<OrderSheet> {
                       ),
                       if (widget.subscription == null)
                         Text(
-                          'Delivery · ₹${((widget.cfg['one_time_delivery_paise'] as int? ?? 0) * tiffins.length) ~/ 100}',
+                          'Delivery · ₹${(widget.cfg['one_time_delivery_paise'] as int? ?? 0) ~/ 100}',
                         ),
                       Text(
                         'Extra bhajis · ₹${(tiffins.fold<int>(0, (sum, t) => sum + (t.length > 2 ? t.length - 2 : 0)) * extra)}',
