@@ -1,5 +1,7 @@
 import 'dart:math';
 
+import 'package:supabase_flutter/supabase_flutter.dart';
+
 import 'package:flutter/material.dart';
 
 import '../data/store.dart';
@@ -91,6 +93,32 @@ class _LiveGateState extends State<LiveGate> {
   }
 }
 
+String authErrorMessage(AuthException error, {required bool registering}) {
+  switch (error.code) {
+    case 'user_already_exists':
+    case 'email_exists':
+      return 'An account with this email already exists. Sign in instead.';
+    case 'email_address_not_authorized':
+      return 'Tiffe cannot send confirmation emails yet. New account signup is not available right now.';
+    case 'email_not_confirmed':
+      return 'Confirm your email before signing in.';
+    case 'invalid_credentials':
+      return 'Email or password is incorrect. Try signing in again.';
+    case 'weak_password':
+      return 'Choose a stronger password with at least 8 characters.';
+    case 'over_email_send_rate_limit':
+    case 'over_request_rate_limit':
+      return 'Too many attempts. Wait a few minutes before trying again.';
+    case 'signup_disabled':
+    case 'email_provider_disabled':
+      return 'New account signup is not available right now.';
+    default:
+      return registering
+          ? 'Could not create your account. Try again later, or sign in if you already have one.'
+          : 'Could not sign in. Check your email and password.';
+  }
+}
+
 class SignIn extends StatefulWidget {
   final TiffeBackend backend;
   final bool admin;
@@ -146,12 +174,14 @@ class _SignInState extends State<SignIn> {
       } else {
         await widget.backend.signIn(loginEmail, password.text);
       }
+    } on AuthException catch (e) {
+      if (mounted) {
+        setState(() => error = authErrorMessage(e, registering: registering));
+      }
     } catch (_) {
       if (mounted) {
         setState(
-          () => error = registering
-              ? 'Could not create your account. Check your details and connection.'
-              : 'Could not sign in. Check your details and connection.',
+          () => error = 'Could not reach Tiffe. Check your internet connection and try again.',
         );
       }
     }
@@ -632,7 +662,9 @@ class _LiveWorkspaceState extends State<LiveWorkspace> {
             children: riders
                 .map(
                   (r) => ListTile(
-                    title: Text('Rider ${(r['user_id'] as String).substring(0, 8)}'),
+                    title: Text(
+                      'Rider ${(r['user_id'] as String).substring(0, 8)}',
+                    ),
                     leading: Icon(
                       chosen == r['user_id']
                           ? Icons.radio_button_checked
@@ -663,7 +695,9 @@ class _LiveWorkspaceState extends State<LiveWorkspace> {
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Could not assign the rider. Try again.')),
+          const SnackBar(
+            content: Text('Could not assign the rider. Try again.'),
+          ),
         );
       }
     }
@@ -912,10 +946,18 @@ class _LiveWorkspaceState extends State<LiveWorkspace> {
                   initialValue: plan,
                   decoration: const InputDecoration(labelText: 'Plan'),
                   items: const [
-                    DropdownMenuItem(value: 'daily', child: Text('Daily Tiffe')),
-                    DropdownMenuItem(value: 'double', child: Text('Double Tiffe')),
+                    DropdownMenuItem(
+                      value: 'daily',
+                      child: Text('Daily Tiffe'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'double',
+                      child: Text('Double Tiffe'),
+                    ),
                   ],
-                  onChanged: busy ? null : (v) => set(() => plan = v ?? 'daily'),
+                  onChanged: busy
+                      ? null
+                      : (v) => set(() => plan = v ?? 'daily'),
                 ),
                 TextField(
                   controller: start,
@@ -992,7 +1034,10 @@ class _LiveWorkspaceState extends State<LiveWorkspace> {
 
   Widget plansAdmin() => FutureBuilder<List<List<Map<String, dynamic>>>>(
     key: ValueKey(plansVersion),
-    future: Future.wait([widget.backend.allSubscriptions(), widget.backend.customers()]),
+    future: Future.wait([
+      widget.backend.allSubscriptions(),
+      widget.backend.customers(),
+    ]),
     builder: (c, s) {
       if (s.hasError) {
         return empty(
@@ -1164,6 +1209,87 @@ class _LiveWorkspaceState extends State<LiveWorkspace> {
     if (mounted) setState(() => saving = false);
   }
 
+  Future<void> changePassword() async {
+    final password = TextEditingController();
+    bool busy = false;
+    String? error;
+    await showDialog(
+      context: context,
+      builder: (c) => StatefulBuilder(
+        builder: (c, set) => AlertDialog(
+          title: const Text('Change password'),
+          content: SizedBox(
+            width: 320,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: password,
+                  obscureText: true,
+                  enableSuggestions: false,
+                  autocorrect: false,
+                  decoration: const InputDecoration(labelText: 'New password'),
+                ),
+                if (error != null) Text(error!),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: busy ? null : () => Navigator.pop(c),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: busy
+                  ? null
+                  : () async {
+                      if (password.text.length < 8) {
+                        set(() => error = 'Use at least 8 characters.');
+                        return;
+                      }
+                      set(() {
+                        busy = true;
+                        error = null;
+                      });
+                      try {
+                        await widget.backend.changePassword(password.text);
+                        if (c.mounted) Navigator.pop(c);
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                'Password changed. Use it next time you sign in.',
+                              ),
+                            ),
+                          );
+                        }
+                      } on AuthException catch (e) {
+                        if (c.mounted) {
+                          set(() {
+                            busy = false;
+                            error = e.code == 'same_password'
+                                ? 'Choose a different password.'
+                                : 'Could not change password. Try again.';
+                          });
+                        }
+                      } catch (_) {
+                        if (c.mounted) {
+                          set(() {
+                            busy = false;
+                            error = 'Could not change password. Check your connection.';
+                          });
+                        }
+                      }
+                    },
+              child: Text(busy ? 'Saving...' : 'Save password'),
+            ),
+          ],
+        ),
+      ),
+    );
+    Future.delayed(const Duration(milliseconds: 400), password.dispose);
+  }
+
   Widget profile() => Column(
     children: [
       panel(
@@ -1206,9 +1332,7 @@ class _LiveWorkspaceState extends State<LiveWorkspace> {
                 decoration: const InputDecoration(labelText: 'Area'),
                 items: {...areas, area.text}
                     .where((a) => a.isNotEmpty)
-                    .map(
-                      (a) => DropdownMenuItem(value: a, child: Text(a)),
-                    )
+                    .map((a) => DropdownMenuItem(value: a, child: Text(a)))
                     .toList(),
                 onChanged: (v) => setState(() => area.text = v ?? ''),
               ),
@@ -1220,6 +1344,11 @@ class _LiveWorkspaceState extends State<LiveWorkspace> {
       ],
       if (profileError != null) Text(profileError!),
       const SizedBox(height: 20),
+      OutlinedButton(
+        onPressed: changePassword,
+        child: const Text('Change password'),
+      ),
+      const SizedBox(height: 12),
       OutlinedButton(
         onPressed: widget.backend.signOut,
         child: const Text('Sign out'),
@@ -1510,8 +1639,8 @@ class _OrderSheetState extends State<OrderSheet> {
                 Text(
                   widget.subscription != null
                       ? pricePaise == 0
-                          ? 'Covered by your Tiffe plan.'
-                          : 'Extras: ₹${pricePaise ~/ 100}. The rest is covered by your plan.'
+                            ? 'Covered by your Tiffe plan.'
+                            : 'Extras: ₹${pricePaise ~/ 100}. The rest is covered by your plan.'
                       : 'Total: ₹${pricePaise ~/ 100}. Online payment is not in the app yet - Tiffe confirms payment with you directly.',
                   style: TextStyle(color: palette(c).muted),
                 ),

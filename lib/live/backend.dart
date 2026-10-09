@@ -33,6 +33,10 @@ class TiffeBackend {
   Future<AuthResponse> signUp(String email, String password) =>
       client.auth.signUp(email: email, password: password);
   Future<void> signOut() => client.auth.signOut();
+  Future<void> changePassword(String password) async {
+    await client.auth.updateUser(UserAttributes(password: password));
+  }
+
   Stream<List<Map<String, dynamic>>> menu() =>
       client.from('menu_items').stream(primaryKey: ['id']).order('sort_order');
   Stream<List<Map<String, dynamic>>> settings() =>
@@ -147,13 +151,13 @@ class TiffeBackend {
   Future<void> verifyPayment(String orderId) async =>
       client.rpc('verify_payment', params: {'p_order': orderId});
 
-  Future<void> assignRider(String orderId, String riderId) async => client
-      .rpc('assign_rider', params: {'p_order': orderId, 'p_rider': riderId});
+  Future<void> assignRider(String orderId, String riderId) async => client.rpc(
+    'assign_rider',
+    params: {'p_order': orderId, 'p_rider': riderId},
+  );
 
-  Future<List<Map<String, dynamic>>> deliveryStaff() async => client
-      .from('staff_members')
-      .select('user_id')
-      .eq('role', 'delivery');
+  Future<List<Map<String, dynamic>>> deliveryStaff() async =>
+      client.from('staff_members').select('user_id').eq('role', 'delivery');
 
   Future<void> advance(String id, String status, {DateTime? eta}) async =>
       client.rpc(
