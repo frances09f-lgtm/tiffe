@@ -1254,7 +1254,7 @@ class _LiveWorkspaceState extends State<LiveWorkspace> {
                           ),
                         ),
                       ),
-                child: Text('Subscribe to $name →'),
+                child: const Text('Subscribe to this plan'),
               ),
             ),
             const SizedBox(height: 14),
@@ -1371,6 +1371,378 @@ class _LiveWorkspaceState extends State<LiveWorkspace> {
       ],
     ),
   );
+
+  String? selectedDay;
+  static String ymd(DateTime d) =>
+      '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
+  String get earliestOrderDay {
+    final cutoff = (cfg?['cutoff_time'] as String? ?? '09:00:00')
+        .split(':')
+        .map(int.parse)
+        .toList();
+    var d = DateTime.now().toUtc().add(const Duration(hours: 5, minutes: 30));
+    final cutoffToday = DateTime(d.year, d.month, d.day, cutoff[0], cutoff[1]);
+    final nowLocal = DateTime(d.year, d.month, d.day, d.hour, d.minute);
+    if (!nowLocal.isBefore(cutoffToday)) d = d.add(const Duration(days: 1));
+    return ymd(d);
+  }
+
+  Widget mealCalendar(List<Map<String, dynamic>> rows) {
+    final dark = uiPalette.dark;
+    final now = DateTime.now().toUtc().add(
+      const Duration(hours: 5, minutes: 30),
+    );
+    final start = DateTime(now.year, now.month, now.day);
+    final today = ymd(start);
+    final end = start.add(const Duration(days: 29));
+    final lead = start.weekday - 1;
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+    final byDay = <String, List<Map<String, dynamic>>>{};
+    for (final o in rows) {
+      byDay.putIfAbsent(o['delivery_date'] as String, () => []).add(o);
+    }
+    final completed = rows.where((o) => o['status'] == 'Delivered').length;
+    final todayCount = (byDay[today] ?? []).length;
+    final upcoming = rows
+        .where(
+          (o) =>
+              (o['delivery_date'] as String).compareTo(today) > 0 &&
+              o['status'] != 'Delivered',
+        )
+        .length;
+    final sub = activeSubscription;
+    bool inPlan(String d) =>
+        sub != null &&
+        (sub['starts_on'] as String).compareTo(d) <= 0 &&
+        (sub['ends_on'] as String).compareTo(d) >= 0;
+    Widget stat(IconData i, String n, String l, Color bg, {bool hi = false}) =>
+        Expanded(
+          child: Container(
+            margin: const EdgeInsets.symmetric(horizontal: 3),
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            decoration: BoxDecoration(
+              color: hi ? const Color(0xFFFFDBCB) : uiPalette.surface,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Column(
+              children: [
+                CircleAvatar(
+                  radius: 14,
+                  backgroundColor: bg,
+                  child: Icon(i, size: 15, color: const Color(0xFF012D1D)),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  n.padLeft(2, '0'),
+                  style: const TextStyle(
+                    fontFamily: 'PlusJakartaSans',
+                    fontSize: 19,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                Text(l, style: const TextStyle(fontSize: 11)),
+              ],
+            ),
+          ),
+        );
+    final cells = <Widget>[];
+    for (var i = 0; i < lead; i++) {
+      cells.add(const SizedBox());
+    }
+    for (var i = 0; i < 30; i++) {
+      final d = start.add(Duration(days: i));
+      final key = ymd(d);
+      final os = byDay[key] ?? [];
+      final delivered = os.any((o) => o['status'] == 'Delivered');
+      final isToday = key == today;
+      final sel = selectedDay == key;
+      Color bg = dark ? const Color(0xFF2C3D30) : const Color(0xFFF3F3F6);
+      Color fg = uiPalette.ink;
+      if (delivered) {
+        bg = const Color(0xFFE5F4EB);
+      } else if (os.isNotEmpty || inPlan(key)) {
+        bg = const Color(0xFFE5F4EB);
+      }
+      if (isToday) {
+        bg = const Color(0xFFFF8843);
+        fg = const Color(0xFF341100);
+      }
+      if (sel) {
+        bg = const Color(0xFF012D1D);
+        fg = Colors.white;
+      }
+      cells.add(
+        GestureDetector(
+          onTap: () => setState(() => selectedDay = key),
+          child: Container(
+            decoration: BoxDecoration(
+              color: bg,
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  '${d.day}',
+                  style: TextStyle(
+                    fontFamily: 'PlusJakartaSans',
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    color: fg,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Icon(
+                  Icons.circle,
+                  size: 5,
+                  color: os.isEmpty
+                      ? Colors.transparent
+                      : delivered
+                      ? const Color(0xFF012D1D)
+                      : const Color(0xFF9E4300),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+    final day = selectedDay ?? today;
+    final dayOrders = byDay[day] ?? [];
+    final canOrder = cfg != null && day.compareTo(earliestOrderDay) >= 0;
+    final dd = DateTime.parse(day);
+    const wk = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '${months[start.month - 1]} ${start.day} - ${months[end.month - 1]} ${end.day}',
+          style: const TextStyle(
+            fontFamily: 'PlusJakartaSans',
+            fontSize: 28,
+            fontWeight: FontWeight.w700,
+            color: Color(0xFF012D1D),
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          'Your next 30 days',
+          style: TextStyle(color: uiPalette.muted, fontSize: 13),
+        ),
+        const SizedBox(height: 14),
+        Row(
+          children: [
+            stat(
+              Icons.check,
+              '$completed',
+              'Completed',
+              const Color(0xFFC1ECD4),
+            ),
+            stat(
+              Icons.shopping_basket_outlined,
+              '$todayCount',
+              'Today',
+              const Color(0xFFFF8843),
+              hi: true,
+            ),
+            stat(
+              Icons.event_available_outlined,
+              '$upcoming',
+              'Upcoming',
+              const Color(0xFFC1ECD4),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: uiPalette.surface,
+            borderRadius: BorderRadius.circular(28),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x0F000000),
+                blurRadius: 16,
+                offset: Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(
+                    Icons.calendar_month_outlined,
+                    size: 20,
+                    color: Color(0xFF9E4300),
+                  ),
+                  const SizedBox(width: 8),
+                  const Expanded(
+                    child: Text(
+                      'Meal Schedule',
+                      style: TextStyle(
+                        fontFamily: 'PlusJakartaSans',
+                        fontSize: 18,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 5,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFEDEEF0),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: const Text(
+                      'Tap date to inspect',
+                      style: TextStyle(
+                        fontSize: 10.5,
+                        color: Color(0xFF414844),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  for (final w in ['M', 'T', 'W', 'T', 'F', 'S', 'S'])
+                    Expanded(
+                      child: Center(
+                        child: Text(
+                          w,
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: uiPalette.muted,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              GridView.count(
+                crossAxisCount: 7,
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                mainAxisSpacing: 6,
+                crossAxisSpacing: 6,
+                childAspectRatio: 1.15,
+                children: cells,
+              ),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 14,
+                runSpacing: 6,
+                children: [
+                  for (final l in [
+                    ['Delivered', const Color(0xFF012D1D)],
+                    ['Today', const Color(0xFFFF8843)],
+                    ['Order placed', const Color(0xFF9E4300)],
+                  ])
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.circle, size: 7, color: l[1] as Color),
+                        const SizedBox(width: 5),
+                        Text(
+                          l[0] as String,
+                          style: const TextStyle(fontSize: 11),
+                        ),
+                      ],
+                    ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 22),
+        Text(
+          '${wk[dd.weekday - 1].toUpperCase()}, ${months[dd.month - 1].toUpperCase()} ${dd.day}',
+          style: const TextStyle(
+            fontFamily: 'PlusJakartaSans',
+            fontSize: 11,
+            letterSpacing: 1,
+            fontWeight: FontWeight.w700,
+            color: Color(0xFF9E4300),
+          ),
+        ),
+        const SizedBox(height: 6),
+        if (dayOrders.isEmpty)
+          Text(
+            inPlan(day)
+                ? 'Your plan covers this day. No order has been placed for it yet.'
+                : 'No order placed for this day.',
+            style: TextStyle(color: uiPalette.muted),
+          )
+        else
+          for (final o in dayOrders)
+            Container(
+              width: double.infinity,
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: uiPalette.surface,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text(
+                '${o['quantity']} tiffin${o['quantity'] == 2 ? 's' : ''} - ${o['status']}',
+                style: const TextStyle(
+                  fontFamily: 'PlusJakartaSans',
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+        if (canOrder && dayOrders.isEmpty) ...[
+          const SizedBox(height: 10),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFFFFDBCB),
+                foregroundColor: const Color(0xFF783100),
+                minimumSize: const Size(0, 52),
+              ),
+              onPressed: () => openOrder(date: day),
+              icon: const Icon(Icons.add_shopping_cart_outlined, size: 18),
+              label: Text(
+                'Order a tiffin for ${wk[dd.weekday - 1]}, ${months[dd.month - 1]} ${dd.day}',
+              ),
+            ),
+          ),
+        ] else if (!canOrder && dayOrders.isEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Text(
+              day.compareTo(today) < 0
+                  ? 'This day has passed.'
+                  : 'Orders for this day have closed (cutoff passed).',
+              style: TextStyle(color: uiPalette.muted, fontSize: 12.5),
+            ),
+          ),
+        const SizedBox(height: 20),
+      ],
+    );
+  }
 
   Widget orderGuide(bool admin) => Column(
     children: [
@@ -2406,7 +2778,7 @@ class _LiveWorkspaceState extends State<LiveWorkspace> {
     ),
   );
 
-  Future<void> openOrder() async {
+  Future<void> openOrder({String? date}) async {
     final placed = await showModalBottomSheet<bool>(
       context: routeContext,
       isScrollControlled: true,
@@ -2415,6 +2787,7 @@ class _LiveWorkspaceState extends State<LiveWorkspace> {
         cfg: cfg!,
         menuRows: menuRows,
         subscription: activeSubscription,
+        date: date,
       ),
     );
     if (placed == true && mounted) {
@@ -3418,7 +3791,11 @@ class _LiveWorkspaceState extends State<LiveWorkspace> {
               menus(),
               serviceAreas(),
             ],
-            if (tab == 2) ...[orders(), orderGuide(admin)],
+            if (tab == 2) ...[
+              if (!admin) data(orderStream, mealCalendar),
+              orders(),
+              orderGuide(admin),
+            ],
             if (tab == 3 && !admin) planScreen(),
             if (tab == 3 && admin) ...[
               planCatalogue(admin: true),
@@ -3477,12 +3854,14 @@ class OrderSheet extends StatefulWidget {
   final Map<String, dynamic> cfg;
   final List<Map<String, dynamic>> menuRows;
   final Map<String, dynamic>? subscription;
+  final String? date;
   const OrderSheet({
     super.key,
     required this.backend,
     required this.cfg,
     required this.menuRows,
     this.subscription,
+    this.date,
   });
   @override
   State<OrderSheet> createState() => _OrderSheetState();
@@ -3512,6 +3891,7 @@ class _OrderSheetState extends State<OrderSheet> {
       DateTime.now().toUtc().add(const Duration(hours: 5, minutes: 30));
 
   String deliveryDate() {
+    if (widget.date != null) return widget.date!;
     final cutoff = (widget.cfg['cutoff_time'] as String? ?? '09:00:00')
         .split(':')
         .map(int.parse)

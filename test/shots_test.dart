@@ -98,7 +98,7 @@ void main() {
     }
     await t.tap(find.text('Plan').last);
     await t.pumpAndSettle();
-    await t.tap(find.text('Subscribe to Daily Tiffe →'));
+    await t.tap(find.text('Subscribe to this plan').first);
     await t.pumpAndSettle();
     await capture(t, 'review');
     await t.pumpWidget(const SizedBox());
