@@ -138,7 +138,7 @@ void main() {
           startScreen: ConnectedStart(store: store, backend: null),
         ),
       );
-      expect(find.text('Tiffe.'), findsOneWidget);
+      expect(find.text('Tiffe'), findsOneWidget);
       await t.pump(const Duration(milliseconds: 1100));
       await t.pump();
       expect(find.text('Kitchen signal lost'), findsOneWidget);
