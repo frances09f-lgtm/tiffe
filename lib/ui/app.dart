@@ -1169,6 +1169,41 @@ class _ShellState extends TiffeState<Shell> {
     }
   }
 
+  Future<void> logout() async {
+    final yes = await showDialog<bool>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: const Text('Log out of Tiffe?'),
+        content: const Text(
+          'Your saved profile and bhaji choices will stay on this device.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(c, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(c, true),
+            child: const Text('Log out'),
+          ),
+        ],
+      ),
+    );
+    if (yes != true || !mounted) return;
+    try {
+      await const MethodChannel('tiffe/delivery_notifications')
+          .invokeMethod<bool>('cancelDaily')
+          .timeout(const Duration(seconds: 3));
+    } catch (_) {}
+    widget.store.onboarded = false;
+    await widget.store.save();
+    if (!mounted) return;
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => Onboarding(store: widget.store)),
+      (_) => false,
+    );
+  }
+
   Widget profile(BuildContext c) => scroll([
     title('Your corner', 'Make Tiffe feel like you.'),
     panel(
@@ -1377,9 +1412,15 @@ class _ShellState extends TiffeState<Shell> {
         ],
       ),
     ),
+    SizedBox(height: 20),
+    OutlinedButton.icon(
+      onPressed: logout,
+      icon: const Icon(Icons.logout),
+      label: const Text('Log out'),
+    ),
     SizedBox(height: 24),
     Text(
-      'Tiffe v3 · Demo',
+      'Tiffe · Local preview',
       textAlign: TextAlign.center,
       style: TextStyle(color: tmuted, fontSize: 12),
     ),
