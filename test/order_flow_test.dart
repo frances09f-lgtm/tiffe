@@ -93,8 +93,8 @@ void main() {
       ),
     );
     await t.pumpAndSettle();
-    expect(find.text('Order a tiffin'), findsOneWidget);
-    await t.tap(find.text('Order a tiffin'));
+    expect(find.text('Choose my dabba'), findsOneWidget);
+    await t.tap(find.text('Choose my dabba'));
     await t.pumpAndSettle();
     expect(find.text('Place order'), findsOneWidget);
     // Underfilled tiffin is rejected before any network call.
@@ -149,7 +149,7 @@ void main() {
       TiffeApp(store: s, startScreen: LiveWorkspace(backend: b, store: s)),
     );
     await t.pumpAndSettle();
-    await t.tap(find.text('Order a tiffin'));
+    await t.tap(find.text('Choose my dabba'));
     await t.pumpAndSettle();
     // double plan: two tiffin groups fixed, no add button.
     expect(find.textContaining('Tiffin 2: pick 2 to 8 bhajis'), findsOneWidget);

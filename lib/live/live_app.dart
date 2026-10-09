@@ -333,6 +333,8 @@ class _LiveWorkspaceState extends State<LiveWorkspace> {
   BuildContext? themedContext;
   BuildContext get routeContext => themedContext ?? context;
   int tab = 0;
+  bool oneTimeView = false;
+  String selectedPlan = 'daily';
   late final menuStream = widget.backend.menu().asBroadcastStream();
   late final orderStream = widget.backend
       .orders(customer: widget.role == null)
@@ -984,6 +986,392 @@ class _LiveWorkspaceState extends State<LiveWorkspace> {
     ],
   );
 
+  Widget planScreen() => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      const SizedBox(height: 4),
+      const Text(
+        'MAA KE HAATH KA KHANA',
+        style: TextStyle(
+          fontFamily: 'PlusJakartaSans',
+          fontSize: 11,
+          letterSpacing: 1,
+          fontWeight: FontWeight.w700,
+          color: Color(0xFFFF8843),
+        ),
+      ),
+      const SizedBox(height: 8),
+      const Text(
+        'Wholesome Homemade Meals, Delivered Daily',
+        style: TextStyle(
+          fontFamily: 'PlusJakartaSans',
+          fontSize: 24,
+          height: 1.25,
+          fontWeight: FontWeight.w700,
+          color: Color(0xFF012D1D),
+        ),
+      ),
+      const SizedBox(height: 10),
+      Text(
+        'Say goodbye to your daily meal planning. Choose your routine and two favourite bhajis per tiffin.',
+        style: TextStyle(color: uiPalette.muted, fontSize: 14.5, height: 1.5),
+      ),
+      const SizedBox(height: 16),
+      planToggle(),
+      const SizedBox(height: 16),
+      if (!oneTimeView)
+        for (final dbl in [false, true]) planCard(dbl)
+      else
+        oneTimeCard(),
+      serviceAreas(),
+      plan(),
+    ],
+  );
+
+  Widget planToggle() {
+    Widget seg(String label, bool on, VoidCallback tap) => Expanded(
+      child: GestureDetector(
+        onTap: tap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 13),
+          decoration: BoxDecoration(
+            color: on ? const Color(0xFF012D1D) : Colors.transparent,
+            borderRadius: BorderRadius.circular(24),
+          ),
+          child: Center(
+            child: Text(
+              label,
+              style: TextStyle(
+                fontFamily: 'PlusJakartaSans',
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: on ? Colors.white : uiPalette.muted,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: uiPalette.dark
+            ? const Color(0xFF2C3D30)
+            : const Color(0xFFEDEEF0),
+        borderRadius: BorderRadius.circular(28),
+      ),
+      child: Row(
+        children: [
+          seg(
+            'Monthly Plans',
+            !oneTimeView,
+            () => setState(() => oneTimeView = false),
+          ),
+          seg(
+            'One-Time',
+            oneTimeView,
+            () => setState(() => oneTimeView = true),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget planCard(bool dbl) {
+    final key = dbl ? 'double' : 'daily';
+    final selected = selectedPlan == key;
+    final name = dbl ? 'Double Tiffe' : 'Daily Tiffe';
+    return GestureDetector(
+      onTap: () => setState(() => selectedPlan = key),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 18),
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: uiPalette.surface,
+          borderRadius: BorderRadius.circular(32),
+          border: Border.all(
+            color: selected ? const Color(0xFF012D1D) : Colors.transparent,
+            width: 2,
+          ),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x0F000000),
+              blurRadius: 16,
+              offset: Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        dbl
+                            ? 'TWICE THE DAILY COMFORT'
+                            : 'DAILY HOMEMADE MEALS',
+                        style: const TextStyle(
+                          fontFamily: 'PlusJakartaSans',
+                          fontSize: 10.5,
+                          letterSpacing: .8,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF012D1D),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        name,
+                        style: const TextStyle(
+                          fontFamily: 'PlusJakartaSans',
+                          fontSize: 26,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        dbl
+                            ? 'Two independent dabbas every day'
+                            : 'One home-style dabba every day',
+                        style: TextStyle(color: uiPalette.muted, fontSize: 13),
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(
+                  selected
+                      ? Icons.radio_button_checked
+                      : Icons.radio_button_unchecked,
+                  color: selected
+                      ? const Color(0xFF012D1D)
+                      : const Color(0xFFC1C8C2),
+                  size: 26,
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              color: uiPalette.dark
+                  ? const Color(0xFF2C3D30)
+                  : const Color(0xFFF3F3F6),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    money(dbl ? 'double_price_paise' : 'daily_price_paise'),
+                    style: const TextStyle(
+                      fontFamily: 'PlusJakartaSans',
+                      fontSize: 32,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF012D1D),
+                    ),
+                  ),
+                  const Spacer(),
+                  const Padding(
+                    padding: EdgeInsets.only(bottom: 6),
+                    child: Text(
+                      'MONTHLY PLAN',
+                      style: TextStyle(
+                        fontSize: 10,
+                        letterSpacing: .6,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF9E4300),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'INSIDE EVERY TIFFIN',
+              style: TextStyle(
+                fontSize: 10,
+                letterSpacing: .8,
+                color: uiPalette.muted,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final t in ['3 Chapatis', 'Rice', '2 Bhajis']) infoChip(t),
+              ],
+            ),
+            const SizedBox(height: 14),
+            for (final benefit in [
+              dbl ? '2 tiffins every day' : '1 tiffin every day',
+              'Sunday sweet for active subscribers',
+              'Delivery ${money('monthly_delivery_paise')} / month',
+              'Extra bhaji ${money('extra_bhaji_paise')} each',
+            ])
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.check_circle_outline,
+                      size: 18,
+                      color: Color(0xFF012D1D),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        benefit,
+                        style: const TextStyle(fontSize: 14),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            const SizedBox(height: 8),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                style: FilledButton.styleFrom(
+                  backgroundColor: const Color(0xFFFF8843),
+                  foregroundColor: const Color(0xFF341100),
+                  minimumSize: const Size(0, 52),
+                ),
+                onPressed: cfg == null
+                    ? null
+                    : () => Navigator.of(routeContext).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => PlanReview(
+                            isDouble: dbl,
+                            cfg: cfg!,
+                            name: name_,
+                            phone: phone.text.trim(),
+                            area: area.text.trim(),
+                            address: address.text.trim(),
+                          ),
+                        ),
+                      ),
+                child: Text('Subscribe to $name →'),
+              ),
+            ),
+            const SizedBox(height: 14),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(18),
+              child: Image.asset(
+                'assets/food/hero.jpg',
+                height: 120,
+                width: double.infinity,
+                fit: BoxFit.cover,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String get name_ => name.text.trim();
+
+  Widget oneTimeCard() => Container(
+    padding: const EdgeInsets.all(20),
+    decoration: BoxDecoration(
+      color: uiPalette.surface,
+      borderRadius: BorderRadius.circular(32),
+      boxShadow: const [
+        BoxShadow(
+          color: Color(0x0F000000),
+          blurRadius: 16,
+          offset: Offset(0, 4),
+        ),
+      ],
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'ONE-TIME TIFFE',
+          style: TextStyle(
+            fontSize: 10.5,
+            letterSpacing: .8,
+            fontWeight: FontWeight.w700,
+            color: Color(0xFF012D1D),
+          ),
+        ),
+        const SizedBox(height: 4),
+        const Text(
+          'Just one today?',
+          style: TextStyle(
+            fontFamily: 'PlusJakartaSans',
+            fontSize: 26,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: 16),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(16),
+          color: uiPalette.dark
+              ? const Color(0xFF2C3D30)
+              : const Color(0xFFF3F3F6),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                money('one_time_price_paise'),
+                style: const TextStyle(
+                  fontFamily: 'PlusJakartaSans',
+                  fontSize: 32,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF012D1D),
+                ),
+              ),
+              const Spacer(),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 6),
+                child: Text(
+                  '+ ${money('one_time_delivery_paise')} delivery',
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: Color(0xFF9E4300),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 14),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final t in ['3 Chapatis', 'Rice', '2 Bhajis']) infoChip(t),
+          ],
+        ),
+        const SizedBox(height: 14),
+        Text(
+          'No Sunday sweet with a one-time tiffin. Extra bhaji ${money('extra_bhaji_paise')} each.',
+          style: TextStyle(color: uiPalette.muted, fontSize: 13.5),
+        ),
+        const SizedBox(height: 16),
+        SizedBox(
+          width: double.infinity,
+          child: FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xFFFF8843),
+              foregroundColor: const Color(0xFF341100),
+              minimumSize: const Size(0, 52),
+            ),
+            onPressed: cfg == null ? null : openOrder,
+            child: const Text('Order a tiffin →'),
+          ),
+        ),
+      ],
+    ),
+  );
+
   Widget orderGuide(bool admin) => Column(
     children: [
       const SizedBox(height: 18),
@@ -1005,6 +1393,388 @@ class _LiveWorkspaceState extends State<LiveWorkspace> {
         onPressed: () => setState(() => tab = admin ? 1 : 3),
         child: Text(admin ? 'Manage menu' : 'Browse plans'),
       ),
+    ],
+  );
+
+  Widget scheduleStrip() {
+    final now = DateTime.now().toUtc().add(
+      const Duration(hours: 5, minutes: 30),
+    );
+    const wd = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
+    final dark = uiPalette.dark;
+    return SizedBox(
+      height: 72,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: 7,
+        separatorBuilder: (_, __) => const SizedBox(width: 8),
+        itemBuilder: (_, i) {
+          final d = now.add(Duration(days: i));
+          final today = i == 0;
+          final fg = today ? Colors.white : uiPalette.ink;
+          return Container(
+            width: 62,
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            decoration: BoxDecoration(
+              color: today
+                  ? const Color(0xFF012D1D)
+                  : dark
+                  ? const Color(0xFF202D24)
+                  : Colors.white,
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: today
+                  ? null
+                  : const [
+                      BoxShadow(
+                        color: Color(0x0F000000),
+                        blurRadius: 8,
+                        offset: Offset(0, 2),
+                      ),
+                    ],
+            ),
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    today ? 'TODAY' : wd[d.weekday - 1],
+                    style: TextStyle(
+                      fontSize: 9.5,
+                      letterSpacing: .4,
+                      fontWeight: FontWeight.w700,
+                      color: today ? const Color(0xFFA5D0B9) : uiPalette.muted,
+                    ),
+                  ),
+                  Text(
+                    '${d.day}',
+                    style: TextStyle(
+                      fontFamily: 'PlusJakartaSans',
+                      fontSize: 20,
+                      height: 1.15,
+                      fontWeight: FontWeight.w700,
+                      color: fg,
+                    ),
+                  ),
+                  Text(
+                    today ? 'Live menu' : 'Not posted',
+                    style: TextStyle(
+                      fontSize: 9,
+                      color: today ? Colors.white : uiPalette.muted,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget infoChip(String text, {bool filled = false, IconData? icon}) =>
+      Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+        decoration: BoxDecoration(
+          color: filled
+              ? const Color(0xFF012D1D)
+              : (uiPalette.dark ? const Color(0xFF202D24) : Colors.white),
+          borderRadius: BorderRadius.circular(22),
+          boxShadow: filled
+              ? null
+              : const [
+                  BoxShadow(
+                    color: Color(0x0F000000),
+                    blurRadius: 6,
+                    offset: Offset(0, 1),
+                  ),
+                ],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (icon != null) ...[
+              Icon(icon, size: 14, color: Colors.white),
+              const SizedBox(width: 6),
+            ],
+            Text(
+              text,
+              style: TextStyle(
+                fontFamily: 'PlusJakartaSans',
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: filled ? Colors.white : uiPalette.ink,
+              ),
+            ),
+          ],
+        ),
+      );
+
+  Widget customerMenuScreen() => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Row(
+        children: [
+          const Icon(
+            Icons.calendar_today_outlined,
+            size: 20,
+            color: Color(0xFF9E4300),
+          ),
+          const SizedBox(width: 10),
+          const Expanded(
+            child: Text(
+              'Kitchen Tiffin Menu',
+              style: TextStyle(
+                fontFamily: 'PlusJakartaSans',
+                fontSize: 20,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFFDBCB),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: const Text(
+              'Today',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF783100),
+              ),
+            ),
+          ),
+        ],
+      ),
+      const SizedBox(height: 14),
+      scheduleStrip(),
+      const SizedBox(height: 14),
+      Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: [
+          infoChip('All Bhajis', filled: true, icon: Icons.restaurant),
+          infoChip('2 included'),
+          infoChip('Extras ${money('extra_bhaji_paise')}'),
+        ],
+      ),
+      const SizedBox(height: 16),
+      Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: uiPalette.surface,
+          borderRadius: BorderRadius.circular(32),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x0F000000),
+              blurRadius: 16,
+              offset: Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(20),
+              child: Stack(
+                children: [
+                  Image.asset(
+                    'assets/food/hero.jpg',
+                    width: double.infinity,
+                    height: 210,
+                    fit: BoxFit.cover,
+                  ),
+                  Positioned(
+                    left: 12,
+                    top: 12,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 7,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.circle, size: 8, color: Color(0xFF012D1D)),
+                          SizedBox(width: 6),
+                          Text(
+                            'YOUR HOME-STYLE DABBA',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: .3,
+                              color: Color(0xFF012D1D),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 14),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: const Color(0xFFC1ECD4),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: const Text(
+                'From our kitchen',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF012D1D),
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Expanded(
+                  child: Text(
+                    'Your Daily Homestyle Dabba',
+                    style: TextStyle(
+                      fontFamily: 'PlusJakartaSans',
+                      fontSize: 25,
+                      height: 1.2,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 10,
+                  ),
+                  color: uiPalette.dark
+                      ? const Color(0xFF2C3D30)
+                      : const Color(0xFFF3F3F6),
+                  child: Column(
+                    children: [
+                      const Text(
+                        'PRICE',
+                        style: TextStyle(
+                          fontSize: 9.5,
+                          letterSpacing: .6,
+                          color: Color(0xFF9E4300),
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      Text(
+                        money('one_time_price_paise'),
+                        style: const TextStyle(
+                          fontFamily: 'PlusJakartaSans',
+                          fontSize: 26,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF012D1D),
+                        ),
+                      ),
+                      Text(
+                        '+ ${money('one_time_delivery_paise')} delivery',
+                        style: TextStyle(fontSize: 10, color: uiPalette.muted),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Text(
+              'A simple homemade meal. Pick your two favourite bhajis from the kitchen\'s current menu.',
+              style: TextStyle(
+                color: uiPalette.muted,
+                fontSize: 14,
+                height: 1.5,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: uiPalette.dark
+                    ? const Color(0xFF2C3D30)
+                    : const Color(0xFFF3F3F6),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.lunch_dining_outlined,
+                        size: 18,
+                        color: Color(0xFF9E4300),
+                      ),
+                      const SizedBox(width: 8),
+                      const Expanded(
+                        child: Text(
+                          'Inside every tiffin',
+                          style: TextStyle(
+                            fontFamily: 'PlusJakartaSans',
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                      Text(
+                        '3 items',
+                        style: TextStyle(fontSize: 11, color: uiPalette.muted),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  for (final t in [
+                    '3 chapatis',
+                    'Rice',
+                    '2 bhajis of your choice',
+                  ])
+                    Container(
+                      width: double.infinity,
+                      margin: const EdgeInsets.only(bottom: 8),
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: uiPalette.surface,
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        t,
+                        style: const TextStyle(
+                          fontSize: 13.5,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 6),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                onPressed: cfg == null ? null : openOrder,
+                child: const Text('Order a tiffin'),
+              ),
+            ),
+          ],
+        ),
+      ),
+      const SizedBox(height: 22),
+      eyebrow("Today's bhajis"),
+      menus(),
+      const SizedBox(height: 6),
+      serviceAreas(),
     ],
   );
 
@@ -2083,40 +2853,66 @@ class _LiveWorkspaceState extends State<LiveWorkspace> {
     ),
   );
 
-  Widget subscriptionSummary() {
+  Widget subscriptionSummary({bool compact = false}) {
     final sub = activeSubscription;
+    final planName = sub == null
+        ? null
+        : (sub['plan'] == 'double' ? 'Double Tiffe' : 'Daily Tiffe');
     return Container(
-      padding: const EdgeInsets.all(22),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: const Color(0xFF1B4332),
-        borderRadius: BorderRadius.circular(30),
+        borderRadius: BorderRadius.circular(32),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x33012D1D),
+            blurRadius: 18,
+            offset: Offset(0, 8),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
             decoration: BoxDecoration(
               color: const Color(0xFFFF8843),
               borderRadius: BorderRadius.circular(20),
             ),
-            child: Text(
-              sub == null ? 'HOME-COOKED. EVERY DAY.' : 'ACTIVE SUBSCRIPTION',
-              style: const TextStyle(
-                color: Color(0xFF341100),
-                fontSize: 10,
-                fontWeight: FontWeight.w700,
-              ),
+            child: Row(
+              children: [
+                const Icon(
+                  Icons.verified_outlined,
+                  size: 14,
+                  color: Color(0xFF341100),
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    sub == null
+                        ? 'HOMEMADE. EVERY DAY.'
+                        : 'ACTIVE ${planName!.toUpperCase()}',
+                    style: const TextStyle(
+                      fontFamily: 'PlusJakartaSans',
+                      color: Color(0xFF341100),
+                      fontSize: 10.5,
+                      letterSpacing: .6,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
           const SizedBox(height: 18),
           Text(
-            sub == null
-                ? 'A little home, in every dabba.'
-                : (sub['plan'] == 'double' ? 'Double Tiffe' : 'Daily Tiffe'),
+            sub == null ? 'Your next dabba starts here' : planName!,
             style: const TextStyle(
               fontFamily: 'PlusJakartaSans',
-              fontSize: 24,
+              fontSize: 20,
+              height: 1.2,
               fontWeight: FontWeight.w700,
               color: Colors.white,
             ),
@@ -2124,119 +2920,371 @@ class _LiveWorkspaceState extends State<LiveWorkspace> {
           const SizedBox(height: 8),
           Text(
             sub == null
-                ? 'Choose your favourite bhajis, or find your monthly routine.'
+                ? 'Choose your favourite bhajis. Confirm your meal so the kitchen can prepare it.'
                 : '${sub['starts_on']} to ${sub['ends_on']}',
-            style: const TextStyle(color: Color(0xFFC1ECD4), height: 1.5),
+            style: const TextStyle(
+              color: Color(0xFFA5D0B9),
+              fontSize: 13.5,
+              height: 1.45,
+            ),
           ),
-          const SizedBox(height: 18),
-          Wrap(
-            spacing: 10,
-            runSpacing: 8,
-            children:
-                [
-                      FilledButton.styleFrom(
-                        backgroundColor: Colors.white,
-                        foregroundColor: const Color(0xFF012D1D),
+          if (!compact) ...[
+            const SizedBox(height: 18),
+            Row(
+              children: [
+                Flexible(
+                  child: FilledButton.icon(
+                    style: FilledButton.styleFrom(
+                      backgroundColor: Colors.white,
+                      foregroundColor: const Color(0xFF012D1D),
+                      minimumSize: const Size(0, 52),
+                    ),
+                    onPressed: cfg == null ? null : openOrder,
+                    icon: const Icon(Icons.lunch_dining_outlined, size: 18),
+                    label: const FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text('Choose my dabba'),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                TextButton(
+                  style: TextButton.styleFrom(foregroundColor: Colors.white),
+                  onPressed: () => setState(() => tab = 3),
+                  child: const Text(
+                    'My Plan',
+                    style: TextStyle(
+                      fontFamily: 'PlusJakartaSans',
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget infoPill(String text, {IconData? icon}) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+    decoration: BoxDecoration(
+      color: uiPalette.dark ? const Color(0xFF2C3D30) : const Color(0xFFEDEEF0),
+      borderRadius: BorderRadius.circular(24),
+    ),
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (icon != null) ...[Icon(icon, size: 16), const SizedBox(width: 6)],
+        Text(
+          text,
+          style: const TextStyle(
+            fontFamily: 'PlusJakartaSans',
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ],
+    ),
+  );
+
+  Widget cutoffStrip() {
+    final cut = (cfg?['cutoff_time'] as String? ?? '').split(':');
+    final label = cut.length >= 2
+        ? 'Cutoff ${cut[0]}:${cut[1]}'
+        : 'Cutoff time';
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: uiPalette.dark
+            ? const Color(0xFF2C3D30)
+            : const Color(0xFFEDEEF0),
+        borderRadius: BorderRadius.circular(26),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            flex: 11,
+            child: Container(
+              padding: const EdgeInsets.symmetric(vertical: 10),
+              decoration: BoxDecoration(
+                color: const Color(0xFF012D1D),
+                borderRadius: BorderRadius.circular(22),
+              ),
+              child: const FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.wb_sunny_outlined,
+                      size: 16,
+                      color: Colors.white,
+                    ),
+                    SizedBox(width: 6),
+                    Text(
+                      "Today's Tiffe",
+                      style: TextStyle(
+                        fontFamily: 'PlusJakartaSans',
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white,
                       ),
-                    ]
-                    .map(
-                      (style) => FilledButton(
-                        style: style,
-                        onPressed: () => setState(() => tab = 3),
-                        child: const Text('Explore plans'),
-                      ),
-                    )
-                    .toList(),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          Expanded(
+            flex: 10,
+            child: Center(
+              child: Text(
+                label,
+                style: TextStyle(
+                  fontFamily: 'PlusJakartaSans',
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: uiPalette.muted,
+                ),
+              ),
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget customerHome() => Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Text(
-        'Hello, ${name.text.trim().split(' ').first}',
-        style: const TextStyle(
-          fontFamily: 'PlusJakartaSans',
-          fontSize: 22,
-          fontWeight: FontWeight.w700,
-        ),
-      ),
-      const SizedBox(height: 6),
-      Text(
-        'Fresh homemade food. Your daily comfort.',
-        style: TextStyle(color: uiPalette.muted),
-      ),
-      const SizedBox(height: 20),
-      subscriptionSummary(),
-      const SizedBox(height: 22),
-      ClipRRect(
-        borderRadius: BorderRadius.circular(28),
-        child: Stack(
+  Widget customerHome() {
+    final first = name.text.trim().split(' ').first;
+    final extra = money('extra_bhaji_paise');
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Image.asset(
-              'assets/food/hero.jpg',
-              width: double.infinity,
-              height: 230,
-              fit: BoxFit.cover,
-            ),
-            Positioned.fill(
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [Colors.transparent, const Color(0xDD012D1D)],
-                  ),
-                ),
-              ),
-            ),
-            const Positioned(
-              bottom: 20,
-              left: 20,
-              right: 20,
+            Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'YOUR HOME-STYLE DABBA',
-                    style: TextStyle(
-                      color: Color(0xFFFFDBCB),
-                      fontSize: 10,
-                      letterSpacing: 1,
+                    'Hello, $first! 🍲',
+                    style: const TextStyle(
+                      fontFamily: 'PlusJakartaSans',
+                      fontSize: 22,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF012D1D),
                     ),
                   ),
-                  SizedBox(height: 7),
+                  const SizedBox(height: 6),
                   Text(
-                    'Simple food. Full heart.',
-                    style: TextStyle(
-                      fontFamily: 'PlusJakartaSans',
-                      color: Colors.white,
-                      fontSize: 24,
-                      fontWeight: FontWeight.w700,
-                    ),
+                    'Fresh homemade food for your daily routine.',
+                    style: TextStyle(color: uiPalette.muted, fontSize: 13),
                   ),
                 ],
               ),
             ),
+            const SizedBox(width: 12),
+            Container(
+              width: 40,
+              height: 40,
+              decoration: const BoxDecoration(
+                color: Color(0xFFEDEEF0),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.eco_outlined,
+                size: 20,
+                color: Color(0xFF414844),
+              ),
+            ),
           ],
         ),
-      ),
-      const SizedBox(height: 14),
-      section(
-        'Inside every dabba',
-        '3 chapatis, rice and your choice of 2 bhajis. Extra bhajis ${money('extra_bhaji_paise')} each.',
-      ),
-      orderCta(),
-      const SizedBox(height: 24),
-      eyebrow("Inside today's dabba"),
-      menus(),
-      const SizedBox(height: 18),
-      serviceAreas(),
-    ],
-  );
+        const SizedBox(height: 16),
+        cutoffStrip(),
+        const SizedBox(height: 20),
+        subscriptionSummary(),
+        const SizedBox(height: 22),
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: uiPalette.surface,
+            borderRadius: BorderRadius.circular(32),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x0F000000),
+                blurRadius: 16,
+                offset: Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(20),
+                child: Stack(
+                  children: [
+                    Image.asset(
+                      'assets/food/hero.jpg',
+                      width: double.infinity,
+                      height: 208,
+                      fit: BoxFit.cover,
+                    ),
+                    Positioned.fill(
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            stops: const [.35, 1],
+                            colors: [
+                              Colors.transparent,
+                              const Color(0xCC012D1D),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    Positioned(
+                      left: 12,
+                      top: 12,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.local_fire_department_outlined,
+                              size: 13,
+                              color: Color(0xFF9E4300),
+                            ),
+                            SizedBox(width: 4),
+                            Text(
+                              'HOME-STYLE TIFFIN',
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: .4,
+                                color: Color(0xFF012D1D),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    Positioned(
+                      left: 14,
+                      right: 14,
+                      bottom: 14,
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          const Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'YOUR DAILY DABBA',
+                                  style: TextStyle(
+                                    color: Color(0xFFFFDBCB),
+                                    fontSize: 10,
+                                    letterSpacing: .8,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                                SizedBox(height: 4),
+                                Text(
+                                  '3 Chapatis, Rice & Your Favourite Bhajis',
+                                  style: TextStyle(
+                                    fontFamily: 'PlusJakartaSans',
+                                    color: Colors.white,
+                                    fontSize: 19,
+                                    height: 1.2,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 10,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(22),
+                            ),
+                            child: const Text(
+                              '2 bhajis\nincluded',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontSize: 11,
+                                height: 1.2,
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFF012D1D),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 14),
+              Container(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                decoration: BoxDecoration(
+                  color: uiPalette.dark
+                      ? const Color(0xFF2C3D30)
+                      : const Color(0xFFF3F3F6),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  children: [
+                    for (final t in ['3 chapatis', 'Rice', '2 bhajis'])
+                      Expanded(
+                        child: Text(
+                          t,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(fontSize: 13),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 14),
+              Text(
+                'Your home-style tiffin, with two bhajis of your choice. Add another favourite for $extra each.',
+                style: TextStyle(
+                  color: uiPalette.muted,
+                  fontSize: 14,
+                  height: 1.5,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 24),
+        eyebrow("Inside today's dabba"),
+        menus(),
+        const SizedBox(height: 18),
+        serviceAreas(),
+      ],
+    );
+  }
 
   Widget workspaceBuild(BuildContext c) {
     final admin = widget.role != null;
@@ -2276,6 +3324,15 @@ class _LiveWorkspaceState extends State<LiveWorkspace> {
       appBar: AppBar(
         title: admin
             ? const Text('Tiffe kitchen')
+            : tab == 3
+            ? const Text(
+                'Plan Customization',
+                style: TextStyle(
+                  fontFamily: 'PlusJakartaSans',
+                  fontSize: 18,
+                  fontWeight: FontWeight.w500,
+                ),
+              )
             : Row(
                 children: [
                   const Logo(size: 30),
@@ -2315,23 +3372,30 @@ class _LiveWorkspaceState extends State<LiveWorkspace> {
                   child: Text(widget.role!),
                 ),
               ]
-            : null,
+            : [
+                IconButton(
+                  tooltip: 'Profile',
+                  onPressed: () => setState(() => tab = 4),
+                  icon: const Icon(Icons.person_outline),
+                ),
+              ],
       ),
       body: SafeArea(
         child: ListView(
           key: ValueKey(tab),
-          padding: const EdgeInsets.all(24),
+          padding: EdgeInsets.all(admin ? 24 : 20),
           children: [
-            Text(
-              titles[tab],
-              style: TextStyle(
-                color: palette(c).ink,
-                fontSize: admin ? 30 : 24,
-                fontFamily: admin ? 'TiffeSans' : 'PlusJakartaSans',
-                fontWeight: FontWeight.w800,
+            if (admin)
+              Text(
+                titles[tab],
+                style: TextStyle(
+                  color: palette(c).ink,
+                  fontSize: admin ? 30 : 24,
+                  fontFamily: admin ? 'TiffeSans' : 'PlusJakartaSans',
+                  fontWeight: FontWeight.w800,
+                ),
               ),
-            ),
-            const SizedBox(height: 12),
+            SizedBox(height: admin ? 12 : 4),
             if (tab == 0 && !admin) customerHome(),
             if (tab == 0 && admin) ...[
               Text(
@@ -2344,22 +3408,18 @@ class _LiveWorkspaceState extends State<LiveWorkspace> {
               homeIntro(admin),
               menus(),
             ],
-            if (tab == 1) ...[
+            if (tab == 1 && !admin) customerMenuScreen(),
+            if (tab == 1 && admin) ...[
               section(
                 'Choose your favourites',
                 'Two bhajis per tiffin included. Extra bhajis ${money('extra_bhaji_paise')} each.',
               ),
-              if (!admin) orderCta(),
               const SizedBox(height: 16),
               menus(),
               serviceAreas(),
             ],
             if (tab == 2) ...[orders(), orderGuide(admin)],
-            if (tab == 3 && !admin) ...[
-              eyebrow('Homemade meals, delivered daily'),
-              planCatalogue(),
-              plan(),
-            ],
+            if (tab == 3 && !admin) planScreen(),
             if (tab == 3 && admin) ...[
               planCatalogue(admin: true),
               plansAdmin(),
@@ -2698,6 +3758,262 @@ class _OrderSheetState extends State<OrderSheet> {
             ),
           );
         },
+      ),
+    );
+  }
+}
+
+class PlanReview extends StatelessWidget {
+  final bool isDouble;
+  final Map<String, dynamic> cfg;
+  final String name, phone, area, address;
+  const PlanReview({
+    super.key,
+    required this.isDouble,
+    required this.cfg,
+    required this.name,
+    required this.phone,
+    required this.area,
+    required this.address,
+  });
+  String rs(String k) => '₹${((cfg[k] as num) / 100).toStringAsFixed(0)}';
+  @override
+  Widget build(BuildContext context) {
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final surface = dark ? const Color(0xFF202D24) : Colors.white;
+    final muted = dark ? const Color(0xFFAEB9AE) : const Color(0xFF738074);
+    final planKey = isDouble ? 'double_price_paise' : 'daily_price_paise';
+    final total =
+        ((cfg[planKey] as num) + (cfg['monthly_delivery_paise'] as num)) / 100;
+    final planName = isDouble ? 'Double Tiffe' : 'Daily Tiffe';
+    Widget card(Widget child) => Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: surface,
+        borderRadius: BorderRadius.circular(28),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x0F000000),
+            blurRadius: 16,
+            offset: Offset(0, 4),
+          ),
+        ],
+      ),
+      child: child,
+    );
+    Widget line(String l, String r, {bool big = false}) => Padding(
+      padding: const EdgeInsets.symmetric(vertical: 5),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              l,
+              style: TextStyle(
+                fontSize: big ? 22 : 15,
+                fontWeight: big ? FontWeight.w700 : FontWeight.w400,
+                fontFamily: big ? 'PlusJakartaSans' : null,
+              ),
+            ),
+          ),
+          Text(
+            r,
+            style: TextStyle(
+              fontSize: big ? 22 : 15,
+              fontWeight: big ? FontWeight.w700 : FontWeight.w400,
+              fontFamily: big ? 'PlusJakartaSans' : null,
+            ),
+          ),
+        ],
+      ),
+    );
+    Widget chip(String t) => Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+      decoration: BoxDecoration(
+        color: dark ? const Color(0xFF2C3D30) : const Color(0xFFF3F3F6),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Text(
+        t,
+        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+      ),
+    );
+    return Theme(
+      data: Theme.of(context).copyWith(
+        scaffoldBackgroundColor: dark
+            ? const Color(0xFF131C17)
+            : const Color(0xFFF9F9FB),
+        textTheme: Theme.of(context).textTheme.apply(fontFamily: 'Inter'),
+      ),
+      child: Scaffold(
+        appBar: AppBar(
+          backgroundColor: dark
+              ? const Color(0xFF131C17)
+              : const Color(0xFFF9F9FB),
+          scrolledUnderElevation: 0,
+          title: const Text(
+            'Review Your Plan',
+            style: TextStyle(
+              fontFamily: 'PlusJakartaSans',
+              fontSize: 18,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ),
+        body: SafeArea(
+          child: ListView(
+            padding: const EdgeInsets.all(20),
+            children: [
+              card(
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFC1ECD4),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: const Text(
+                        'MONTHLY HOMEMADE MEALS',
+                        style: TextStyle(
+                          fontSize: 10.5,
+                          letterSpacing: .4,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF012D1D),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            planName,
+                            style: const TextStyle(
+                              fontFamily: 'PlusJakartaSans',
+                              fontSize: 26,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                        Text(
+                          rs(planKey),
+                          style: const TextStyle(
+                            fontFamily: 'PlusJakartaSans',
+                            fontSize: 26,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      isDouble
+                          ? '2 tiffins a day, each with your choice of two bhajis.'
+                          : '1 tiffin a day, with your choice of two bhajis.',
+                      style: TextStyle(color: muted, fontSize: 14),
+                    ),
+                    const SizedBox(height: 12),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        chip('3 Chapatis'),
+                        chip('Rice'),
+                        chip('2 Bhajis / tiffin'),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+                    Text(
+                      'Start and end dates are confirmed by the kitchen when your payment is verified.',
+                      style: TextStyle(color: muted, fontSize: 13),
+                    ),
+                  ],
+                ),
+              ),
+              card(
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Delivery Address',
+                      style: TextStyle(
+                        fontFamily: 'PlusJakartaSans',
+                        fontSize: 20,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      name,
+                      style: const TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                    const SizedBox(height: 4),
+                    if (address.isNotEmpty)
+                      Text(
+                        address,
+                        style: TextStyle(color: muted, fontSize: 14),
+                      ),
+                    if (area.isNotEmpty)
+                      Text(area, style: TextStyle(color: muted, fontSize: 14)),
+                    if (phone.isNotEmpty)
+                      Text(phone, style: TextStyle(color: muted, fontSize: 14)),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Edit your address from Profile.',
+                      style: TextStyle(color: muted, fontSize: 12),
+                    ),
+                  ],
+                ),
+              ),
+              card(
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Bill Details',
+                      style: TextStyle(
+                        fontFamily: 'PlusJakartaSans',
+                        fontSize: 20,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    line('Monthly plan', rs(planKey)),
+                    line('Monthly delivery', rs('monthly_delivery_paise')),
+                    const Divider(height: 24),
+                    line('Total', '₹${total.toStringAsFixed(0)}', big: true),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Extra bhajis are charged on each meal, not included here (${rs('extra_bhaji_paise')} each).',
+                      style: TextStyle(color: muted, fontSize: 12.5),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 4),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  style: FilledButton.styleFrom(minimumSize: const Size(0, 54)),
+                  onPressed: null,
+                  child: const Text('Request subscription'),
+                ),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                'Subscription requests are not open in the app yet. Nothing is charged or booked from this page.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: muted, fontSize: 12.5),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

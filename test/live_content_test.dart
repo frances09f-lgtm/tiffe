@@ -205,8 +205,8 @@ void main() {
           if (entry.value == 3) {
             expect(find.text('Daily Tiffe'), findsOneWidget);
             expect(find.text('Double Tiffe'), findsOneWidget);
-            expect(find.text('₹1500 / month'), findsOneWidget);
-            expect(find.text('₹3000 / month'), findsOneWidget);
+            expect(find.text(admin ? '₹1500 / month' : '₹1500'), findsOneWidget);
+            expect(find.text(admin ? '₹3000 / month' : '₹3000'), findsOneWidget);
           }
           await t.drag(list, const Offset(0, -1500));
           await t.pumpAndSettle();
