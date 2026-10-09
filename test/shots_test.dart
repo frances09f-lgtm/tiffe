@@ -12,6 +12,7 @@ import 'package:tiffe/data/store.dart';
 import 'package:tiffe/ui/app.dart';
 import 'package:tiffe/live/backend.dart';
 import 'package:tiffe/live/live_app.dart';
+import 'package:tiffe/ui/customer_style.dart';
 
 class ContentBackend extends TiffeBackend {
   ContentBackend()
@@ -111,5 +112,37 @@ void main() {
     await t.tap(find.widgetWithText(FilterChip, 'Matki Usal'));
     await capture(t, 'checkout');
     await t.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('entry shots', (t) async {
+    SharedPreferences.setMockInitialValues({});
+    final s = TiffeStore(await SharedPreferences.getInstance());
+    t.view.physicalSize = const Size(390, 844);
+    t.view.devicePixelRatio = 1;
+    final b = ContentBackend();
+    Future<void> show(String n, Widget w) async {
+      await t.pumpWidget(RepaintBoundary(child: TiffeApp(store: s, startScreen: w)));
+      await t.pump(const Duration(milliseconds: 300));
+      await t.runAsync(() => Future.delayed(const Duration(milliseconds: 400)));
+      await t.pump(const Duration(milliseconds: 1500));
+      final bd = t.firstRenderObject<RenderRepaintBoundary>(find.byType(RepaintBoundary));
+      await t.runAsync(() async {
+        final image = await bd.toImage();
+        final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
+        await File('/tmp/shots/$n.png').writeAsBytes(bytes!.buffer.asUint8List());
+      });
+    }
+    await show('splash', const CustomerSplash());
+    await show('welcome', CustomerWelcome(onContinue: () {}));
+    await show('offline', CustomerOffline(busy: false, onRetry: () {}));
+    await show('signin', SignIn(backend: b));
+    await t.tap(find.text('New to Tiffe? Create account'));
+    await t.pump(const Duration(milliseconds: 500));
+    final bd2 = t.firstRenderObject<RenderRepaintBoundary>(find.byType(RepaintBoundary));
+    await t.runAsync(() async {
+      final image = await bd2.toImage();
+      final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
+      await File('/tmp/shots/register.png').writeAsBytes(bytes!.buffer.asUint8List());
+    });
   });
 }
