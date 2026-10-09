@@ -156,8 +156,26 @@ class TiffeBackend {
     params: {'p_order': orderId, 'p_rider': riderId},
   );
 
-  Future<List<Map<String, dynamic>>> deliveryStaff() async =>
-      client.from('staff_members').select('user_id').eq('role', 'delivery');
+  Future<List<Map<String, dynamic>>> deliveryStaff() async {
+    final staff = await client
+        .from('staff_members')
+        .select('user_id')
+        .eq('role', 'delivery');
+    final people = await client.from('profiles').select('id,name');
+    return staff
+        .map(
+          (r) => <String, dynamic>{
+            ...r,
+            'name':
+                people
+                    .where((p) => p['id'] == r['user_id'])
+                    .map((p) => p['name'])
+                    .firstOrNull ??
+                '',
+          },
+        )
+        .toList();
+  }
 
   Future<void> advance(String id, String status, {DateTime? eta}) async =>
       client.rpc(

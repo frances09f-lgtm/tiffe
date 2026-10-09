@@ -663,7 +663,9 @@ class _LiveWorkspaceState extends State<LiveWorkspace> {
                 .map(
                   (r) => ListTile(
                     title: Text(
-                      'Rider ${(r['user_id'] as String).substring(0, 8)}',
+                      (r['name'] as String? ?? '').trim().isNotEmpty
+                          ? r['name'] as String
+                          : 'Rider ${(r['user_id'] as String).substring(0, 8)}',
                     ),
                     leading: Icon(
                       chosen == r['user_id']
