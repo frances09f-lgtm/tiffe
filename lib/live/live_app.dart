@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/material.dart';
 
 import '../data/store.dart';
+import '../domain/tiffin.dart' as food;
 import '../ui/app.dart' show palette, panel, Logo;
 import 'backend.dart';
 
@@ -743,6 +744,233 @@ class _LiveWorkspaceState extends State<LiveWorkspace> {
     }
   }
 
+  String foodImage(String title) {
+    for (final item in food.menu) {
+      if (item.name == title) return item.image;
+    }
+    return 'assets/food/hero.jpg';
+  }
+
+  Widget section(
+    String title,
+    String body, {
+    IconData icon = Icons.restaurant_outlined,
+  }) => Padding(
+    padding: const EdgeInsets.only(bottom: 16),
+    child: panel(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: palette(context).green),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 19,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 7),
+                Text(
+                  body,
+                  style: TextStyle(color: palette(context).muted, height: 1.5),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+
+  Widget serviceAreas() => section(
+    'Around your neighbourhood',
+    areas.isEmpty ? 'Delivery areas are loading.' : areas.join(' · '),
+    icon: Icons.location_on_outlined,
+  );
+
+  Widget homeIntro(bool admin) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      const SizedBox(height: 16),
+      ClipRRect(
+        borderRadius: BorderRadius.circular(24),
+        child: Image.asset(
+          'assets/food/hero.jpg',
+          width: double.infinity,
+          height: 210,
+          fit: BoxFit.cover,
+        ),
+      ),
+      const SizedBox(height: 18),
+      Text(
+        admin ? 'Good food starts here.' : 'Simple food. Full heart.',
+        style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w700),
+      ),
+      const SizedBox(height: 6),
+      Text(
+        '3 chapatis · Rice · Your choice of 2 bhajis',
+        style: TextStyle(color: palette(context).muted),
+      ),
+      const SizedBox(height: 20),
+      if (!admin) ...[
+        section(
+          'Your daily routine starts here',
+          'Explore Daily and Double Tiffe, or choose a one-time meal.',
+          icon: Icons.calendar_month_outlined,
+        ),
+        Wrap(
+          spacing: 12,
+          runSpacing: 8,
+          children: [
+            FilledButton(
+              onPressed: cfg == null ? null : openOrder,
+              child: const Text('Order a tiffin'),
+            ),
+            OutlinedButton(
+              onPressed: () => setState(() => tab = 3),
+              child: const Text('Explore plans'),
+            ),
+          ],
+        ),
+        const SizedBox(height: 20),
+      ] else
+        section(
+          'Kitchen workspace',
+          'Keep the menu fresh, prepare incoming orders, verify received payments and assign delivery riders.',
+          icon: Icons.soup_kitchen_outlined,
+        ),
+      serviceAreas(),
+      Text(
+        'From our kitchen',
+        style: const TextStyle(fontSize: 23, fontWeight: FontWeight.w700),
+      ),
+      const SizedBox(height: 6),
+      Text(
+        'Pick your favourites. The first two bhajis in each tiffin are included.',
+        style: TextStyle(color: palette(context).muted),
+      ),
+      const SizedBox(height: 16),
+    ],
+  );
+
+  String money(String key) => cfg?[key] == null
+      ? '...'
+      : '₹${((cfg![key] as num) / 100).toStringAsFixed(0)}';
+
+  Widget planCatalogue({bool admin = false}) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      const SizedBox(height: 18),
+      const Text(
+        'Find your daily routine',
+        style: TextStyle(fontSize: 24, fontWeight: FontWeight.w700),
+      ),
+      const SizedBox(height: 8),
+      Text(
+        'Home-cooked meals, without the daily planning.',
+        style: TextStyle(color: palette(context).muted),
+      ),
+      const SizedBox(height: 18),
+      for (final doublePlan in [false, true])
+        Padding(
+          padding: const EdgeInsets.only(bottom: 18),
+          child: panel(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  doublePlan ? 'Double Tiffe' : 'Daily Tiffe',
+                  style: const TextStyle(
+                    fontSize: 26,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  doublePlan
+                      ? 'Two dabbas. Twice the comfort.'
+                      : 'One good meal, every day.',
+                ),
+                const SizedBox(height: 20),
+                Text(
+                  '${money(doublePlan ? 'double_price_paise' : 'daily_price_paise')} / month',
+                  style: TextStyle(
+                    fontSize: 32,
+                    fontWeight: FontWeight.w800,
+                    color: palette(context).green,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                for (final benefit in [
+                  doublePlan ? '2 tiffins every day' : '1 tiffin every day',
+                  '3 chapatis, rice and 2 bhajis per tiffin',
+                  'Extra bhaji ${money('extra_bhaji_paise')} each',
+                  'Sunday sweet for active subscribers',
+                  'Delivery ${money('monthly_delivery_paise')} / month',
+                ])
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(
+                          Icons.check_circle_outline,
+                          size: 18,
+                          color: palette(context).green,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(child: Text(benefit)),
+                      ],
+                    ),
+                  ),
+                if (!admin)
+                  const Text(
+                    'Monthly plans are set up by the kitchen after payment confirmation.',
+                    style: TextStyle(fontSize: 12),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      section(
+        'Just want one today?',
+        'One-time Tiffe ${money('one_time_price_paise')} + ${money('one_time_delivery_paise')} delivery. 3 chapatis, rice and 2 bhajis. No Sunday sweet.',
+      ),
+      if (!admin) orderCta(),
+      const SizedBox(height: 18),
+      serviceAreas(),
+    ],
+  );
+
+  Widget orderGuide(bool admin) => Column(
+    children: [
+      const SizedBox(height: 18),
+      section(
+        admin ? 'From kitchen to doorstep' : 'Your next dabba starts here',
+        admin
+            ? 'Confirmed / Preparing / Packed / Out for Delivery / Delivered. Dispatch needs verified payment and an assigned rider.'
+            : 'Choose a delivery date and two favourite bhajis per tiffin. Follow kitchen preparation and delivery updates here.',
+        icon: Icons.delivery_dining_outlined,
+      ),
+      if (!admin) orderCta(),
+      const SizedBox(height: 16),
+      section(
+        'Every tiffin includes',
+        '3 chapatis, rice and 2 bhajis. Choose extra bhajis for ${money('extra_bhaji_paise')} each.',
+      ),
+      serviceAreas(),
+      OutlinedButton(
+        onPressed: () => setState(() => tab = admin ? 1 : 3),
+        child: Text(admin ? 'Manage menu' : 'Browse plans'),
+      ),
+    ],
+  );
+
   Widget menus() => data(
     menuStream,
     (rows) => rows.isEmpty
@@ -759,9 +987,14 @@ class _LiveWorkspaceState extends State<LiveWorkspace> {
                     child: panel(
                       child: Row(
                         children: [
-                          Icon(
-                            Icons.restaurant_menu,
-                            color: palette(context).green,
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(16),
+                            child: Image.asset(
+                              foodImage(m['name'] as String),
+                              width: 86,
+                              height: 92,
+                              fit: BoxFit.cover,
+                            ),
                           ),
                           const SizedBox(width: 12),
                           Expanded(
@@ -1595,13 +1828,24 @@ class _LiveWorkspaceState extends State<LiveWorkspace> {
                 style: TextStyle(color: palette(c).muted),
               ),
               const SizedBox(height: 18),
+              homeIntro(admin),
+              menus(),
+            ],
+            if (tab == 1) ...[
+              section(
+                'Choose your favourites',
+                'Two bhajis per tiffin included. Extra bhajis ${money('extra_bhaji_paise')} each.',
+              ),
               menus(),
               if (!admin) orderCta(),
+              serviceAreas(),
             ],
-            if (tab == 1) ...[menus(), if (!admin) orderCta()],
-            if (tab == 2) orders(),
-            if (tab == 3 && !admin) plan(),
-            if (tab == 3 && admin) plansAdmin(),
+            if (tab == 2) ...[orders(), orderGuide(admin)],
+            if (tab == 3 && !admin) ...[plan(), planCatalogue()],
+            if (tab == 3 && admin) ...[
+              planCatalogue(admin: true),
+              plansAdmin(),
+            ],
             if (tab == (admin ? 4 : 4)) profile(),
           ],
         ),

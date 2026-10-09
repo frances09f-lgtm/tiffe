@@ -54,6 +54,7 @@ class FakeBackend extends TiffeBackend {
 void main() {
   setUpAll(() async {
     TestWidgetsFlutterBinding.ensureInitialized();
+    await Directory('screenshots').create(recursive: true);
     await (FontLoader('TiffeSans')
           ..addFont(rootBundle.load('assets/fonts/Roboto-Regular.ttf'))
           ..addFont(rootBundle.load('assets/fonts/Roboto-Bold.ttf')))

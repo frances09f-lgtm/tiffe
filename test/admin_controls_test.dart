@@ -54,11 +54,13 @@ class OwnerBackend extends TiffeBackend {
     assignedOrder = orderId;
     assignedRider = riderId;
   }
+
   @override
   Future<void> advance(String id, String status, {DateTime? eta}) async {
     advancedTo = status;
     advancedEta = eta;
   }
+
   @override
   Future<List<Map<String, dynamic>>> allSubscriptions() async => subs;
   @override
@@ -82,12 +84,15 @@ class OwnerBackend extends TiffeBackend {
     };
     subs.add(savedSub!);
   }
+
   List<Map<String, dynamic>> subs = [];
   Map<String, dynamic>? savedSub;
 }
 
 void main() {
-  testWidgets('owner can verify payment, assign rider, dispatch with ETA', (t) async {
+  testWidgets('owner can verify payment, assign rider, dispatch with ETA', (
+    t,
+  ) async {
     SharedPreferences.setMockInitialValues({});
     final s = TiffeStore(await SharedPreferences.getInstance());
     t.view.physicalSize = const Size(430, 1400);
@@ -104,7 +109,10 @@ void main() {
     await t.pumpAndSettle();
     expect(find.text('Verify payment'), findsOneWidget);
     expect(find.text('Assign rider'), findsOneWidget);
-    expect(find.text('Dispatch needs verified payment and a rider.'), findsOneWidget);
+    expect(
+      find.text('Dispatch needs verified payment and a rider.'),
+      findsOneWidget,
+    );
 
     await t.tap(find.text('Verify payment'));
     await t.pumpAndSettle();
@@ -147,6 +155,14 @@ void main() {
     );
     await t.pumpAndSettle();
     await t.tap(find.text('Plans').last);
+    await t.pumpAndSettle();
+    await t.scrollUntilVisible(
+      find.text('Add subscription'),
+      350,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await t.pumpAndSettle();
+    await t.ensureVisible(find.text('Add subscription'));
     await t.pumpAndSettle();
     expect(find.text('No subscriptions yet'), findsOneWidget);
     await t.tap(find.text('Add subscription'));
