@@ -1,4 +1,5 @@
 import 'dart:math';
+import 'dart:async';
 
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -7,6 +8,15 @@ import 'package:flutter/material.dart';
 import '../data/store.dart';
 import '../ui/app.dart' show palette, panel, Logo;
 import 'backend.dart';
+
+bool isCompleteProfile(Map<String, dynamic>? profile) =>
+    profile != null &&
+    [
+      'name',
+      'phone',
+      'address',
+      'area',
+    ].every((key) => (profile[key] as String? ?? '').trim().isNotEmpty);
 
 class LiveGate extends StatefulWidget {
   final TiffeBackend? backend;
@@ -87,7 +97,11 @@ class _LiveGateState extends State<LiveGate> {
             },
           );
         }
-        return LiveWorkspace(backend: b, store: widget.store);
+        return LiveWorkspace(
+          key: ValueKey(b.userId),
+          backend: b,
+          store: widget.store,
+        );
       },
     );
   }
@@ -323,6 +337,8 @@ class _LiveWorkspaceState extends State<LiveWorkspace> {
   bool saving = false;
   String? profileError;
   bool loaded = false;
+  bool profileComplete = false;
+  StreamSubscription<List<Map<String, dynamic>>>? menuListener, planListener;
   Map<String, dynamic>? cfg;
   List<Map<String, dynamic>> menuRows = [];
   List<Map<String, dynamic>> subRows = [];
@@ -331,12 +347,12 @@ class _LiveWorkspaceState extends State<LiveWorkspace> {
     super.initState();
     loadProfile();
     loadSettings();
-    menuStream.listen((rows) {
+    menuListener = menuStream.listen((rows) {
       if (mounted) setState(() => menuRows = rows);
-    });
-    subscriptionStream?.listen((rows) {
+    }, onError: (Object _) {});
+    planListener = subscriptionStream?.listen((rows) {
       if (mounted) setState(() => subRows = rows);
-    });
+    }, onError: (Object _) {});
   }
 
   Map<String, dynamic>? get activeSubscription {
@@ -357,7 +373,9 @@ class _LiveWorkspaceState extends State<LiveWorkspace> {
 
   Future<void> loadSettings() async {
     try {
-      final row = await widget.backend.currentSettings();
+      final row = await widget.backend.currentSettings().timeout(
+        const Duration(seconds: 12),
+      );
       if (mounted) setState(() => cfg = row);
     } catch (_) {}
   }
@@ -366,15 +384,28 @@ class _LiveWorkspaceState extends State<LiveWorkspace> {
       ((cfg?['areas'] as List?) ?? const []).cast<String>();
 
   Future<void> loadProfile() async {
+    if (mounted) {
+      setState(() {
+        loaded = false;
+        profileError = null;
+      });
+    }
     try {
-      final p = await widget.backend.profile();
+      final p = await widget.backend.profile().timeout(
+        const Duration(seconds: 12),
+      );
       if (p != null) {
         name.text = p['name'] as String? ?? '';
         phone.text = p['phone'] as String? ?? '';
         address.text = p['address'] as String? ?? '';
         area.text = p['area'] as String? ?? '';
       }
-      if (mounted) setState(() => loaded = true);
+      if (mounted) {
+        setState(() {
+          loaded = true;
+          profileComplete = isCompleteProfile(p);
+        });
+      }
     } catch (_) {
       if (mounted) {
         setState(
@@ -386,6 +417,8 @@ class _LiveWorkspaceState extends State<LiveWorkspace> {
 
   @override
   void dispose() {
+    menuListener?.cancel();
+    planListener?.cancel();
     name.dispose();
     phone.dispose();
     address.dispose();
@@ -424,6 +457,11 @@ class _LiveWorkspaceState extends State<LiveWorkspace> {
     Widget Function(List<Map<String, dynamic>>) render,
   ) => StreamBuilder<List<Map<String, dynamic>>>(
     stream: stream,
+    initialData: identical(stream, menuStream)
+        ? menuRows
+        : identical(stream, subscriptionStream)
+        ? subRows
+        : null,
     builder: (c, s) {
       if (s.hasError) {
         return empty(
@@ -1164,6 +1202,10 @@ class _LiveWorkspaceState extends State<LiveWorkspace> {
         throw StateError('Profile readback did not match');
       }
       if (mounted) {
+        setState(() {
+          profileComplete = true;
+          if (widget.role == null) tab = 0;
+        });
         final dark = Theme.of(context).brightness == Brightness.dark;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -1292,74 +1334,225 @@ class _LiveWorkspaceState extends State<LiveWorkspace> {
     Future.delayed(const Duration(milliseconds: 400), password.dispose);
   }
 
-  Widget profile() => Column(
+  Widget profile({bool onboarding = false}) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
       panel(
-        child: Material(
-          color: Colors.transparent,
-          child: SwitchListTile(
-            title: const Text('Dark mode'),
-            value: widget.store.darkMode,
-            onChanged: widget.store.setDarkMode,
-            secondary: const Icon(Icons.dark_mode_outlined),
+        child: Row(
+          children: [
+            CircleAvatar(
+              radius: 28,
+              backgroundColor: palette(context).green.withValues(alpha: .12),
+              child: Icon(
+                Icons.person_outline,
+                color: palette(context).green,
+                size: 30,
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    onboarding
+                        ? 'Make yourself at home'
+                        : name.text.isEmpty
+                        ? 'Your profile'
+                        : name.text,
+                    style: const TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    onboarding
+                        ? 'A few details so your dabba reaches you.'
+                        : 'Your details, your daily dabba.',
+                    style: TextStyle(color: palette(context).muted),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+      const SizedBox(height: 20),
+      if (!loaded && profileError == null)
+        const Padding(
+          padding: EdgeInsets.all(24),
+          child: Center(child: CircularProgressIndicator()),
+        ),
+      if (loaded)
+        panel(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text(
+                'Delivery details',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Used only to get your meal to the right doorstep.',
+                style: TextStyle(color: palette(context).muted),
+              ),
+              const SizedBox(height: 22),
+              TextField(
+                controller: name,
+                textCapitalization: TextCapitalization.words,
+                autofillHints: const [AutofillHints.name],
+                decoration: const InputDecoration(
+                  labelText: 'Full name',
+                  prefixIcon: Icon(Icons.person_outline),
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: phone,
+                keyboardType: TextInputType.phone,
+                autofillHints: const [AutofillHints.telephoneNumber],
+                decoration: const InputDecoration(
+                  labelText: 'Phone number',
+                  prefixIcon: Icon(Icons.phone_outlined),
+                ),
+              ),
+              const SizedBox(height: 16),
+              areas.isEmpty
+                  ? TextField(
+                      controller: area,
+                      decoration: const InputDecoration(
+                        labelText: 'Delivery area',
+                        prefixIcon: Icon(Icons.location_on_outlined),
+                      ),
+                    )
+                  : DropdownButtonFormField<String>(
+                      initialValue: areas.contains(area.text)
+                          ? area.text
+                          : null,
+                      isExpanded: true,
+                      decoration: const InputDecoration(
+                        labelText: 'Delivery area',
+                        prefixIcon: Icon(Icons.location_on_outlined),
+                      ),
+                      items: areas
+                          .map(
+                            (a) => DropdownMenuItem(value: a, child: Text(a)),
+                          )
+                          .toList(),
+                      onChanged: (v) => setState(() => area.text = v ?? ''),
+                    ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: address,
+                minLines: 2,
+                maxLines: 3,
+                textCapitalization: TextCapitalization.sentences,
+                autofillHints: const [AutofillHints.fullStreetAddress],
+                decoration: const InputDecoration(
+                  labelText: 'House, building & street',
+                  alignLabelWithHint: true,
+                  prefixIcon: Icon(Icons.home_outlined),
+                ),
+              ),
+              if (profileError != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 14),
+                  child: Text(
+                    profileError!,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+                  ),
+                ),
+              const SizedBox(height: 24),
+              FilledButton.icon(
+                onPressed: saving ? null : saveProfile,
+                icon: const Icon(Icons.check),
+                label: Text(
+                  saving
+                      ? 'Saving...'
+                      : onboarding
+                      ? 'Save & continue'
+                      : 'Save details',
+                ),
+              ),
+            ],
           ),
         ),
-      ),
-      const SizedBox(height: 20),
-      if (!loaded && profileError == null) const CircularProgressIndicator(),
-      if (loaded) ...[
-        TextField(
-          controller: name,
-          decoration: const InputDecoration(labelText: 'Name'),
+      if (!loaded && profileError != null) ...[
+        Text(
+          profileError!,
+          style: TextStyle(color: Theme.of(context).colorScheme.error),
         ),
-        const SizedBox(height: 12),
-        TextField(
-          controller: phone,
-          decoration: const InputDecoration(labelText: 'Phone'),
-          keyboardType: TextInputType.phone,
-        ),
-        const SizedBox(height: 12),
-        TextField(
-          controller: address,
-          decoration: const InputDecoration(labelText: 'Delivery address'),
-        ),
-        const SizedBox(height: 12),
-        areas.isEmpty
-            ? TextField(
-                controller: area,
-                decoration: const InputDecoration(labelText: 'Area'),
-              )
-            : DropdownButtonFormField<String>(
-                initialValue: areas.contains(area.text) ? area.text : null,
-                decoration: const InputDecoration(labelText: 'Area'),
-                items: {...areas, area.text}
-                    .where((a) => a.isNotEmpty)
-                    .map((a) => DropdownMenuItem(value: a, child: Text(a)))
-                    .toList(),
-                onChanged: (v) => setState(() => area.text = v ?? ''),
-              ),
-        const SizedBox(height: 18),
-        FilledButton(
-          onPressed: saving ? null : saveProfile,
-          child: Text(saving ? 'Saving...' : 'Save profile'),
+        TextButton.icon(
+          onPressed: loadProfile,
+          icon: const Icon(Icons.refresh),
+          label: const Text('Try again'),
         ),
       ],
-      if (profileError != null) Text(profileError!),
       const SizedBox(height: 20),
-      OutlinedButton(
-        onPressed: changePassword,
-        child: const Text('Change password'),
-      ),
+      if (!onboarding)
+        panel(
+          child: Material(
+            color: Colors.transparent,
+            child: Column(
+              children: [
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Dark mode'),
+                  subtitle: const Text('A softer view after sunset'),
+                  value: widget.store.darkMode,
+                  onChanged: widget.store.setDarkMode,
+                  secondary: const Icon(Icons.dark_mode_outlined),
+                ),
+                const Divider(),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.lock_outline),
+                  title: const Text('Change password'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: changePassword,
+                ),
+              ],
+            ),
+          ),
+        ),
       const SizedBox(height: 12),
-      OutlinedButton(
+      TextButton.icon(
         onPressed: widget.backend.signOut,
-        child: const Text('Sign out'),
+        icon: const Icon(Icons.logout),
+        label: const Text('Sign out'),
       ),
     ],
   );
   @override
   Widget build(BuildContext c) {
     final admin = widget.role != null;
+    if (!admin && !profileComplete) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Welcome to Tiffe')),
+        body: SafeArea(
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 560),
+              child: ListView(
+                padding: const EdgeInsets.all(24),
+                children: [
+                  const Text(
+                    'Complete your profile',
+                    style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800),
+                  ),
+                  const SizedBox(height: 20),
+                  profile(onboarding: true),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    }
     final titles = admin
         ? ['Kitchen overview', 'Menu', 'Orders', 'Plans', 'Workspace']
         : [

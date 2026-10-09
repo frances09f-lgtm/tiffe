@@ -32,7 +32,12 @@ class EmptyBackend extends TiffeBackend {
   @override
   Stream<List<Map<String, dynamic>>> subscriptions() => Stream.value([]);
   @override
-  Future<Map<String, dynamic>?> profile() async => null;
+  Future<Map<String, dynamic>?> profile() async => {
+    'name': 'Test customer',
+    'phone': '9999999999',
+    'area': 'Baner',
+    'address': 'Test address',
+  };
 }
 
 Future<void> capture(WidgetTester t, String name) async {
