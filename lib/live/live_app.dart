@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 
 import '../data/store.dart';
@@ -279,7 +281,7 @@ class LiveWorkspace extends StatefulWidget {
 
 class _LiveWorkspaceState extends State<LiveWorkspace> {
   int tab = 0;
-  late final menuStream = widget.backend.menu();
+  late final menuStream = widget.backend.menu().asBroadcastStream();
   late final orderStream = widget.backend.orders(customer: widget.role == null);
   late final subscriptionStream = widget.role == null
       ? widget.backend.subscriptions()
@@ -291,11 +293,27 @@ class _LiveWorkspaceState extends State<LiveWorkspace> {
   bool saving = false;
   String? profileError;
   bool loaded = false;
+  Map<String, dynamic>? cfg;
+  List<Map<String, dynamic>> menuRows = [];
   @override
   void initState() {
     super.initState();
     loadProfile();
+    loadSettings();
+    menuStream.listen((rows) {
+      if (mounted) setState(() => menuRows = rows);
+    });
   }
+
+  Future<void> loadSettings() async {
+    try {
+      final row = await widget.backend.currentSettings();
+      if (mounted) setState(() => cfg = row);
+    } catch (_) {}
+  }
+
+  List<String> get areas =>
+      ((cfg?['areas'] as List?) ?? const []).cast<String>();
 
   Future<void> loadProfile() async {
     try {
@@ -670,6 +688,36 @@ class _LiveWorkspaceState extends State<LiveWorkspace> {
                 .toList(),
           );
   });
+  Widget orderCta() => Padding(
+    padding: const EdgeInsets.only(top: 8),
+    child: FilledButton.icon(
+      onPressed: cfg == null ? null : openOrder,
+      icon: const Icon(Icons.add_shopping_cart_outlined),
+      label: const Text('Order a tiffin'),
+    ),
+  );
+
+  Future<void> openOrder() async {
+    final placed = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      builder: (c) => OrderSheet(
+        backend: widget.backend,
+        cfg: cfg!,
+        menuRows: menuRows,
+      ),
+    );
+    if (placed == true && mounted) {
+      setState(() => tab = 2);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Order placed - the kitchen has it.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
   Future<void> saveProfile() async {
     if (name.text.trim().isEmpty ||
         !RegExp(r'^\+?[0-9]{10,13}$').hasMatch(phone.text.trim()) ||
@@ -780,10 +828,22 @@ class _LiveWorkspaceState extends State<LiveWorkspace> {
           decoration: const InputDecoration(labelText: 'Delivery address'),
         ),
         const SizedBox(height: 12),
-        TextField(
-          controller: area,
-          decoration: const InputDecoration(labelText: 'Area'),
-        ),
+        areas.isEmpty
+            ? TextField(
+                controller: area,
+                decoration: const InputDecoration(labelText: 'Area'),
+              )
+            : DropdownButtonFormField<String>(
+                initialValue: areas.contains(area.text) ? area.text : null,
+                decoration: const InputDecoration(labelText: 'Area'),
+                items: {...areas, area.text}
+                    .where((a) => a.isNotEmpty)
+                    .map(
+                      (a) => DropdownMenuItem(value: a, child: Text(a)),
+                    )
+                    .toList(),
+                onChanged: (v) => setState(() => area.text = v ?? ''),
+              ),
         const SizedBox(height: 18),
         FilledButton(
           onPressed: saving ? null : saveProfile,
@@ -844,8 +904,9 @@ class _LiveWorkspaceState extends State<LiveWorkspace> {
               ),
               const SizedBox(height: 18),
               menus(),
+              if (!admin) orderCta(),
             ],
-            if (tab == 1) menus(),
+            if (tab == 1) ...[menus(), if (!admin) orderCta()],
             if (tab == 2) orders(),
             if (tab == 3 && !admin) plan(),
             if (tab == (admin ? 3 : 4)) profile(),
@@ -878,6 +939,211 @@ class _LiveWorkspaceState extends State<LiveWorkspace> {
             label: 'Profile',
           ),
         ],
+      ),
+    );
+  }
+}
+
+class OrderSheet extends StatefulWidget {
+  final TiffeBackend backend;
+  final Map<String, dynamic> cfg;
+  final List<Map<String, dynamic>> menuRows;
+  const OrderSheet({
+    super.key,
+    required this.backend,
+    required this.cfg,
+    required this.menuRows,
+  });
+  @override
+  State<OrderSheet> createState() => _OrderSheetState();
+}
+
+class _OrderSheetState extends State<OrderSheet> {
+  final instructions = TextEditingController();
+  final List<Set<String>> tiffins = [{}];
+  bool busy = false;
+  String? error;
+  late final String idempotencyKey = newOrderKey();
+
+  static String newOrderKey() {
+    final r = Random();
+    final h = List.generate(32, (_) => r.nextInt(16));
+    h[12] = 4;
+    h[16] = 8 + r.nextInt(4);
+    final s = h.map((e) => e.toRadixString(16)).join();
+    return '${s.substring(0, 8)}-${s.substring(8, 12)}-${s.substring(12, 16)}-'
+        '${s.substring(16, 20)}-${s.substring(20)}';
+  }
+
+  static DateTime istNow() =>
+      DateTime.now().toUtc().add(const Duration(hours: 5, minutes: 30));
+
+  String deliveryDate() {
+    final cutoff = (widget.cfg['cutoff_time'] as String? ?? '09:00:00')
+        .split(':')
+        .map(int.parse)
+        .toList();
+    var d = istNow();
+    final cutoffToday = DateTime(d.year, d.month, d.day, cutoff[0], cutoff[1]);
+    if (!d.isBefore(cutoffToday)) d = d.add(const Duration(days: 1));
+    return '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+  }
+
+  int get pricePaise {
+    final oneTime = widget.cfg['one_time_price_paise'] as int? ?? 0;
+    final delivery = widget.cfg['one_time_delivery_paise'] as int? ?? 0;
+    final extra = widget.cfg['extra_bhaji_paise'] as int? ?? 0;
+    var total = (oneTime + delivery) * tiffins.length;
+    for (final t in tiffins) {
+      if (t.length > 2) total += (t.length - 2) * extra;
+    }
+    return total;
+  }
+
+  @override
+  void dispose() {
+    instructions.dispose();
+    super.dispose();
+  }
+
+  Future<void> place() async {
+    for (final t in tiffins) {
+      if (t.length < 2 || t.length > 8) {
+        setState(() => error = 'Pick 2 to 8 bhajis for each tiffin.');
+        return;
+      }
+    }
+    setState(() {
+      busy = true;
+      error = null;
+    });
+    try {
+      await widget.backend.placeOrder(
+        date: deliveryDate(),
+        tiffins: tiffins.map((t) => t.toList()).toList(),
+        idempotencyKey: idempotencyKey,
+        instructions: instructions.text.trim(),
+      );
+      if (mounted) Navigator.pop(context, true);
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          busy = false;
+          error = e
+              .toString()
+              .replaceFirst(RegExp(r'^\w*Exception[: ]*'), '')
+              .trim();
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final available = widget.cfg;
+    final extra = (available['extra_bhaji_paise'] as int? ?? 0) ~/ 100;
+    return Padding(
+      padding: EdgeInsets.only(
+        left: 24,
+        right: 24,
+        top: 24,
+        bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+      ),
+      child: Builder(
+        builder: (c) {
+          final rows = widget.menuRows
+              .where((m) => m['available'] == true)
+              .toList();
+          return SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Order a tiffin',
+                  style: TextStyle(
+                    color: palette(c).ink,
+                    fontSize: 24,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'Delivery date: ${deliveryDate()}',
+                  style: TextStyle(color: palette(c).muted),
+                ),
+                const SizedBox(height: 16),
+                for (var i = 0; i < tiffins.length; i++) ...[
+                  Text(
+                    'Tiffin ${i + 1}: pick 2 to 8 bhajis'
+                    '${extra > 0 ? ' (extra ₹$extra each after the first two)' : ''}',
+                    style: const TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: rows
+                        .map(
+                          (m) => FilterChip(
+                            label: Text(m['name'] as String),
+                            selected: tiffins[i].contains(m['id'] as String),
+                            onSelected: busy
+                                ? null
+                                : (v) => setState(() {
+                                    error = null;
+                                    if (v) {
+                                      tiffins[i].add(m['id'] as String);
+                                    } else {
+                                      tiffins[i].remove(m['id'] as String);
+                                    }
+                                  }),
+                          ),
+                        )
+                        .toList(),
+                  ),
+                  const SizedBox(height: 14),
+                ],
+                if (tiffins.length < 2)
+                  TextButton.icon(
+                    onPressed: busy
+                        ? null
+                        : () => setState(() => tiffins.add({})),
+                    icon: const Icon(Icons.add),
+                    label: const Text('Add a second tiffin'),
+                  ),
+                TextField(
+                  controller: instructions,
+                  maxLength: 200,
+                  decoration: const InputDecoration(
+                    labelText: 'Note for the kitchen (optional)',
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Total: ₹${pricePaise ~/ 100}. Online payment is not in the app yet - Tiffe confirms payment with you directly.',
+                  style: TextStyle(color: palette(c).muted),
+                ),
+                if (error != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Text(
+                      error!,
+                      style: const TextStyle(color: Colors.redAccent),
+                    ),
+                  ),
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(
+                    onPressed: busy ? null : place,
+                    child: Text(busy ? 'Placing...' : 'Place order'),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
       ),
     );
   }

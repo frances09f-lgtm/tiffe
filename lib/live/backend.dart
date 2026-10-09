@@ -79,6 +79,9 @@ class TiffeBackend {
     }
   }
 
+  Future<Map<String, dynamic>?> currentSettings() async =>
+      client.from('settings').select().eq('id', true).maybeSingle();
+
   Future<Map<String, dynamic>?> profile() async {
     if (userId == null) return null;
     return client.from('profiles').select().eq('id', userId!).maybeSingle();
