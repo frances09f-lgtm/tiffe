@@ -121,7 +121,7 @@ void main() {
     t.view.devicePixelRatio = 1;
     final b = ContentBackend();
     Future<void> show(String n, Widget w) async {
-      await t.pumpWidget(RepaintBoundary(child: TiffeApp(store: s, startScreen: w)));
+      await t.pumpWidget(RepaintBoundary(child: TiffeApp(store: s, startScreen: CustomerStyle(child: w))));
       await t.pump(const Duration(milliseconds: 300));
       await t.runAsync(() => Future.delayed(const Duration(milliseconds: 400)));
       await t.pump(const Duration(milliseconds: 1500));

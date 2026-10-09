@@ -50,67 +50,206 @@ class CustomerSplash extends StatelessWidget {
   const CustomerSplash({super.key});
   @override
   Widget build(BuildContext context) => Scaffold(
+    backgroundColor: const Color(0xFFF9F9FB),
     body: SafeArea(
       child: Center(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
+          padding: const EdgeInsets.all(16),
           child: Container(
             constraints: const BoxConstraints(maxWidth: 440),
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 42),
+            padding: const EdgeInsets.fromLTRB(20, 28, 20, 30),
             decoration: BoxDecoration(
               color: const Color(0xFF1B4332),
               borderRadius: BorderRadius.circular(48),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x33012D1D),
+                  blurRadius: 30,
+                  offset: Offset(0, 14),
+                ),
+              ],
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Text(
-                  'HOME-COOKED. EVERY DAY.',
-                  style: TextStyle(
-                    color: Color(0xFFFFB690),
-                    fontSize: 11,
-                    letterSpacing: 1.4,
-                    fontWeight: FontWeight.w700,
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 7,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF274E3D),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.circle, size: 8, color: Color(0xFFFF8843)),
+                      SizedBox(width: 8),
+                      Text(
+                        'HOME-COOKED. EVERY DAY.',
+                        style: TextStyle(
+                          fontFamily: 'PlusJakartaSans',
+                          color: Colors.white,
+                          fontSize: 10.5,
+                          letterSpacing: .6,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 36),
-                const Logo(size: 110),
-                const SizedBox(height: 24),
+                const SizedBox(height: 28),
+                Container(
+                  width: 150,
+                  height: 150,
+                  decoration: const BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Color(0xFF214B3A),
+                  ),
+                  child: Center(
+                    child: Container(
+                      width: 112,
+                      height: 112,
+                      decoration: const BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [Color(0xFF1B4332), Color(0xFF0B2E20)],
+                        ),
+                      ),
+                      child: const Center(child: Logo(size: 78)),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 22),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    const Text(
+                      'Tiffe',
+                      style: TextStyle(
+                        fontFamily: 'PlusJakartaSans',
+                        fontWeight: FontWeight.w700,
+                        fontSize: 40,
+                        height: 1,
+                        color: Color(0xFFC1ECD4),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.only(left: 3, bottom: 5),
+                      child: Container(
+                        width: 9,
+                        height: 9,
+                        decoration: const BoxDecoration(
+                          color: Color(0xFFFF8843),
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
                 const Text(
-                  'Tiffe.',
+                  'Rozcha dabba. Tumchya choice cha.',
+                  textAlign: TextAlign.center,
                   style: TextStyle(
                     fontFamily: 'PlusJakartaSans',
-                    fontWeight: FontWeight.w700,
-                    fontSize: 52,
-                    color: Color(0xFFC1ECD4),
+                    color: Colors.white,
+                    fontSize: 17,
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
-                const Text(
-                  'A little home, in every dabba.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.white, fontSize: 19),
+                const SizedBox(height: 14),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF274E3D),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: const Text(
+                    '3 chapatis  •  rice  •  2 bhajis of your choice',
+                    style: TextStyle(
+                      fontFamily: 'PlusJakartaSans',
+                      color: Colors.white,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 26),
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF0F3324),
+                    borderRadius: BorderRadius.circular(40),
+                  ),
+                  child: Row(
+                    children: [
+                      ClipOval(
+                        child: Image.asset(
+                          'assets/food/hero.jpg',
+                          width: 48,
+                          height: 48,
+                          fit: BoxFit.cover,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      const Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Your daily dabba',
+                              style: TextStyle(
+                                fontFamily: 'PlusJakartaSans',
+                                color: Colors.white,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            Text(
+                              'Pick your two favourite bhajis',
+                              style: TextStyle(
+                                color: Color(0xFFC1ECD4),
+                                fontSize: 11.5,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
                 const SizedBox(height: 28),
                 ClipRRect(
-                  borderRadius: BorderRadius.circular(24),
-                  child: Image.asset(
-                    'assets/food/hero.jpg',
-                    height: 145,
-                    width: double.infinity,
-                    fit: BoxFit.cover,
+                  borderRadius: BorderRadius.circular(4),
+                  child: Container(
+                    width: 200,
+                    height: 5,
+                    decoration: const BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [Color(0xFFFF8843), Color(0xFFFFDBCB)],
+                      ),
+                    ),
                   ),
                 ),
-                const SizedBox(height: 32),
-                const LinearProgressIndicator(
-                  color: Color(0xFFFF8843),
-                  backgroundColor: Color(0xFF274E3D),
-                ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 12),
                 const Text(
                   'Making yourself at home...',
-                  style: TextStyle(color: Color(0xFFC1ECD4)),
+                  style: TextStyle(
+                    fontFamily: 'PlusJakartaSans',
+                    color: Colors.white,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
-                const SizedBox(height: 28),
+                const SizedBox(height: 22),
                 const Text(
                   'MADE AT HOME. MADE FOR PUNE.',
                   style: TextStyle(
@@ -142,26 +281,83 @@ class CustomerWelcome extends StatelessWidget {
             children: [
               Align(
                 alignment: Alignment.centerRight,
-                child: TextButton(
-                  onPressed: onContinue,
-                  child: const Text('Skip'),
+                child: GestureDetector(
+                  onTap: onContinue,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 7,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFEDEEF0),
+                      borderRadius: BorderRadius.circular(18),
+                    ),
+                    child: const Text(
+                      'Skip',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF414844),
+                      ),
+                    ),
+                  ),
                 ),
               ),
+              const SizedBox(height: 8),
               ClipRRect(
-                borderRadius: BorderRadius.circular(36),
-                child: Image.asset(
-                  'assets/food/hero.jpg',
-                  height: 260,
-                  fit: BoxFit.cover,
+                borderRadius: BorderRadius.circular(28),
+                child: Stack(
+                  children: [
+                    Image.asset(
+                      'assets/food/hero.jpg',
+                      height: 288,
+                      width: double.infinity,
+                      fit: BoxFit.cover,
+                    ),
+                    Positioned(
+                      left: 12,
+                      top: 12,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 7,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.verified_outlined,
+                              size: 14,
+                              color: Color(0xFF9E4300),
+                            ),
+                            SizedBox(width: 6),
+                            Text(
+                              'HOME-COOKED. EVERY DAY.',
+                              style: TextStyle(
+                                fontSize: 10,
+                                letterSpacing: .3,
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFF012D1D),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(height: 26),
+              const SizedBox(height: 22),
               const Text(
                 'Your daily dabba,\nsorted.',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontFamily: 'PlusJakartaSans',
-                  fontSize: 30,
+                  fontSize: 28,
                   fontWeight: FontWeight.w700,
                   height: 1.18,
                 ),
@@ -170,6 +366,11 @@ class CustomerWelcome extends StatelessWidget {
               const Text(
                 'Fresh home-cooked food. Your choice of bhaji. A little less planning, every day.',
                 textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 15,
+                  height: 1.5,
+                  color: Color(0xFF414844),
+                ),
               ),
               const SizedBox(height: 22),
               const _WelcomeBenefit(
@@ -190,8 +391,10 @@ class CustomerWelcome extends StatelessWidget {
               const SizedBox(height: 22),
               FilledButton.icon(
                 onPressed: onContinue,
+                style: FilledButton.styleFrom(minimumSize: const Size(0, 56)),
                 label: const Text('Get started'),
-                icon: const Icon(Icons.arrow_forward),
+                icon: const Icon(Icons.arrow_forward, size: 18),
+                iconAlignment: IconAlignment.end,
               ),
               TextButton(
                 onPressed: onContinue,
@@ -215,14 +418,14 @@ class _WelcomeBenefit extends StatelessWidget {
   });
   @override
   Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 6),
+    padding: const EdgeInsets.symmetric(vertical: 5),
     child: Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: Theme.of(context).brightness == Brightness.dark
             ? const Color(0xFF202D24)
-            : Colors.white,
-        borderRadius: BorderRadius.circular(24),
+            : const Color(0xFFF3F3F6),
+        borderRadius: BorderRadius.circular(8),
       ),
       child: Row(
         children: [
