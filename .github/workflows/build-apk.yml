@@ -19,7 +19,7 @@ jobs:
           flutter-version: '3.47.6'
       - run: flutter pub get
       - run: flutter analyze
-      - run: flutter test
+      - run: flutter test --dart-define=TIFFE_OWNER_EMAIL=frances09f@gmail.com
       - name: Build with permanent Tiffe signing identity
         env:
           TIFFE_KEYSTORE_BASE64: ${{ secrets.TIFFE_KEYSTORE_BASE64 }}
@@ -28,7 +28,7 @@ jobs:
           TIFFE_KEY_PASSWORD: ${{ secrets.TIFFE_KEY_PASSWORD }}
         run: |
           printf '%s' "$TIFFE_KEYSTORE_BASE64" | base64 -d > "$TIFFE_KEYSTORE_FILE"
-          flutter build apk --release --target-platform android-arm64
+          flutter build apk --release --target-platform android-arm64 -t lib/connected_main.dart --build-name=1.0.14 --build-number=14 --dart-define=TIFFE_SUPABASE_URL=https://obbtxyjglgivcpusjpcx.supabase.co --dart-define=TIFFE_SUPABASE_KEY=sb_publishable__5qR0bvVmwqKykgbQpAtRw_H0eIgl3_ --dart-define=TIFFE_OWNER_EMAIL=frances09f@gmail.com
           mv build/app/outputs/flutter-apk/app-release.apk build/app/outputs/flutter-apk/Tiffe.apk
           rm -f "$TIFFE_KEYSTORE_FILE"
       - uses: actions/upload-artifact@v4
