@@ -284,7 +284,7 @@ class _LiveWorkspaceState extends State<LiveWorkspace> {
   late final menuStream = widget.backend.menu().asBroadcastStream();
   late final orderStream = widget.backend.orders(customer: widget.role == null);
   late final subscriptionStream = widget.role == null
-      ? widget.backend.subscriptions()
+      ? widget.backend.subscriptions().asBroadcastStream()
       : null;
   final name = TextEditingController(),
       phone = TextEditingController(),
@@ -295,6 +295,7 @@ class _LiveWorkspaceState extends State<LiveWorkspace> {
   bool loaded = false;
   Map<String, dynamic>? cfg;
   List<Map<String, dynamic>> menuRows = [];
+  List<Map<String, dynamic>> subRows = [];
   @override
   void initState() {
     super.initState();
@@ -303,6 +304,25 @@ class _LiveWorkspaceState extends State<LiveWorkspace> {
     menuStream.listen((rows) {
       if (mounted) setState(() => menuRows = rows);
     });
+    subscriptionStream?.listen((rows) {
+      if (mounted) setState(() => subRows = rows);
+    });
+  }
+
+  Map<String, dynamic>? get activeSubscription {
+    final now = DateTime.now().toUtc().add(
+      const Duration(hours: 5, minutes: 30),
+    );
+    final day =
+        '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+    for (final r in subRows) {
+      if (r['verified'] == true &&
+          (r['starts_on'] as String).compareTo(day) <= 0 &&
+          (r['ends_on'] as String).compareTo(day) >= 0) {
+        return r;
+      }
+    }
+    return null;
   }
 
   Future<void> loadSettings() async {
@@ -1052,6 +1072,7 @@ class _LiveWorkspaceState extends State<LiveWorkspace> {
         backend: widget.backend,
         cfg: cfg!,
         menuRows: menuRows,
+        subscription: activeSubscription,
       ),
     );
     if (placed == true && mounted) {
@@ -1301,11 +1322,13 @@ class OrderSheet extends StatefulWidget {
   final TiffeBackend backend;
   final Map<String, dynamic> cfg;
   final List<Map<String, dynamic>> menuRows;
+  final Map<String, dynamic>? subscription;
   const OrderSheet({
     super.key,
     required this.backend,
     required this.cfg,
     required this.menuRows,
+    this.subscription,
   });
   @override
   State<OrderSheet> createState() => _OrderSheetState();
@@ -1313,7 +1336,10 @@ class OrderSheet extends StatefulWidget {
 
 class _OrderSheetState extends State<OrderSheet> {
   final instructions = TextEditingController();
-  final List<Set<String>> tiffins = [{}];
+  late final List<Set<String>> tiffins = [
+    {},
+    if (widget.subscription?['plan'] == 'double') {},
+  ];
   bool busy = false;
   String? error;
   late final String idempotencyKey = newOrderKey();
@@ -1343,9 +1369,16 @@ class _OrderSheetState extends State<OrderSheet> {
   }
 
   int get pricePaise {
+    final extra = widget.cfg['extra_bhaji_paise'] as int? ?? 0;
+    if (widget.subscription != null) {
+      var total = 0;
+      for (final t in tiffins) {
+        if (t.length > 2) total += (t.length - 2) * extra;
+      }
+      return total;
+    }
     final oneTime = widget.cfg['one_time_price_paise'] as int? ?? 0;
     final delivery = widget.cfg['one_time_delivery_paise'] as int? ?? 0;
-    final extra = widget.cfg['extra_bhaji_paise'] as int? ?? 0;
     var total = (oneTime + delivery) * tiffins.length;
     for (final t in tiffins) {
       if (t.length > 2) total += (t.length - 2) * extra;
@@ -1376,6 +1409,7 @@ class _OrderSheetState extends State<OrderSheet> {
         tiffins: tiffins.map((t) => t.toList()).toList(),
         idempotencyKey: idempotencyKey,
         instructions: instructions.text.trim(),
+        subscriptionId: widget.subscription?['id'] as String?,
       );
       if (mounted) Navigator.pop(context, true);
     } catch (e) {
@@ -1457,7 +1491,7 @@ class _OrderSheetState extends State<OrderSheet> {
                   ),
                   const SizedBox(height: 14),
                 ],
-                if (tiffins.length < 2)
+                if (tiffins.length < 2 && widget.subscription == null)
                   TextButton.icon(
                     onPressed: busy
                         ? null
@@ -1474,7 +1508,11 @@ class _OrderSheetState extends State<OrderSheet> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'Total: ₹${pricePaise ~/ 100}. Online payment is not in the app yet - Tiffe confirms payment with you directly.',
+                  widget.subscription != null
+                      ? pricePaise == 0
+                          ? 'Covered by your Tiffe plan.'
+                          : 'Extras: ₹${pricePaise ~/ 100}. The rest is covered by your plan.'
+                      : 'Total: ₹${pricePaise ~/ 100}. Online payment is not in the app yet - Tiffe confirms payment with you directly.',
                   style: TextStyle(color: palette(c).muted),
                 ),
                 if (error != null)

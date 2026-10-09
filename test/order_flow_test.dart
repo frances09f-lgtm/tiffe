@@ -43,8 +43,10 @@ class OrderBackend extends TiffeBackend {
   @override
   Stream<List<Map<String, dynamic>>> orders({bool customer = false}) =>
       Stream.value([]);
+  List<Map<String, dynamic>> subs = [];
+  String? placedSubscription;
   @override
-  Stream<List<Map<String, dynamic>>> subscriptions() => Stream.value([]);
+  Stream<List<Map<String, dynamic>>> subscriptions() => Stream.value(subs);
   @override
   Future<Map<String, dynamic>?> profile() async => {
     'name': 'Test',
@@ -63,6 +65,7 @@ class OrderBackend extends TiffeBackend {
     placedDate = date;
     placedTiffins = tiffins;
     placedKey = idempotencyKey;
+    placedSubscription = subscriptionId;
     return 'order-1';
   }
 }
@@ -124,5 +127,47 @@ void main() {
     await t.tap(find.widgetWithText(FilterChip, 'Vatana'));
     await t.pumpAndSettle();
     expect(find.textContaining('Total: ₹110'), findsOneWidget);
+  });
+
+  testWidgets('subscriber order: plan fixes tiffins, extras only, sub id passed', (t) async {
+    SharedPreferences.setMockInitialValues({});
+    final s = TiffeStore(await SharedPreferences.getInstance());
+    t.view.physicalSize = const Size(430, 2400);
+    t.view.devicePixelRatio = 1;
+    final b = OrderBackend();
+    b.subs = [
+      {
+        'id': 'sub-1',
+        'customer_id': '00000000-0000-0000-0000-000000000001',
+        'plan': 'double',
+        'starts_on': '2020-01-01',
+        'ends_on': '2099-01-01',
+        'verified': true,
+      },
+    ];
+    await t.pumpWidget(
+      TiffeApp(store: s, startScreen: LiveWorkspace(backend: b, store: s)),
+    );
+    await t.pumpAndSettle();
+    await t.tap(find.text('Order a tiffin'));
+    await t.pumpAndSettle();
+    // double plan: two tiffin groups fixed, no add button.
+    expect(find.textContaining('Tiffin 2: pick 2 to 8 bhajis'), findsOneWidget);
+    expect(find.text('Add a second tiffin'), findsNothing);
+    expect(find.text('Covered by your Tiffe plan.'), findsOneWidget);
+    // tiffin 1: Batata + Matki (first chip of each name); tiffin 2: Vatana + Batata (last).
+    await t.tap(find.widgetWithText(FilterChip, 'Batata Bhaji').first);
+    await t.pumpAndSettle();
+    await t.tap(find.widgetWithText(FilterChip, 'Matki Usal').first);
+    await t.pumpAndSettle();
+    await t.tap(find.widgetWithText(FilterChip, 'Vatana').last);
+    await t.pumpAndSettle();
+    await t.tap(find.widgetWithText(FilterChip, 'Batata Bhaji').last);
+    await t.pumpAndSettle();
+    await t.tap(find.text('Place order'));
+    await t.pumpAndSettle();
+    expect(b.placedSubscription, 'sub-1');
+    expect(b.placedTiffins, hasLength(2));
+    expect(find.text('Order placed - the kitchen has it.'), findsOneWidget);
   });
 }
