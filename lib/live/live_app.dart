@@ -7,7 +7,7 @@ import 'package:flutter/material.dart';
 
 import '../data/store.dart';
 import '../domain/tiffin.dart' as food;
-import '../ui/app.dart' show palette, panel, Logo;
+import '../ui/app.dart' show palette, panel, Logo, TiffePalette;
 import 'backend.dart';
 
 bool isCompleteProfile(Map<String, dynamic>? profile) =>
@@ -325,9 +325,17 @@ class LiveWorkspace extends StatefulWidget {
 }
 
 class _LiveWorkspaceState extends State<LiveWorkspace> {
+  TiffePalette get uiPalette => TiffePalette(
+    Theme.of(context).brightness == Brightness.dark,
+    stitch: widget.role == null,
+  );
+  BuildContext? themedContext;
+  BuildContext get routeContext => themedContext ?? context;
   int tab = 0;
   late final menuStream = widget.backend.menu().asBroadcastStream();
-  late final orderStream = widget.backend.orders(customer: widget.role == null);
+  late final orderStream = widget.backend
+      .orders(customer: widget.role == null)
+      .asBroadcastStream();
   late final subscriptionStream = widget.role == null
       ? widget.backend.subscriptions().asBroadcastStream()
       : null;
@@ -339,10 +347,13 @@ class _LiveWorkspaceState extends State<LiveWorkspace> {
   String? profileError;
   bool loaded = false;
   bool profileComplete = false;
-  StreamSubscription<List<Map<String, dynamic>>>? menuListener, planListener;
+  StreamSubscription<List<Map<String, dynamic>>>? menuListener,
+      planListener,
+      orderListener;
   Map<String, dynamic>? cfg;
   List<Map<String, dynamic>> menuRows = [];
   List<Map<String, dynamic>> subRows = [];
+  List<Map<String, dynamic>> orderRows = [];
   @override
   void initState() {
     super.initState();
@@ -350,6 +361,9 @@ class _LiveWorkspaceState extends State<LiveWorkspace> {
     loadSettings();
     menuListener = menuStream.listen((rows) {
       if (mounted) setState(() => menuRows = rows);
+    }, onError: (Object _) {});
+    orderListener = orderStream.listen((rows) {
+      if (mounted) setState(() => orderRows = rows);
     }, onError: (Object _) {});
     planListener = subscriptionStream?.listen((rows) {
       if (mounted) setState(() => subRows = rows);
@@ -419,6 +433,7 @@ class _LiveWorkspaceState extends State<LiveWorkspace> {
   @override
   void dispose() {
     menuListener?.cancel();
+    orderListener?.cancel();
     planListener?.cancel();
     name.dispose();
     phone.dispose();
@@ -432,12 +447,12 @@ class _LiveWorkspaceState extends State<LiveWorkspace> {
     child: panel(
       child: Column(
         children: [
-          Icon(icon, size: 42, color: palette(context).green),
+          Icon(icon, size: 42, color: uiPalette.green),
           const SizedBox(height: 16),
           Text(
             heading,
             style: TextStyle(
-              color: palette(context).ink,
+              color: uiPalette.ink,
               fontSize: 21,
               fontWeight: FontWeight.w700,
             ),
@@ -446,7 +461,7 @@ class _LiveWorkspaceState extends State<LiveWorkspace> {
           const SizedBox(height: 8),
           Text(
             body,
-            style: TextStyle(color: palette(context).muted),
+            style: TextStyle(color: uiPalette.muted),
             textAlign: TextAlign.center,
           ),
         ],
@@ -462,6 +477,8 @@ class _LiveWorkspaceState extends State<LiveWorkspace> {
         ? menuRows
         : identical(stream, subscriptionStream)
         ? subRows
+        : identical(stream, orderStream)
+        ? orderRows
         : null,
     builder: (c, s) {
       if (s.hasError) {
@@ -488,7 +505,7 @@ class _LiveWorkspaceState extends State<LiveWorkspace> {
     bool available = item?['available'] == true, busy = false;
     String? error;
     await showDialog(
-      context: context,
+      context: routeContext,
       builder: (c) => StatefulBuilder(
         builder: (c, set) => AlertDialog(
           title: Text(item == null ? 'Add bhaji' : 'Edit bhaji'),
@@ -580,7 +597,7 @@ class _LiveWorkspaceState extends State<LiveWorkspace> {
     if (status == null) return;
     final etaMinutes = TextEditingController();
     final approved = await showDialog<bool>(
-      context: context,
+      context: routeContext,
       builder: (c) => AlertDialog(
         title: Text('Mark as $status?'),
         content: Column(
@@ -639,7 +656,7 @@ class _LiveWorkspaceState extends State<LiveWorkspace> {
 
   Future<void> verifyPayment(Map<String, dynamic> order) async {
     final approved = await showDialog<bool>(
-      context: context,
+      context: routeContext,
       builder: (c) => AlertDialog(
         title: const Text('Verify payment?'),
         content: Text(
@@ -692,7 +709,7 @@ class _LiveWorkspaceState extends State<LiveWorkspace> {
     }
     String? chosen;
     final approved = await showDialog<bool>(
-      context: context,
+      context: routeContext,
       builder: (c) => StatefulBuilder(
         builder: (c, set) => AlertDialog(
           title: const Text('Assign rider'),
@@ -761,7 +778,7 @@ class _LiveWorkspaceState extends State<LiveWorkspace> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: palette(context).green),
+          Icon(icon, color: uiPalette.green),
           const SizedBox(width: 14),
           Expanded(
             child: Column(
@@ -777,7 +794,7 @@ class _LiveWorkspaceState extends State<LiveWorkspace> {
                 const SizedBox(height: 7),
                 Text(
                   body,
-                  style: TextStyle(color: palette(context).muted, height: 1.5),
+                  style: TextStyle(color: uiPalette.muted, height: 1.5),
                 ),
               ],
             ),
@@ -814,7 +831,7 @@ class _LiveWorkspaceState extends State<LiveWorkspace> {
       const SizedBox(height: 6),
       Text(
         '3 chapatis · Rice · Your choice of 2 bhajis',
-        style: TextStyle(color: palette(context).muted),
+        style: TextStyle(color: uiPalette.muted),
       ),
       const SizedBox(height: 20),
       if (!admin) ...[
@@ -852,7 +869,7 @@ class _LiveWorkspaceState extends State<LiveWorkspace> {
       const SizedBox(height: 6),
       Text(
         'Pick your favourites. The first two bhajis in each tiffin are included.',
-        style: TextStyle(color: palette(context).muted),
+        style: TextStyle(color: uiPalette.muted),
       ),
       const SizedBox(height: 16),
     ],
@@ -873,7 +890,7 @@ class _LiveWorkspaceState extends State<LiveWorkspace> {
       const SizedBox(height: 8),
       Text(
         'Home-cooked meals, without the daily planning.',
-        style: TextStyle(color: palette(context).muted),
+        style: TextStyle(color: uiPalette.muted),
       ),
       const SizedBox(height: 18),
       for (final doublePlan in [false, true])
@@ -883,10 +900,17 @@ class _LiveWorkspaceState extends State<LiveWorkspace> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                if (!admin) ...[
+                  eyebrow(
+                    doublePlan ? 'TWICE THE COMFORT' : 'DAILY HOMEMADE MEALS',
+                  ),
+                  const SizedBox(height: 4),
+                ],
                 Text(
                   doublePlan ? 'Double Tiffe' : 'Daily Tiffe',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 26,
+                    fontFamily: admin ? 'TiffeSans' : 'PlusJakartaSans',
                     fontWeight: FontWeight.w800,
                   ),
                 ),
@@ -902,7 +926,7 @@ class _LiveWorkspaceState extends State<LiveWorkspace> {
                   style: TextStyle(
                     fontSize: 32,
                     fontWeight: FontWeight.w800,
-                    color: palette(context).green,
+                    color: uiPalette.green,
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -921,18 +945,30 @@ class _LiveWorkspaceState extends State<LiveWorkspace> {
                         Icon(
                           Icons.check_circle_outline,
                           size: 18,
-                          color: palette(context).green,
+                          color: uiPalette.green,
                         ),
                         const SizedBox(width: 10),
                         Expanded(child: Text(benefit)),
                       ],
                     ),
                   ),
-                if (!admin)
+                if (!admin) ...[
+                  const SizedBox(height: 8),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(18),
+                    child: Image.asset(
+                      'assets/food/hero.jpg',
+                      height: 110,
+                      width: double.infinity,
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+                  const SizedBox(height: 14),
                   const Text(
                     'Monthly plans are set up by the kitchen after payment confirmation.',
                     style: TextStyle(fontSize: 12),
                   ),
+                ],
               ],
             ),
           ),
@@ -971,6 +1007,103 @@ class _LiveWorkspaceState extends State<LiveWorkspace> {
     ],
   );
 
+  Widget customerMenuCards(List<Map<String, dynamic>> rows) => Column(
+    children: [
+      for (final m in rows)
+        Padding(
+          padding: const EdgeInsets.only(bottom: 20),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(28),
+            child: Container(
+              color: Theme.of(context).brightness == Brightness.dark
+                  ? const Color(0xFF202D24)
+                  : Colors.white,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Stack(
+                    children: [
+                      Image.asset(
+                        foodImage(m['name']),
+                        height: 180,
+                        width: double.infinity,
+                        fit: BoxFit.cover,
+                      ),
+                      Positioned(
+                        left: 14,
+                        top: 14,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: m['available'] == true
+                                ? const Color(0xFFC1ECD4)
+                                : const Color(0xFFFFDBCB),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Text(
+                            m['available'] == true
+                                ? 'Available'
+                                : 'Unavailable',
+                            style: const TextStyle(
+                              color: Color(0xFF012D1D),
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        eyebrow('Home-style bhaji'),
+                        Text(
+                          m['name'],
+                          style: const TextStyle(
+                            fontFamily: 'PlusJakartaSans',
+                            fontSize: 24,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          m['description'] ?? '',
+                          style: TextStyle(color: uiPalette.muted, height: 1.5),
+                        ),
+                        const SizedBox(height: 16),
+                        Row(
+                          children: [
+                            const Icon(
+                              Icons.restaurant_outlined,
+                              size: 18,
+                              color: Color(0xFF9E4300),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Pick 2 bhajis per tiffin. Extras ${money('extra_bhaji_paise')} each.',
+                                style: const TextStyle(fontSize: 12),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+    ],
+  );
+
   Widget menus() => data(
     menuStream,
     (rows) => rows.isEmpty
@@ -979,6 +1112,8 @@ class _LiveWorkspaceState extends State<LiveWorkspace> {
             'Today\'s menu will appear here when the kitchen publishes it.',
             Icons.soup_kitchen_outlined,
           )
+        : widget.role == null
+        ? customerMenuCards(rows)
         : Column(
             children: rows
                 .map(
@@ -1013,9 +1148,7 @@ class _LiveWorkspaceState extends State<LiveWorkspace> {
                                   m['available'] == true
                                       ? 'Available'
                                       : 'Unavailable',
-                                  style: TextStyle(
-                                    color: palette(context).muted,
-                                  ),
+                                  style: TextStyle(color: uiPalette.muted),
                                 ),
                               ],
                             ),
@@ -1035,6 +1168,63 @@ class _LiveWorkspaceState extends State<LiveWorkspace> {
                 .toList(),
           ),
   );
+  Widget orderProgress(Map<String, dynamic> order) {
+    const statuses = [
+      'Confirmed',
+      'Preparing',
+      'Packed',
+      'Out for Delivery',
+      'Delivered',
+    ];
+    final step = statuses.indexOf(order['status'] as String);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        eyebrow('Delivery progress'),
+        for (var i = 0; i < statuses.length; i++)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 14),
+            child: Row(
+              children: [
+                CircleAvatar(
+                  radius: 17,
+                  backgroundColor: i < step
+                      ? const Color(0xFF012D1D)
+                      : i == step
+                      ? const Color(0xFFFF8843)
+                      : const Color(0xFFEDEEF0),
+                  child: Icon(
+                    i < step
+                        ? Icons.check
+                        : i == step
+                        ? Icons.delivery_dining
+                        : Icons.circle_outlined,
+                    size: 17,
+                    color: i <= step ? Colors.white : const Color(0xFF717973),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    statuses[i],
+                    style: TextStyle(
+                      fontWeight: i == step ? FontWeight.w700 : FontWeight.w400,
+                      color: i == step
+                          ? const Color(0xFF9E4300)
+                          : uiPalette.ink,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        if (order['status'] == 'Out for Delivery' && order['eta_at'] == null)
+          const Text('The kitchen has not shared an arrival time yet.'),
+        const SizedBox(height: 12),
+      ],
+    );
+  }
+
   Widget orders() => data(
     orderStream,
     (rows) => rows.isEmpty
@@ -1067,7 +1257,12 @@ class _LiveWorkspaceState extends State<LiveWorkspace> {
                           Text(
                             '₹${(o['total_paise'] as int) / 100} · ${o['payment_status']}',
                           ),
-                          if (o['status'] == 'Out for Delivery')
+                          if (widget.role == null) ...[
+                            const SizedBox(height: 20),
+                            orderProgress(o),
+                          ],
+                          if (o['status'] == 'Out for Delivery' &&
+                              widget.role != null)
                             Text(
                               o['eta_at'] == null
                                   ? 'Arrival time not available'
@@ -1092,7 +1287,7 @@ class _LiveWorkspaceState extends State<LiveWorkspace> {
                             else
                               Text(
                                 'Rider assigned',
-                                style: TextStyle(color: palette(context).muted),
+                                style: TextStyle(color: uiPalette.muted),
                               ),
                             if (o['status'] == 'Packed' &&
                                 (o['payment_status'] != 'verified' ||
@@ -1100,7 +1295,7 @@ class _LiveWorkspaceState extends State<LiveWorkspace> {
                               Text(
                                 'Dispatch needs verified payment and a rider.',
                                 style: TextStyle(
-                                  color: palette(context).muted,
+                                  color: uiPalette.muted,
                                   fontSize: 12,
                                 ),
                               ),
@@ -1142,7 +1337,7 @@ class _LiveWorkspaceState extends State<LiveWorkspace> {
                       children: [
                         Text(
                           'Active subscription',
-                          style: TextStyle(color: palette(context).green),
+                          style: TextStyle(color: uiPalette.green),
                         ),
                         const SizedBox(height: 14),
                         Text(
@@ -1189,7 +1384,7 @@ class _LiveWorkspaceState extends State<LiveWorkspace> {
     String? error;
     final start = TextEditingController(), end = TextEditingController();
     await showDialog(
-      context: context,
+      context: routeContext,
       builder: (c) => StatefulBuilder(
         builder: (c, set) => AlertDialog(
           title: const Text('Add subscription'),
@@ -1384,7 +1579,7 @@ class _LiveWorkspaceState extends State<LiveWorkspace> {
 
   Future<void> openOrder() async {
     final placed = await showModalBottomSheet<bool>(
-      context: context,
+      context: routeContext,
       isScrollControlled: true,
       builder: (c) => OrderSheet(
         backend: widget.backend,
@@ -1491,7 +1686,7 @@ class _LiveWorkspaceState extends State<LiveWorkspace> {
     bool busy = false;
     String? error;
     await showDialog(
-      context: context,
+      context: routeContext,
       builder: (c) => StatefulBuilder(
         builder: (c, set) => AlertDialog(
           title: const Text('Change password'),
@@ -1575,10 +1770,10 @@ class _LiveWorkspaceState extends State<LiveWorkspace> {
           children: [
             CircleAvatar(
               radius: 28,
-              backgroundColor: palette(context).green.withValues(alpha: .12),
+              backgroundColor: uiPalette.green.withValues(alpha: .12),
               child: Icon(
                 Icons.person_outline,
-                color: palette(context).green,
+                color: uiPalette.green,
                 size: 30,
               ),
             ),
@@ -1603,7 +1798,7 @@ class _LiveWorkspaceState extends State<LiveWorkspace> {
                     onboarding
                         ? 'A few details so your dabba reaches you.'
                         : 'Your details, your daily dabba.',
-                    style: TextStyle(color: palette(context).muted),
+                    style: TextStyle(color: uiPalette.muted),
                   ),
                 ],
               ),
@@ -1629,7 +1824,7 @@ class _LiveWorkspaceState extends State<LiveWorkspace> {
               const SizedBox(height: 6),
               Text(
                 'Used only to get your meal to the right doorstep.',
-                style: TextStyle(color: palette(context).muted),
+                style: TextStyle(color: uiPalette.muted),
               ),
               const SizedBox(height: 22),
               TextField(
@@ -1762,6 +1957,229 @@ class _LiveWorkspaceState extends State<LiveWorkspace> {
   );
   @override
   Widget build(BuildContext c) {
+    if (widget.role != null) return workspaceBuild(c);
+    final dark = Theme.of(c).brightness == Brightness.dark;
+    final theme = Theme.of(c).copyWith(
+      scaffoldBackgroundColor: dark
+          ? const Color(0xFF131C17)
+          : const Color(0xFFF9F9FB),
+      colorScheme: Theme.of(c).colorScheme.copyWith(
+        primary: dark ? const Color(0xFFA5D0B9) : const Color(0xFF012D1D),
+        secondary: const Color(0xFF9E4300),
+      ),
+      textTheme: Theme.of(c).textTheme.apply(fontFamily: 'Inter'),
+      appBarTheme: AppBarTheme(
+        backgroundColor: dark
+            ? const Color(0xFF131C17)
+            : const Color(0xFFF9F9FB),
+        foregroundColor: uiPalette.ink,
+        scrolledUnderElevation: 0,
+      ),
+      navigationBarTheme: NavigationBarThemeData(
+        backgroundColor: dark ? const Color(0xFF202D24) : Colors.white,
+        indicatorColor: const Color(0xFFC1ECD4),
+        height: 76,
+      ),
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(
+          backgroundColor: const Color(0xFF012D1D),
+          foregroundColor: Colors.white,
+          minimumSize: const Size(48, 48),
+          textStyle: const TextStyle(
+            fontFamily: 'PlusJakartaSans',
+            fontWeight: FontWeight.w700,
+          ),
+          shape: const StadiumBorder(),
+        ),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          shape: const StadiumBorder(),
+          textStyle: const TextStyle(fontFamily: 'PlusJakartaSans'),
+        ),
+      ),
+    );
+    return Theme(
+      data: theme,
+      child: Builder(
+        builder: (context) {
+          themedContext = context;
+          return workspaceBuild(context);
+        },
+      ),
+    );
+  }
+
+  Widget eyebrow(String text) => Padding(
+    padding: const EdgeInsets.only(bottom: 10),
+    child: Text(
+      text.toUpperCase(),
+      style: const TextStyle(
+        fontFamily: 'PlusJakartaSans',
+        color: Color(0xFF9E4300),
+        fontSize: 11,
+        letterSpacing: 1,
+        fontWeight: FontWeight.w700,
+      ),
+    ),
+  );
+
+  Widget subscriptionSummary() {
+    final sub = activeSubscription;
+    return Container(
+      padding: const EdgeInsets.all(22),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1B4332),
+        borderRadius: BorderRadius.circular(30),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFF8843),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Text(
+              sub == null ? 'HOME-COOKED. EVERY DAY.' : 'ACTIVE SUBSCRIPTION',
+              style: const TextStyle(
+                color: Color(0xFF341100),
+                fontSize: 10,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          const SizedBox(height: 18),
+          Text(
+            sub == null
+                ? 'A little home, in every dabba.'
+                : (sub['plan'] == 'double' ? 'Double Tiffe' : 'Daily Tiffe'),
+            style: const TextStyle(
+              fontFamily: 'PlusJakartaSans',
+              fontSize: 24,
+              fontWeight: FontWeight.w700,
+              color: Colors.white,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            sub == null
+                ? 'Choose your favourite bhajis, or find your monthly routine.'
+                : '${sub['starts_on']} to ${sub['ends_on']}',
+            style: const TextStyle(color: Color(0xFFC1ECD4), height: 1.5),
+          ),
+          const SizedBox(height: 18),
+          Wrap(
+            spacing: 10,
+            runSpacing: 8,
+            children:
+                [
+                      FilledButton.styleFrom(
+                        backgroundColor: Colors.white,
+                        foregroundColor: const Color(0xFF012D1D),
+                      ),
+                    ]
+                    .map(
+                      (style) => FilledButton(
+                        style: style,
+                        onPressed: () => setState(() => tab = 3),
+                        child: const Text('Explore plans'),
+                      ),
+                    )
+                    .toList(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget customerHome() => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text(
+        'Hello, ${name.text.trim().split(' ').first}',
+        style: const TextStyle(
+          fontFamily: 'PlusJakartaSans',
+          fontSize: 22,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+      const SizedBox(height: 6),
+      Text(
+        'Fresh homemade food. Your daily comfort.',
+        style: TextStyle(color: uiPalette.muted),
+      ),
+      const SizedBox(height: 20),
+      subscriptionSummary(),
+      const SizedBox(height: 22),
+      ClipRRect(
+        borderRadius: BorderRadius.circular(28),
+        child: Stack(
+          children: [
+            Image.asset(
+              'assets/food/hero.jpg',
+              width: double.infinity,
+              height: 230,
+              fit: BoxFit.cover,
+            ),
+            Positioned.fill(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [Colors.transparent, const Color(0xDD012D1D)],
+                  ),
+                ),
+              ),
+            ),
+            const Positioned(
+              bottom: 20,
+              left: 20,
+              right: 20,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'YOUR HOME-STYLE DABBA',
+                    style: TextStyle(
+                      color: Color(0xFFFFDBCB),
+                      fontSize: 10,
+                      letterSpacing: 1,
+                    ),
+                  ),
+                  SizedBox(height: 7),
+                  Text(
+                    'Simple food. Full heart.',
+                    style: TextStyle(
+                      fontFamily: 'PlusJakartaSans',
+                      color: Colors.white,
+                      fontSize: 24,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+      const SizedBox(height: 14),
+      section(
+        'Inside every dabba',
+        '3 chapatis, rice and your choice of 2 bhajis. Extra bhajis ${money('extra_bhaji_paise')} each.',
+      ),
+      orderCta(),
+      const SizedBox(height: 24),
+      eyebrow("Inside today's dabba"),
+      menus(),
+      const SizedBox(height: 18),
+      serviceAreas(),
+    ],
+  );
+
+  Widget workspaceBuild(BuildContext c) {
     final admin = widget.role != null;
     if (!admin && !profileComplete) {
       return Scaffold(
@@ -1797,7 +2215,40 @@ class _LiveWorkspaceState extends State<LiveWorkspace> {
           ];
     return Scaffold(
       appBar: AppBar(
-        title: Text('Tiffe${admin ? ' kitchen' : ''}'),
+        title: admin
+            ? const Text('Tiffe kitchen')
+            : Row(
+                children: [
+                  const Logo(size: 30),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'DELIVERING TO',
+                          style: TextStyle(
+                            color: Color(0xFF9E4300),
+                            fontSize: 10,
+                            letterSpacing: 1,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        Text(
+                          area.text.isEmpty
+                              ? 'Your home'
+                              : 'Home · ${area.text}',
+                          style: const TextStyle(
+                            fontFamily: 'PlusJakartaSans',
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
         actions: admin
             ? [
                 Padding(
@@ -1809,18 +2260,21 @@ class _LiveWorkspaceState extends State<LiveWorkspace> {
       ),
       body: SafeArea(
         child: ListView(
+          key: ValueKey(tab),
           padding: const EdgeInsets.all(24),
           children: [
             Text(
               titles[tab],
               style: TextStyle(
                 color: palette(c).ink,
-                fontSize: 30,
+                fontSize: admin ? 30 : 24,
+                fontFamily: admin ? 'TiffeSans' : 'PlusJakartaSans',
                 fontWeight: FontWeight.w800,
               ),
             ),
             const SizedBox(height: 12),
-            if (tab == 0) ...[
+            if (tab == 0 && !admin) customerHome(),
+            if (tab == 0 && admin) ...[
               Text(
                 admin
                     ? 'Live updates from your kitchen.'
@@ -1836,17 +2290,30 @@ class _LiveWorkspaceState extends State<LiveWorkspace> {
                 'Choose your favourites',
                 'Two bhajis per tiffin included. Extra bhajis ${money('extra_bhaji_paise')} each.',
               ),
-              menus(),
               if (!admin) orderCta(),
+              const SizedBox(height: 16),
+              menus(),
               serviceAreas(),
             ],
             if (tab == 2) ...[orders(), orderGuide(admin)],
-            if (tab == 3 && !admin) ...[plan(), planCatalogue()],
+            if (tab == 3 && !admin) ...[
+              eyebrow('Homemade meals, delivered daily'),
+              planCatalogue(),
+              plan(),
+            ],
             if (tab == 3 && admin) ...[
               planCatalogue(admin: true),
               plansAdmin(),
             ],
-            if (tab == (admin ? 4 : 4)) profile(),
+            if (tab == 4) ...[
+              profile(),
+              const SizedBox(height: 24),
+              if (!admin) ...[
+                eyebrow('Your subscription'),
+                subscriptionSummary(),
+                const SizedBox(height: 24),
+              ],
+            ],
           ],
         ),
       ),

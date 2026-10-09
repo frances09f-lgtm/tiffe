@@ -101,6 +101,12 @@ void main() {
     await capture(t, 'live-orders-empty');
     await t.tap(find.text('Plan').last);
     await t.pumpAndSettle();
+    await t.scrollUntilVisible(
+      find.text('No active subscription'),
+      500,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await t.pumpAndSettle();
     expect(find.text('No active subscription'), findsOneWidget);
     expect(find.text('Subscribe'), findsNothing);
     await capture(t, 'live-plan-empty');

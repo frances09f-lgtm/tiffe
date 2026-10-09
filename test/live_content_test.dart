@@ -34,9 +34,10 @@ class ContentBackend extends TiffeBackend {
   @override
   Future<Map<String, dynamic>?> currentSettings() async =>
       Map<String, dynamic>.from(fixture['settings']);
+  List<Map<String, dynamic>> orderRows = [];
   @override
   Stream<List<Map<String, dynamic>>> orders({bool customer = false}) =>
-      Stream.value([]);
+      Stream.value(orderRows);
   @override
   Stream<List<Map<String, dynamic>>> subscriptions() => Stream.value([]);
   @override
@@ -70,6 +71,14 @@ void main() {
   setUpAll(() async {
     TestWidgetsFlutterBinding.ensureInitialized();
     await Directory('screenshots').create(recursive: true);
+    for (final family in ['Inter', 'PlusJakartaSans']) {
+      final prefix = family == 'Inter' ? 'Inter' : 'Jakarta';
+      await (FontLoader(family)
+            ..addFont(rootBundle.load('assets/fonts/$prefix-400.ttf'))
+            ..addFont(rootBundle.load('assets/fonts/$prefix-600.ttf'))
+            ..addFont(rootBundle.load('assets/fonts/$prefix-700.ttf')))
+          .load();
+    }
     await (FontLoader('TiffeSans')
           ..addFont(rootBundle.load('assets/fonts/Roboto-Regular.ttf'))
           ..addFont(rootBundle.load('assets/fonts/Roboto-Bold.ttf')))
@@ -78,6 +87,52 @@ void main() {
           ..addFont(rootBundle.load('assets/fonts/MaterialIcons-Regular.otf')))
         .load();
   });
+  testWidgets(
+    'customer tracking uses recorded status without map or invented ETA',
+    (t) async {
+      t.view.physicalSize = const Size(390, 844);
+      t.view.devicePixelRatio = 1;
+      addTearDown(t.view.resetPhysicalSize);
+      addTearDown(t.view.resetDevicePixelRatio);
+      SharedPreferences.setMockInitialValues({});
+      final store = TiffeStore(await SharedPreferences.getInstance());
+      final backend = ContentBackend()
+        ..orderRows = [
+          {
+            'id': 'fixture-order',
+            'delivery_date': '2026-10-10',
+            'quantity': 1,
+            'status': 'Out for Delivery',
+            'total_paise': 10000,
+            'payment_status': 'verified',
+            'eta_at': null,
+          },
+        ];
+      await t.pumpWidget(
+        RepaintBoundary(
+          child: TiffeApp(
+            store: store,
+            startScreen: LiveWorkspace(backend: backend, store: store),
+          ),
+        ),
+      );
+      await t.runAsync(() async {
+        await precacheImage(
+          const AssetImage('assets/brand/tiffe-logo.png'),
+          t.element(find.byType(LiveWorkspace)),
+        );
+      });
+      await t.pumpAndSettle();
+      await t.tap(find.byType(NavigationDestination).at(2));
+      await capture(t, 'stitch-customer-tracking');
+      expect(
+        find.text('The kitchen has not shared an arrival time yet.'),
+        findsOneWidget,
+      );
+      expect(find.text('Live GPS Tracking'), findsNothing);
+      expect(t.takeException(), isNull);
+    },
+  );
   for (final admin in [false, true]) {
     testWidgets(
       'rich ${admin ? 'admin' : 'customer'} content uses real catalogue without fake records',
@@ -104,12 +159,17 @@ void main() {
         );
         await t.runAsync(() async {
           final context = t.element(find.byType(LiveWorkspace));
+          for (final file in Directory(
+            'assets/food',
+          ).listSync().whereType<File>()) {
+            await precacheImage(AssetImage(file.path), context);
+          }
           await precacheImage(
-            const AssetImage('assets/food/hero.jpg'),
+            const AssetImage('assets/brand/tiffe-logo.png'),
             context,
           );
         });
-        await capture(t, admin ? 'v17-admin-home' : 'v17-customer-home');
+        await capture(t, admin ? 'stitch-admin-home' : 'stitch-customer-home');
         for (final entry in <String, int>{
           'Menu': 1,
           'Orders': 2,
@@ -123,9 +183,15 @@ void main() {
           await t.pumpAndSettle();
           await capture(
             t,
-            'v17-${admin ? 'admin' : 'customer'}-${entry.key.toLowerCase()}',
+            'stitch-${admin ? 'admin' : 'customer'}-${entry.key.toLowerCase()}',
           );
           if (entry.value == 1) {
+            await t.scrollUntilVisible(
+              find.text('Aloo Matar'),
+              500,
+              scrollable: find.byType(Scrollable).first,
+            );
+            await t.pumpAndSettle();
             expect(find.text('Aloo Matar'), findsOneWidget);
             expect(find.text('Unavailable'), findsOneWidget);
           }
@@ -146,7 +212,7 @@ void main() {
           await t.pumpAndSettle();
           await capture(
             t,
-            'v17-${admin ? 'admin' : 'customer'}-${entry.key.toLowerCase()}-lower',
+            'stitch-${admin ? 'admin' : 'customer'}-${entry.key.toLowerCase()}-lower',
           );
           expect(t.takeException(), isNull);
         }
