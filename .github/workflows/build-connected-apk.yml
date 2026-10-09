@@ -1,0 +1,41 @@
+name: Build connected APK (v14+)
+# Connected build: real Supabase backend. Only the public publishable key and
+# owner alias email are baked in - both are public by design. No secrets here.
+on:
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: '3.47.6'
+      - run: flutter pub get
+      - run: flutter analyze
+      - run: flutter test --dart-define=TIFFE_OWNER_EMAIL=frances09f@gmail.com
+      - name: Build connected APK with permanent Tiffe signing identity
+        env:
+          TIFFE_KEYSTORE_BASE64: ${{ secrets.TIFFE_KEYSTORE_BASE64 }}
+          TIFFE_KEYSTORE_FILE: ${{ runner.temp }}/tiffe-release.jks
+          TIFFE_KEYSTORE_PASSWORD: ${{ secrets.TIFFE_KEYSTORE_PASSWORD }}
+          TIFFE_KEY_PASSWORD: ${{ secrets.TIFFE_KEY_PASSWORD }}
+        run: |
+          printf '%s' "$TIFFE_KEYSTORE_BASE64" | base64 -d > "$TIFFE_KEYSTORE_FILE"
+          flutter build apk --release --target-platform android-arm64 \
+            -t lib/connected_main.dart --build-name=1.0.14 --build-number=14 \
+            --dart-define=TIFFE_SUPABASE_URL=https://obbtxyjglgivcpusjpcx.supabase.co \
+            --dart-define=TIFFE_SUPABASE_KEY=sb_publishable__5qR0bvVmwqKykgbQpAtRw_H0eIgl3_ \
+            --dart-define=TIFFE_OWNER_EMAIL=frances09f@gmail.com
+          mv build/app/outputs/flutter-apk/app-release.apk build/app/outputs/flutter-apk/Tiffe-connected.apk
+          rm -f "$TIFFE_KEYSTORE_FILE"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tiffe-connected-apk
+          path: build/app/outputs/flutter-apk/Tiffe-connected.apk
