@@ -2411,10 +2411,31 @@ class _EditProfilePageState extends TiffeState<EditProfilePage> {
       ..area = area;
     await widget.store.save();
     if (!mounted) return;
+    final dark = Theme.of(context).brightness == Brightness.dark;
     Navigator.pop(context);
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Profile updated successfully'),
+      SnackBar(
+        content: Row(
+          children: [
+            Icon(Icons.check_circle, color: Color(0xFF75D58A), size: 22),
+            SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'Profile updated successfully',
+                style: TextStyle(
+                  color: dark ? Colors.white : const Color(0xFF303030),
+                  fontSize: 14,
+                ),
+              ),
+            ),
+          ],
+        ),
+        backgroundColor: dark ? const Color(0xFF303030) : Colors.white,
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.all(Radius.circular(14)),
+        ),
+        margin: EdgeInsets.fromLTRB(16, 0, 16, 12),
         duration: Duration(seconds: 2),
         behavior: SnackBarBehavior.floating,
       ),

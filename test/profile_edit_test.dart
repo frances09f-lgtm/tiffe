@@ -45,10 +45,26 @@ void main() {
         await t.tap(find.text('Save profile'));
         await t.pumpAndSettle();
         expect(find.text('Abhijeet Ambi'), findsOneWidget);
-      expect(find.text('Profile updated successfully'), findsOneWidget);
-      final snack = t.widget<SnackBar>(find.byType(SnackBar));
-      expect(snack.behavior, SnackBarBehavior.floating);
-      expect(snack.duration, const Duration(seconds: 2));
+        expect(find.text('Profile updated successfully'), findsOneWidget);
+        final snack = t.widget<SnackBar>(find.byType(SnackBar));
+        expect(snack.behavior, SnackBarBehavior.floating);
+        expect(snack.duration, const Duration(seconds: 2));
+        expect(
+          snack.backgroundColor,
+          dark ? const Color(0xFF303030) : Colors.white,
+        );
+        final feedback = t.widget<Text>(
+          find.text('Profile updated successfully'),
+        );
+        expect(
+          feedback.style?.color,
+          dark ? Colors.white : const Color(0xFF303030),
+        );
+        expect(find.byIcon(Icons.check_circle), findsWidgets);
+        await helpers.capture(
+          t,
+          'profile-save-styled-${dark ? "dark" : "light"}',
+        );
         expect(s.phone, '9123456789');
         final restored = TiffeStore(s.prefs);
         expect(restored.name, 'Abhijeet Ambi');
