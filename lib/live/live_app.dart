@@ -223,6 +223,7 @@ class _SignInState extends State<SignIn> {
                   style: TextStyle(
                     color: palette(c).ink,
                     fontSize: 30,
+                    fontFamily: widget.admin ? 'TiffeSans' : 'PlusJakartaSans',
                     fontWeight: FontWeight.w800,
                   ),
                 ),
@@ -1225,16 +1226,74 @@ class _LiveWorkspaceState extends State<LiveWorkspace> {
     );
   }
 
+  Widget customerEmptyOrders() => panel(
+    child: Column(
+      children: [
+        const SizedBox(height: 12),
+        const Logo(size: 92),
+        const SizedBox(height: 20),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+          decoration: BoxDecoration(
+            color: const Color(0xFFFFDBCB),
+            borderRadius: BorderRadius.circular(24),
+          ),
+          child: const Text(
+            'EMPTY DABBA ALERT',
+            style: TextStyle(
+              color: Color(0xFF783100),
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 1,
+            ),
+          ),
+        ),
+        const SizedBox(height: 18),
+        const Text(
+          'No orders yet',
+          style: TextStyle(
+            fontFamily: 'PlusJakartaSans',
+            fontSize: 25,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: 10),
+        Text(
+          'Your confirmed meals and delivery updates will appear here. Start with a monthly routine or order one tiffin.',
+          textAlign: TextAlign.center,
+          style: TextStyle(color: uiPalette.muted),
+        ),
+        const SizedBox(height: 20),
+        SizedBox(
+          width: double.infinity,
+          child: FilledButton.icon(
+            onPressed: () => setState(() => tab = 3),
+            icon: const Icon(Icons.arrow_forward),
+            label: const Text('Explore monthly plans'),
+          ),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          'One-time Tiffe ${money('one_time_price_paise')} + ${money('one_time_delivery_paise')} delivery',
+          style: const TextStyle(color: Color(0xFF9E4300), fontSize: 12),
+        ),
+        const SizedBox(height: 8),
+      ],
+    ),
+  );
+
   Widget orders() => data(
     orderStream,
     (rows) => rows.isEmpty
-        ? empty(
-            widget.role == null ? 'No orders yet' : 'No orders to prepare',
-            widget.role == null
-                ? 'Your confirmed meals and delivery updates will appear here.'
-                : 'Customer orders will appear here as they are placed.',
-            Icons.receipt_long_outlined,
-          )
+        ? widget.role == null
+              ? customerEmptyOrders()
+              : empty(
+                  'No orders to prepare',
+                  widget.role == null
+                      ? 'Your confirmed meals and delivery updates will appear here.'
+                      : 'Customer orders will appear here as they are placed.',
+                  Icons.receipt_long_outlined,
+                )
         : Column(
             children: rows
                 .map(
@@ -2486,6 +2545,7 @@ class _OrderSheetState extends State<OrderSheet> {
                   style: TextStyle(
                     color: palette(c).ink,
                     fontSize: 24,
+                    fontFamily: 'PlusJakartaSans',
                     fontWeight: FontWeight.w800,
                   ),
                 ),
@@ -2495,6 +2555,26 @@ class _OrderSheetState extends State<OrderSheet> {
                   style: TextStyle(color: palette(c).muted),
                 ),
                 const SizedBox(height: 16),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(24),
+                  child: Image.asset(
+                    'assets/food/hero.jpg',
+                    height: 105,
+                    width: double.infinity,
+                    fit: BoxFit.cover,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'MAKE IT YOUR DABBA',
+                  style: TextStyle(
+                    color: Color(0xFF9E4300),
+                    fontSize: 11,
+                    letterSpacing: 1,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 12),
                 for (var i = 0; i < tiffins.length; i++) ...[
                   Text(
                     'Tiffin ${i + 1}: pick 2 to 8 bhajis'
@@ -2541,7 +2621,55 @@ class _OrderSheetState extends State<OrderSheet> {
                     labelText: 'Note for the kitchen (optional)',
                   ),
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 12),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: Theme.of(c).brightness == Brightness.dark
+                        ? const Color(0xFF202D24)
+                        : Colors.white,
+                    borderRadius: BorderRadius.circular(24),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Bill details',
+                        style: TextStyle(
+                          fontFamily: 'PlusJakartaSans',
+                          fontSize: 19,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        widget.subscription == null
+                            ? '${tiffins.length} tiffin${tiffins.length == 1 ? '' : 's'} · ₹${((widget.cfg['one_time_price_paise'] as int? ?? 0) * tiffins.length) ~/ 100}'
+                            : 'Base meals covered by your active plan',
+                      ),
+                      if (widget.subscription == null)
+                        Text(
+                          'Delivery · ₹${((widget.cfg['one_time_delivery_paise'] as int? ?? 0) * tiffins.length) ~/ 100}',
+                        ),
+                      Text(
+                        'Extra bhajis · ₹${(tiffins.fold<int>(0, (sum, t) => sum + (t.length > 2 ? t.length - 2 : 0)) * extra)}',
+                      ),
+                      const Divider(height: 28),
+                      Text(
+                        widget.subscription == null
+                            ? 'To pay · ₹${pricePaise ~/ 100}'
+                            : 'Extras to pay · ₹${pricePaise ~/ 100}',
+                        style: const TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF012D1D),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
                 Text(
                   widget.subscription != null
                       ? pricePaise == 0

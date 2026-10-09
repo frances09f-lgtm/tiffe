@@ -3,6 +3,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'data/store.dart';
 import 'ui/app.dart';
+import 'ui/customer_style.dart';
+
+import 'dart:async';
+
 import 'live/backend.dart';
 import 'live/live_app.dart';
 
@@ -36,6 +40,31 @@ class ConnectedStart extends StatefulWidget {
 class _ConnectedStartState extends State<ConnectedStart> {
   late TiffeBackend? backend = widget.backend;
   bool busy = false;
+  bool starting = true;
+  bool welcome = false;
+  Timer? splashTimer;
+  @override
+  void initState() {
+    super.initState();
+    welcome =
+        widget.backend?.userId == null &&
+        widget.store.prefs.getBool('tiffe.connected.welcomeSeen') != true;
+    splashTimer = Timer(const Duration(milliseconds: 1000), () {
+      if (mounted) setState(() => starting = false);
+    });
+  }
+
+  @override
+  void dispose() {
+    splashTimer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> continueToLogin() async {
+    await widget.store.prefs.setBool('tiffe.connected.welcomeSeen', true);
+    if (mounted) setState(() => welcome = false);
+  }
+
   Future<void> retry() async {
     setState(() => busy = true);
     try {
@@ -48,29 +77,13 @@ class _ConnectedStartState extends State<ConnectedStart> {
   }
 
   @override
-  Widget build(BuildContext context) => backend != null
-      ? LiveGate(store: widget.store, backend: backend)
-      : Scaffold(
-          body: Center(
-            child: Padding(
-              padding: const EdgeInsets.all(28),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Logo(size: 64),
-                  const SizedBox(height: 24),
-                  const Text(
-                    'Tiffe could not connect. No order has been placed.',
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 16),
-                  FilledButton(
-                    onPressed: busy ? null : retry,
-                    child: Text(busy ? 'Connecting...' : 'Retry'),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        );
+  Widget build(BuildContext context) => CustomerStyle(
+    child: starting
+        ? const CustomerSplash()
+        : backend == null
+        ? CustomerOffline(busy: busy, onRetry: retry)
+        : welcome && backend?.userId == null
+        ? CustomerWelcome(onContinue: continueToLogin)
+        : LiveGate(store: widget.store, backend: backend),
+  );
 }
