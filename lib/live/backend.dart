@@ -122,6 +122,17 @@ class TiffeBackend {
     )) as String;
   }
 
+  Future<void> verifyPayment(String orderId) async =>
+      client.rpc('verify_payment', params: {'p_order': orderId});
+
+  Future<void> assignRider(String orderId, String riderId) async => client
+      .rpc('assign_rider', params: {'p_order': orderId, 'p_rider': riderId});
+
+  Future<List<Map<String, dynamic>>> deliveryStaff() async => client
+      .from('staff_members')
+      .select('user_id')
+      .eq('role', 'delivery');
+
   Future<void> advance(String id, String status, {DateTime? eta}) async =>
       client.rpc(
         'advance_order',

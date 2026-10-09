@@ -479,6 +479,7 @@ class _LiveWorkspaceState extends State<LiveWorkspace> {
       return switch (o['status']) {
         'Confirmed' => 'Preparing',
         'Preparing' => 'Packed',
+        'Packed' => widget.role == 'owner' ? 'Out for Delivery' : null,
         _ => null,
       };
     }
@@ -488,11 +489,28 @@ class _LiveWorkspaceState extends State<LiveWorkspace> {
   Future<void> advance(Map<String, dynamic> order) async {
     final status = nextStatus(order);
     if (status == null) return;
+    final etaMinutes = TextEditingController();
     final approved = await showDialog<bool>(
       context: context,
       builder: (c) => AlertDialog(
         title: Text('Mark as $status?'),
-        content: const Text('This updates the order immediately.'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('This updates the order immediately.'),
+            if (status == 'Out for Delivery') ...[
+              const SizedBox(height: 12),
+              TextField(
+                controller: etaMinutes,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  labelText: 'Arrives in (minutes, optional)',
+                ),
+              ),
+            ],
+          ],
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(c, false),
@@ -505,9 +523,18 @@ class _LiveWorkspaceState extends State<LiveWorkspace> {
         ],
       ),
     );
+    // Dispose after the dialog's exit animation stops using the controller.
+    Future.delayed(const Duration(milliseconds: 400), etaMinutes.dispose);
     if (approved != true) return;
+    final minutes = int.tryParse(etaMinutes.text.trim());
     try {
-      await widget.backend.advance(order['id'], status);
+      await widget.backend.advance(
+        order['id'],
+        status,
+        eta: minutes == null
+            ? null
+            : DateTime.now().add(Duration(minutes: minutes)),
+      );
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -516,6 +543,107 @@ class _LiveWorkspaceState extends State<LiveWorkspace> {
               'Could not update this order. Refresh and try again.',
             ),
           ),
+        );
+      }
+    }
+  }
+
+  Future<void> verifyPayment(Map<String, dynamic> order) async {
+    final approved = await showDialog<bool>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: const Text('Verify payment?'),
+        content: Text(
+          'Confirm Rs ${(order['total_paise'] as int) / 100} was received for this order.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(c, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(c, true),
+            child: const Text('Verify'),
+          ),
+        ],
+      ),
+    );
+    if (approved != true) return;
+    try {
+      await widget.backend.verifyPayment(order['id'] as String);
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not verify payment. Try again.')),
+        );
+      }
+    }
+  }
+
+  Future<void> assignRider(Map<String, dynamic> order) async {
+    List<Map<String, dynamic>> riders;
+    try {
+      riders = await widget.backend.deliveryStaff();
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not load riders. Try again.')),
+        );
+      }
+      return;
+    }
+    if (!mounted) return;
+    if (riders.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No delivery staff yet. Add riders in Supabase first.'),
+        ),
+      );
+      return;
+    }
+    String? chosen;
+    final approved = await showDialog<bool>(
+      context: context,
+      builder: (c) => StatefulBuilder(
+        builder: (c, set) => AlertDialog(
+          title: const Text('Assign rider'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: riders
+                .map(
+                  (r) => ListTile(
+                    title: Text('Rider ${(r['user_id'] as String).substring(0, 8)}'),
+                    leading: Icon(
+                      chosen == r['user_id']
+                          ? Icons.radio_button_checked
+                          : Icons.radio_button_off,
+                      color: palette(c).green,
+                    ),
+                    onTap: () => set(() => chosen = r['user_id'] as String),
+                  ),
+                )
+                .toList(),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(c, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: chosen == null ? null : () => Navigator.pop(c, true),
+              child: const Text('Assign'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (approved != true || chosen == null) return;
+    try {
+      await widget.backend.assignRider(order['id'] as String, chosen!);
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not assign the rider. Try again.')),
         );
       }
     }
@@ -623,14 +751,33 @@ class _LiveWorkspaceState extends State<LiveWorkspace> {
                               onPressed: () => advance(o),
                               child: Text('Mark ${nextStatus(o)}'),
                             ),
-                          if (widget.role == 'owner' && o['status'] == 'Packed')
-                            Text(
-                              'Dispatch requires verified payment and an assigned rider.',
-                              style: TextStyle(
-                                color: palette(context).muted,
-                                fontSize: 12,
+                          if (widget.role == 'owner') ...[
+                            if (o['payment_status'] != 'verified')
+                              FilledButton.tonal(
+                                onPressed: () => verifyPayment(o),
+                                child: const Text('Verify payment'),
                               ),
-                            ),
+                            if (o['assigned_to'] == null)
+                              TextButton(
+                                onPressed: () => assignRider(o),
+                                child: const Text('Assign rider'),
+                              )
+                            else
+                              Text(
+                                'Rider assigned',
+                                style: TextStyle(color: palette(context).muted),
+                              ),
+                            if (o['status'] == 'Packed' &&
+                                (o['payment_status'] != 'verified' ||
+                                    o['assigned_to'] == null))
+                              Text(
+                                'Dispatch needs verified payment and a rider.',
+                                style: TextStyle(
+                                  color: palette(context).muted,
+                                  fontSize: 12,
+                                ),
+                              ),
+                          ],
                         ],
                       ),
                     ),
