@@ -182,22 +182,13 @@ class Logo extends StatelessWidget {
   final double size;
   const Logo({super.key, this.size = 72});
   @override
-  Widget build(BuildContext c) {
-    final green = palette(c).green;
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        color: green,
-        borderRadius: BorderRadius.circular(size * .28),
-      ),
-      child: Icon(
-        Icons.bento_rounded,
-        color: Theme.of(c).colorScheme.onPrimary,
-        size: size * .59,
-      ),
-    );
-  }
+  Widget build(BuildContext c) => Image.asset(
+    'assets/brand/tiffe-logo.png',
+    width: size,
+    height: size,
+    semanticLabel: 'Tiffe circular tiffin logo',
+    fit: BoxFit.contain,
+  );
 }
 
 class Splash extends StatefulWidget {
