@@ -1,6 +1,14 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class BackendConfig {
+  static const ownerEmail = String.fromEnvironment('TIFFE_OWNER_EMAIL');
+  static String loginEmail(String input, {required bool admin}) {
+    final value = input.trim();
+    return admin && value.toLowerCase() == 'admin' && ownerEmail.isNotEmpty
+        ? ownerEmail
+        : value;
+  }
+
   static const url = String.fromEnvironment('TIFFE_SUPABASE_URL');
   static const publishableKey = String.fromEnvironment('TIFFE_SUPABASE_KEY');
   static bool get configured => url.isNotEmpty && publishableKey.isNotEmpty;

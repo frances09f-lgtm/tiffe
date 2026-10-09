@@ -111,7 +111,11 @@ class _SignInState extends State<SignIn> {
   }
 
   Future<void> submit() async {
-    if (!email.text.contains('@') ||
+    final loginEmail = BackendConfig.loginEmail(
+      email.text,
+      admin: widget.admin && !registering,
+    );
+    if (!loginEmail.contains('@') ||
         password.text.isEmpty ||
         (registering && password.text.length < 8)) {
       setState(
@@ -138,7 +142,7 @@ class _SignInState extends State<SignIn> {
           );
         }
       } else {
-        await widget.backend.signIn(email.text.trim(), password.text);
+        await widget.backend.signIn(loginEmail, password.text);
       }
     } catch (_) {
       if (mounted) {
@@ -187,7 +191,11 @@ class _SignInState extends State<SignIn> {
                   controller: email,
                   keyboardType: TextInputType.emailAddress,
                   autofillHints: const [AutofillHints.username],
-                  decoration: const InputDecoration(labelText: 'Email'),
+                  decoration: InputDecoration(
+                    labelText: widget.admin && !registering
+                        ? 'Admin ID or email'
+                        : 'Email',
+                  ),
                 ),
                 const SizedBox(height: 14),
                 TextField(
