@@ -1,5 +1,8 @@
 # Tiffe v3
 
+## Admin website
+[Open the Tiffe admin website](https://frances09f-lgtm.github.io/tiffe/review/admin/) - owner sign-in required.
+
 Flutter UI-first preview for a Pune home-kitchen tiffin service.
 
 ## Try it
