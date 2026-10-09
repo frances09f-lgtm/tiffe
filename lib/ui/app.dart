@@ -1226,6 +1226,16 @@ class _ShellState extends TiffeState<Shell> {
               ],
             ),
           ),
+          IconButton(
+            tooltip: 'Edit profile',
+            icon: Icon(Icons.edit_outlined, color: tgreen),
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => EditProfilePage(store: widget.store),
+              ),
+            ),
+          ),
         ],
       ),
     ),
@@ -2318,4 +2328,143 @@ class PaymentSuccessPreview extends StatelessWidget {
       ),
     );
   }
+}
+
+class EditProfilePage extends StatefulWidget {
+  final TiffeStore store;
+  const EditProfilePage({super.key, required this.store});
+  @override
+  State<EditProfilePage> createState() => _EditProfilePageState();
+}
+
+class _EditProfilePageState extends TiffeState<EditProfilePage> {
+  final form = GlobalKey<FormState>();
+  late final TextEditingController name, phone, address;
+  late String area;
+  bool saving = false;
+  static const areas = ['Kothrud', 'Baner', 'Aundh', 'Wakad', 'Viman Nagar'];
+  @override
+  void initState() {
+    super.initState();
+    name = TextEditingController(text: widget.store.name);
+    phone = TextEditingController(text: widget.store.phone);
+    address = TextEditingController(text: widget.store.address);
+    area = widget.store.area;
+  }
+
+  @override
+  void dispose() {
+    name.dispose();
+    phone.dispose();
+    address.dispose();
+    super.dispose();
+  }
+
+  Future<void> save() async {
+    if (saving || !form.currentState!.validate()) return;
+    setState(() => saving = true);
+    widget.store
+      ..name = name.text.trim()
+      ..phone = phone.text.trim()
+      ..address = address.text.trim()
+      ..area = area;
+    await widget.store.save();
+    if (!mounted) return;
+    Navigator.pop(context);
+    ScaffoldMessenger.of(context)
+        .showSnackBar(const SnackBar(content: Text('Profile saved.')));
+  }
+
+  @override
+  Widget build(BuildContext c) => Scaffold(
+    appBar: AppBar(title: const Text('Edit profile')),
+    body: SafeArea(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(22),
+        child: Form(
+          key: form,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'A little about you.',
+                style: TextStyle(
+                  color: tink,
+                  fontSize: 28,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Keep your name and delivery details up to date.',
+                style: TextStyle(color: tmuted),
+              ),
+              const SizedBox(height: 24),
+              TextFormField(
+                controller: name,
+                textCapitalization: TextCapitalization.words,
+                decoration: const InputDecoration(labelText: 'Your name'),
+                validator: (v) =>
+                    (v ?? '').trim().length >= 2 ? null : 'Enter your name',
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: phone,
+                keyboardType: TextInputType.phone,
+                inputFormatters: [
+                  FilteringTextInputFormatter.digitsOnly,
+                  LengthLimitingTextInputFormatter(10),
+                ],
+                decoration: const InputDecoration(
+                  labelText: 'Mobile number',
+                  prefixText: '+91 ',
+                ),
+                validator: (v) => RegExp(r'^[6-9]\d{9}$').hasMatch(v ?? '')
+                    ? null
+                    : 'Enter a valid 10-digit Indian mobile number',
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: address,
+                maxLines: 3,
+                decoration: const InputDecoration(
+                  labelText: 'Flat, building and street',
+                ),
+                validator: (v) => (v ?? '').trim().length >= 8
+                    ? null
+                    : 'Add a complete delivery address',
+              ),
+              const SizedBox(height: 16),
+              DropdownButtonFormField<String>(
+                initialValue: area,
+                decoration: const InputDecoration(labelText: 'Pune area'),
+                items: {...areas, area}
+                    .map((a) => DropdownMenuItem(value: a, child: Text(a)))
+                    .toList(),
+                onChanged: (value) => setState(() => area = value!),
+                validator: (v) => areas.contains(v)
+                    ? null
+                    : "Tiffe isn't delivering to your area yet.",
+              ),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: saving ? null : save,
+                  child: Text(saving ? 'Saving...' : 'Save profile'),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Center(
+                child: TextButton(
+                  onPressed: saving ? null : () => Navigator.pop(c),
+                  child: const Text('Cancel'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
 }
