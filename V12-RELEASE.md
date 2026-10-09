@@ -1,6 +1,6 @@
-# Tiffe v12 - circular tiffin logo
+# Tiffe v12 - warm bowl logo
 
-A new circular brand mark uses Tiffe's existing deep green, cream and subtle orange palette. A simple two-tier dabba and sprout replace the generic bento icon.
+A new circular brand mark uses Tiffe's existing orange, cream and deep green palette. A simple warm bowl with rising steam replaces the generic bento icon. The earlier green dabba proposal was rejected and is not this release's artwork.
 
 Updated the shared in-app Logo widget, Android legacy launcher icons at all densities, and an adaptive launcher icon with safe central placement. Other UI, profile confirmations, customer data and app behavior are unchanged.
 
