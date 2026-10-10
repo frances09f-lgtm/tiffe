@@ -192,8 +192,10 @@ class GSplash extends StatelessWidget {
 /// 2. Onboarding
 class GOnboarding extends StatelessWidget {
   final VoidCallback onSkip, onContinue;
+  final String continueLabel;
   const GOnboarding({
     super.key,
+    this.continueLabel = 'Continue with Mobile',
     required this.onSkip,
     required this.onContinue,
   });
@@ -230,7 +232,7 @@ class GOnboarding extends StatelessWidget {
                       child: Padding(
                         padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
                         child: Text(
-                          '100% Homestyle Meals & Zero Preservatives',
+                          'Homemade Bhaji, Delivered Fresh Daily',
                           textAlign: TextAlign.center,
                           style: gText(
                             17,
@@ -253,12 +255,12 @@ class GOnboarding extends StatelessWidget {
             ),
             const SizedBox(height: 10),
             Text(
-              'Enjoy rotating daily menus featuring soft chapatis, wholesome dal, seasonal vegetables, and pure ghee.',
+              'A daily tiffin of soft chapatis, rice and two bhajis of your choice, made fresh in a home kitchen.',
               textAlign: TextAlign.center,
               style: gText(13.5, c: GColors.grey, height: 1.45),
             ),
             const Spacer(flex: 2),
-            GButton('Continue with Mobile', onPressed: onContinue),
+            GButton(continueLabel, onPressed: onContinue),
             const SizedBox(height: 6),
             TextButton(
               onPressed: onSkip,
@@ -572,6 +574,174 @@ class GAuthFlow extends StatelessWidget {
                 MaterialPageRoute<void>(builder: home),
                 (_) => false,
               ),
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+/// Email + password sign in / create account, in the approved login look.
+class GEmailLogin extends StatefulWidget {
+  final Future<void> Function(String email, String password, bool registering)
+  onSubmit;
+  final bool busy;
+  final String? error, notice;
+  final VoidCallback? onToggle;
+  final VoidCallback? onBack;
+  const GEmailLogin({
+    super.key,
+    required this.onSubmit,
+    this.busy = false,
+    this.error,
+    this.notice,
+    this.onToggle,
+    this.onBack,
+  });
+  @override
+  State<GEmailLogin> createState() => _GEmailLoginState();
+}
+
+class _GEmailLoginState extends State<GEmailLogin> {
+  final email = TextEditingController(), password = TextEditingController();
+  bool registering = false;
+  @override
+  void dispose() {
+    email.dispose();
+    password.dispose();
+    super.dispose();
+  }
+
+  Widget _field(
+    String label,
+    TextEditingController c, {
+    bool secret = false,
+    TextInputType? type,
+    Iterable<String>? hints,
+  }) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text(label, style: gText(12, w: FontWeight.w700, spacing: .6)),
+      const SizedBox(height: 8),
+      Container(
+        height: 50,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: GColors.line),
+        ),
+        child: TextField(
+          controller: c,
+          obscureText: secret,
+          keyboardType: type,
+          autofillHints: hints,
+          style: gText(14.5, w: FontWeight.w500),
+          decoration: const InputDecoration(border: InputBorder.none),
+        ),
+      ),
+    ],
+  );
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    backgroundColor: GColors.cream,
+    resizeToAvoidBottomInset: true,
+    body: SafeArea(
+      child: LayoutBuilder(
+        builder: (context, box) => SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(24, 12, 24, 20),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: box.maxHeight - 32),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (widget.onBack != null)
+                  GestureDetector(onTap: widget.onBack, child: const GBack()),
+                const SizedBox(height: 48),
+                Text(
+                  registering ? 'Create your account' : 'Welcome Back',
+                  style: gText(26, w: FontWeight.w700, c: GColors.green),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  registering
+                      ? 'Use your email and a password of at least 8 characters.'
+                      : 'Sign in with your email to see your meals, plan and deliveries.',
+                  style: gText(13.5, c: GColors.grey, height: 1.4),
+                ),
+                const SizedBox(height: 28),
+                _field(
+                  'EMAIL',
+                  email,
+                  type: TextInputType.emailAddress,
+                  hints: const [AutofillHints.username],
+                ),
+                const SizedBox(height: 16),
+                _field(
+                  'PASSWORD',
+                  password,
+                  secret: true,
+                  hints: const [AutofillHints.password],
+                ),
+                if (widget.error != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 14),
+                    child: Text(
+                      widget.error!,
+                      style: gText(12.5, c: const Color(0xFFC62828)),
+                    ),
+                  ),
+                if (widget.notice != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 14),
+                    child: Text(
+                      widget.notice!,
+                      style: gText(12.5, c: GColors.green),
+                    ),
+                  ),
+                const SizedBox(height: 20),
+                GButton(
+                  widget.busy
+                      ? 'Please wait...'
+                      : registering
+                      ? 'Create account'
+                      : 'Sign in',
+                  onPressed: widget.busy
+                      ? null
+                      : () => widget.onSubmit(
+                          email.text,
+                          password.text,
+                          registering,
+                        ),
+                ),
+                const SizedBox(height: 8),
+                Center(
+                  child: TextButton(
+                    onPressed: widget.busy
+                        ? null
+                        : () {
+                            setState(() => registering = !registering);
+                            widget.onToggle?.call();
+                          },
+                    child: Text(
+                      registering
+                          ? 'Already have an account? Sign in'
+                          : 'New to Tiffe? Create account',
+                      style: gText(13, w: FontWeight.w600, c: GColors.green),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Center(
+                  child: Text(
+                    'Confirm your email to keep your account secure.',
+                    textAlign: TextAlign.center,
+                    style: gText(12, c: GColors.grey, height: 1.5),
+                  ),
+                ),
+              ],
             ),
           ),
         ),

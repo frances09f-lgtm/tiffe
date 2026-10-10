@@ -113,4 +113,43 @@ void main() {
       });
     }
   }
+
+  for (final w in [390.0, 320.0]) {
+    testWidgets('intro and email login render at ${w}px x1.3', (t) async {
+      t.view.physicalSize = Size(w, 800);
+      t.view.devicePixelRatio = 1;
+      addTearDown(t.view.resetPhysicalSize);
+      addTearDown(t.view.resetDevicePixelRatio);
+      SharedPreferences.setMockInitialValues({});
+      final store = TiffeStore(await SharedPreferences.getInstance());
+      await t.pumpWidget(
+        RepaintBoundary(
+          child: MediaQuery(
+            data: MediaQueryData(
+              size: Size(w, 800),
+              textScaler: const TextScaler.linear(1.3),
+            ),
+            child: TiffeApp(
+              store: store,
+              startScreen: SignIn(backend: ContentBackend(), showIntro: true),
+            ),
+          ),
+        ),
+      );
+      await t.pump(const Duration(seconds: 1));
+      await shot(t, 'splash_${w.toInt()}');
+      await t.tap(find.byType(FilledButton).first);
+      await t.pumpAndSettle();
+      await shot(t, 'onboard_${w.toInt()}');
+      await t.tap(find.text('Skip'));
+      await t.pumpAndSettle();
+      await shot(t, 'login_${w.toInt()}');
+      expect(find.text('Sign in'), findsOneWidget);
+      await t.tap(find.text('New to Tiffe? Create account'));
+      await t.pumpAndSettle();
+      expect(find.text('Create account'), findsWidgets);
+      await shot(t, 'register_${w.toInt()}');
+      expect(t.takeException(), isNull);
+    });
+  }
 }

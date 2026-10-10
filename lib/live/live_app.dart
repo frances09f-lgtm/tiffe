@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import '../ui/tracking_map.dart';
 import 'bug_report.dart';
 import 'update_check.dart';
+import '../ui/gemini/auth_screens.dart';
 import '../ui/gemini/home_screen.dart';
 import '../ui/gemini/menu_screen.dart';
 import '../ui/gemini/orders_screen.dart';
@@ -62,7 +63,13 @@ class _LiveGateState extends State<LiveGate> {
     return StreamBuilder(
       stream: b.authChanges,
       builder: (c, s) {
-        if (b.userId == null) return SignIn(backend: b, admin: widget.admin);
+        if (b.userId == null) {
+          return SignIn(
+            backend: b,
+            admin: widget.admin,
+            showIntro: !widget.admin,
+          );
+        }
         if (widget.admin) {
           return FutureBuilder<String?>(
             future: b.role(),
@@ -145,7 +152,13 @@ String authErrorMessage(AuthException error, {required bool registering}) {
 class SignIn extends StatefulWidget {
   final TiffeBackend backend;
   final bool admin;
-  const SignIn({super.key, required this.backend, this.admin = false});
+  final bool showIntro;
+  const SignIn({
+    super.key,
+    required this.backend,
+    this.admin = false,
+    this.showIntro = false,
+  });
   @override
   State<SignIn> createState() => _SignInState();
 }
@@ -154,6 +167,7 @@ class _SignInState extends State<SignIn> {
   final email = TextEditingController(), password = TextEditingController();
   bool busy = false;
   bool registering = false;
+  int stage = 0; // 0 splash, 1 onboarding, 2 login
   String? notice;
   String? error;
   @override
@@ -161,6 +175,12 @@ class _SignInState extends State<SignIn> {
     email.dispose();
     password.dispose();
     super.dispose();
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    if (!widget.showIntro) stage = 2;
   }
 
   Future<void> submit() async {
@@ -214,209 +234,29 @@ class _SignInState extends State<SignIn> {
   @override
   Widget build(BuildContext c) {
     if (widget.admin) return adminBuild(c);
-    final dark = Theme.of(c).brightness == Brightness.dark;
-    final fill = dark ? const Color(0xFF2C3D30) : const Color(0xFFF3F3F6);
-    InputDecoration deco(String l) => InputDecoration(
-      labelText: l,
-      filled: true,
-      fillColor: fill,
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(6),
-        borderSide: BorderSide.none,
-      ),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(6),
-        borderSide: BorderSide.none,
-      ),
-    );
-    return Scaffold(
-      body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 430),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(28),
-                    child: Stack(
-                      children: [
-                        Image.asset(
-                          'assets/food/hero.jpg',
-                          height: 150,
-                          width: double.infinity,
-                          fit: BoxFit.cover,
-                        ),
-                        Positioned.fill(
-                          child: DecoratedBox(
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                begin: Alignment.topCenter,
-                                end: Alignment.bottomCenter,
-                                colors: [
-                                  Colors.transparent,
-                                  const Color(0xCC012D1D),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                        const Positioned(
-                          left: 16,
-                          bottom: 14,
-                          child: Row(
-                            children: [
-                              Logo(size: 34),
-                              SizedBox(width: 10),
-                              Text(
-                                'Tiffe',
-                                style: TextStyle(
-                                  fontFamily: 'PlusJakartaSans',
-                                  color: Colors.white,
-                                  fontSize: 24,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 7,
-                      ),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFC1ECD4),
-                        borderRadius: BorderRadius.circular(18),
-                      ),
-                      child: Text(
-                        registering ? 'Create your account' : 'Quick sign in',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: Color(0xFF012D1D),
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    'A little home. One sign-in away.',
-                    style: TextStyle(
-                      color: palette(c).ink,
-                      fontSize: 26,
-                      height: 1.2,
-                      fontFamily: 'PlusJakartaSans',
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Sign in to see your meals, plan and deliveries.',
-                    style: TextStyle(color: palette(c).muted, fontSize: 15),
-                  ),
-                  const SizedBox(height: 18),
-                  Container(
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      color: dark ? const Color(0xFF202D24) : Colors.white,
-                      borderRadius: BorderRadius.circular(28),
-                      boxShadow: const [
-                        BoxShadow(
-                          color: Color(0x0F000000),
-                          blurRadius: 16,
-                          offset: Offset(0, 4),
-                        ),
-                      ],
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        TextField(
-                          controller: email,
-                          keyboardType: TextInputType.emailAddress,
-                          autofillHints: const [AutofillHints.username],
-                          decoration: deco('Email'),
-                        ),
-                        const SizedBox(height: 12),
-                        TextField(
-                          controller: password,
-                          obscureText: true,
-                          autofillHints: const [AutofillHints.password],
-                          decoration: deco('Password'),
-                          onSubmitted: (_) => busy ? null : submit(),
-                        ),
-                        if (error != null)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 12),
-                            child: Text(
-                              error!,
-                              style: TextStyle(
-                                color: Theme.of(c).colorScheme.error,
-                              ),
-                            ),
-                          ),
-                        if (notice != null)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 12),
-                            child: Text(
-                              notice!,
-                              style: TextStyle(color: palette(c).green),
-                            ),
-                          ),
-                        const SizedBox(height: 18),
-                        FilledButton(
-                          style: FilledButton.styleFrom(
-                            backgroundColor: const Color(0xFF9E4300),
-                            minimumSize: const Size(0, 54),
-                          ),
-                          onPressed: busy ? null : submit,
-                          child: Text(
-                            busy
-                                ? 'Please wait...'
-                                : registering
-                                ? 'Create account'
-                                : 'Sign in',
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  TextButton(
-                    onPressed: busy
-                        ? null
-                        : () => setState(() {
-                            registering = !registering;
-                            error = null;
-                            notice = null;
-                          }),
-                    child: Text(
-                      registering
-                          ? 'Already have an account? Sign in'
-                          : 'New to Tiffe? Create account',
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Confirm your email to keep your account secure.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: palette(c).muted, fontSize: 12),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
+    if (stage == 0) return GSplash(onStart: () => setState(() => stage = 1));
+    if (stage == 1) {
+      return GOnboarding(
+        continueLabel: 'Continue',
+        onSkip: () => setState(() => stage = 2),
+        onContinue: () => setState(() => stage = 2),
+      );
+    }
+    return GEmailLogin(
+      busy: busy,
+      error: error,
+      notice: notice,
+      onToggle: () => setState(() {
+        registering = !registering;
+        error = null;
+        notice = null;
+      }),
+      onSubmit: (e, p, reg) {
+        email.text = e;
+        password.text = p;
+        registering = reg;
+        return submit();
+      },
     );
   }
 
