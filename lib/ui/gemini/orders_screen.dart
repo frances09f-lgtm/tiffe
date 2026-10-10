@@ -76,17 +76,40 @@ class GOrders extends StatelessWidget {
                     ),
                   ),
                 )
-              : ListView.separated(
+              : ListView(
                   padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
-                  itemCount: orders.length,
-                  separatorBuilder: (_, _) => const SizedBox(height: 16),
-                  itemBuilder: (_, i) => _card(orders[i]),
+                  children: [
+                    for (final o in orders.where((o) => !_isHistory(o))) ...[
+                      _card(o),
+                      const SizedBox(height: 16),
+                    ],
+                    if (orders.any(_isHistory)) ...[
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8, bottom: 16),
+                        child: Text(
+                          'Order history',
+                          style: gText(
+                            18,
+                            w: FontWeight.w800,
+                            c: GColors.green,
+                          ),
+                        ),
+                      ),
+                      for (final o in orders.where(_isHistory)) ...[
+                        _card(o),
+                        const SizedBox(height: 16),
+                      ],
+                    ],
+                  ],
                 ),
         ),
         GBottomNav(tab: 2, onTab: onTab),
       ],
     ),
   );
+
+  bool _isHistory(GOrder o) =>
+      const ['Delivered', 'Cancelled', 'Failed', 'Refunded'].contains(o.status);
 
   Widget _card(GOrder o) => Container(
     padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
@@ -186,7 +209,7 @@ class GOrders extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
-                    'Track Details',
+                    _isHistory(o) ? 'Order Details' : 'Track Details',
                     style: gText(12, w: FontWeight.w700, c: GColors.green),
                   ),
                   const SizedBox(width: 4),

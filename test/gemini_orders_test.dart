@@ -67,6 +67,9 @@ void main() {
         await File('/tmp/gshots/orders_${w.toInt()}.png')
             .writeAsBytes(d!.buffer.asUint8List());
       });
+      expect(find.text('Order history'), findsOneWidget);
+      expect(find.text('Order Details'), findsOneWidget);
+      expect(find.text('Track Details'), findsOneWidget);
       expect(t.takeException(), isNull);
       expect(find.textContaining('emo'), findsNothing);
     });
