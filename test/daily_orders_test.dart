@@ -239,4 +239,35 @@ void main() {
     await t.pumpAndSettle();
     expect(find.textContaining('2 Tiffins'), findsOneWidget);
   });
+
+  testWidgets(
+    'payment words: Paid, being verified, in your plan, never unpaid',
+    (t) async {
+      await open(
+        t,
+        rows: [
+          {
+            ...order('a1', '2026-10-10', '', 'Confirmed', sub: false),
+            'payment_status': 'verified',
+            'total_paise': 12000,
+          },
+          {
+            ...order('a2', '2026-10-10', '', 'Confirmed', sub: false),
+            'payment_status': 'unpaid',
+            'total_paise': 12000,
+          },
+          {
+            ...order('a3', '2026-10-10', '', 'Preparing'),
+            'payment_status': 'unpaid',
+            'meal': null,
+            'delivery_date': '2026-10-09',
+          },
+        ],
+      );
+      expect(find.textContaining('₹120 · Paid'), findsOneWidget);
+      expect(find.textContaining('₹120 · Payment pending'), findsOneWidget);
+      expect(find.textContaining('₹0 · In your plan'), findsOneWidget);
+      expect(find.textContaining('unpaid'), findsNothing);
+    },
+  );
 }

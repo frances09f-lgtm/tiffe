@@ -4573,6 +4573,17 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
 
   /// Plan orders the kitchen creates for each day (meal is lunch or dinner)
   /// that are not out for delivery yet. They show as daily cards.
+  /// Customer-facing payment words. The raw column stays 'unpaid' until the
+  /// owner verifies a manual UPI payment, so never show it as-is: plan orders
+  /// are covered by the plan, verified is Paid, anything else is being checked.
+  String _payLabel(Map<String, dynamic> o) {
+    if (o['payment_status'] == 'verified') {
+      return o['subscription_id'] == null ? 'Paid' : 'In your plan';
+    }
+    if (o['subscription_id'] != null) return 'In your plan';
+    return 'Payment pending';
+  }
+
   bool _isSlotOrder(Map<String, dynamic> o) =>
       o['subscription_id'] != null &&
       (o['meal'] == 'lunch' || o['meal'] == 'dinner') &&
@@ -4789,7 +4800,7 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
                   o['status'] as String,
                   _orderTitle(o),
                   _niceDay(o['delivery_date'] as String),
-                  '₹${((o['total_paise'] as num) / 100).toStringAsFixed(0)} · ${o['payment_status']}',
+                  '₹${((o['total_paise'] as num) / 100).toStringAsFixed(0)} · ${_payLabel(o)}',
                   live: o['status'] == 'Out for Delivery',
                   demoStatus: _simOne(o)['demo'] == true
                       ? _simOne(o)['status'] as String
