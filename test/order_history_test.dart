@@ -46,7 +46,7 @@ void main() {
     await t.tap(find.text('Orders').last);
     await t.pumpAndSettle();
     expect(find.text('Delivered'), findsWidgets);
-    expect(find.textContaining('10 Oct 2026'), findsWidgets);
+    expect(find.textContaining('Delivery '), findsWidgets);
     expect(find.text('2 Tiffins'), findsWidgets);
     expect(find.textContaining('9 Oct 2026'), findsOneWidget);
   });

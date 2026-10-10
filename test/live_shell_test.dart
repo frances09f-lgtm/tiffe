@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:tiffe/ui/gemini/toast.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:tiffe/data/store.dart';
 import 'package:tiffe/live/live_app.dart';
@@ -184,6 +185,7 @@ void main() {
             'total_paise': 12000,
             'payment_status': 'verified',
             'eta_at': null,
+            'created_at': '2026-10-10T09:42:00Z',
             'subscription_id': null,
           },
       ];
@@ -257,12 +259,12 @@ void main() {
     await t.tap(find.text('Edit Profile'));
     await t.pumpAndSettle();
     await shot(t, 'edit_profile');
-    await t.pageBack();
+    await t.tap(find.byIcon(Icons.arrow_back).first);
     await t.pumpAndSettle();
     await t.tap(find.text('My Tiffin Subscription'));
     await t.pumpAndSettle();
     await shot(t, 'sub_page');
-    await t.pageBack();
+    await t.tap(find.byIcon(Icons.arrow_back).first);
     await t.pumpAndSettle();
     await t.tap(
       find.descendant(of: find.byType(GBottomNav), matching: find.text('Menu')),
@@ -297,7 +299,7 @@ void main() {
             'id': 'cccccccc-1',
             'delivery_date': day,
             'quantity': 1,
-            'status': 'Confirmed',
+            'status': 'Out for Delivery',
             'total_paise': 10000,
             'payment_status': 'verified',
             'eta_at': null,
@@ -323,12 +325,32 @@ void main() {
       await t.tap(find.text('Track Details').first);
       await t.pumpAndSettle();
       await shot(t, 'track_${dark ? 'dark' : 'light'}');
+      await t.tap(find.text('Live Map Tracking'));
+      await t.pumpAndSettle();
+      expect(find.text('Live Delivery Tracking'), findsOneWidget);
+      await shot(t, 'live_${dark ? 'dark' : 'light'}');
+      await t.tap(find.byIcon(Icons.arrow_back).first);
+      await t.pumpAndSettle();
+      await t.tap(find.byIcon(Icons.arrow_back).first);
+      await t.pumpAndSettle();
+      final nav = t.element(find.byType(LiveWorkspace));
+      gToast(nav, 'Profile updated successfully!');
+      await t.pump();
+      await t.pump(const Duration(milliseconds: 600));
+      await shot(t, 'toast_${dark ? 'dark' : 'light'}');
       expect(t.takeException(), isNull);
     });
   }
 }
 
 class DataBackend extends ContentBackend {
+  @override
+  Future<List<Map<String, dynamic>>> orderItems(List<String> ids) async => [
+    for (final id in ids) ...[
+      {'order_id': id, 'tiffin': 1, 'item_name': 'Batata Bhaji'},
+      {'order_id': id, 'tiffin': 1, 'item_name': 'Matki Usal'},
+    ],
+  ];
   @override
   Stream<List<Map<String, dynamic>>> subscriptions() => Stream.value([
     {

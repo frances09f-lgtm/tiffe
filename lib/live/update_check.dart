@@ -2,6 +2,9 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+
+import '../ui/gemini/toast.dart';
+
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -70,17 +73,12 @@ class UpdateCheck {
     if (!context.mounted) return;
     if (latest == null || latest <= currentBuild) {
       if (manual) {
-        ScaffoldMessenger.of(context)
-          ..hideCurrentSnackBar()
-          ..showSnackBar(
-            SnackBar(
-              content: Text(
-                latest == null
-                    ? 'Could not check for updates. Please try again later.'
-                    : 'You are up to date (v$currentBuild).',
-              ),
-            ),
-          );
+        gToast(
+          context,
+          latest == null
+              ? 'Could not check for updates. Please try again later.'
+              : 'You are up to date (v$currentBuild).',
+        );
       }
       return;
     }

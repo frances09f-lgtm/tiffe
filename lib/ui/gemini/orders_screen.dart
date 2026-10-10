@@ -6,6 +6,7 @@ import 'home_screen.dart';
 class GOrder {
   final String id, kind, status, title, when, total;
   final bool live;
+  final String? placed, due;
   const GOrder(
     this.id,
     this.kind,
@@ -14,6 +15,8 @@ class GOrder {
     this.when,
     this.total, {
     this.live = false,
+    this.placed,
+    this.due,
   });
 }
 
@@ -131,8 +134,8 @@ class GOrders extends StatelessWidget {
           children: [
             Expanded(
               child: Text(
-                o.id,
-                maxLines: 1,
+                '${o.id} • ${o.kind}',
+                maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 style: gText(10.5, w: FontWeight.w600, c: GColors.grey),
               ),
@@ -171,17 +174,25 @@ class GOrders extends StatelessWidget {
                 children: [
                   Text(
                     o.title,
-                    maxLines: 2,
+                    maxLines: 3,
                     overflow: TextOverflow.ellipsis,
                     style: gText(14, w: FontWeight.w700, c: GColors.green),
                   ),
                   const SizedBox(height: 2),
-                  Text(
-                    '${o.when} • ${o.kind}',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: gText(11, c: GColors.grey),
-                  ),
+                  if (o.due != null || o.placed == null)
+                    Text(
+                      o.due ?? o.when,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: gText(11, c: GColors.grey),
+                    ),
+                  if (o.placed != null)
+                    Text(
+                      'Placed ${o.placed}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: gText(11, c: GColors.grey),
+                    ),
                 ],
               ),
             ),

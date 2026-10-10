@@ -1,6 +1,9 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+
+import 'gemini/toast.dart';
+
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -1150,22 +1153,16 @@ class _ShellState extends TiffeState<Shell> {
     try {
       final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
       if (!opened && context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Could not open this app. Call +91 72491 19955, or add this number in WhatsApp.',
-            ),
-          ),
+        gToast(
+          context,
+          'Could not open this app. Call +91 72491 19955, or add this number in WhatsApp.',
         );
       }
     } catch (_) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Could not open this app. Call +91 72491 19955, or add this number in WhatsApp.',
-            ),
-          ),
+        gToast(
+          context,
+          'Could not open this app. Call +91 72491 19955, or add this number in WhatsApp.',
         );
       }
     }
@@ -1511,17 +1508,11 @@ class _SelectionPageState extends TiffeState<SelectionPage> {
     if (!widget.oneTime &&
         widget.store.plan != Plan.none &&
         !canChangeBhaji(deliveryDate, now)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Selection cutoff has passed for this delivery.'),
-        ),
-      );
+      gToast(context, 'Selection cutoff has passed for this delivery.');
       return;
     }
     if (picked.any((ids) => ids.length < 2)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Choose at least 2 bhajis for each tiffin.')),
-      );
+      gToast(context, 'Choose at least 2 bhajis for each tiffin.');
       return;
     }
     if (widget.oneTime || widget.store.plan == Plan.none) {
@@ -1639,9 +1630,7 @@ class _SelectionPageState extends TiffeState<SelectionPage> {
                             widget.store.usual = List.of(selected);
                             await widget.store.save();
                             if (c.mounted) {
-                              ScaffoldMessenger.of(c).showSnackBar(
-                                SnackBar(content: Text('My Usual saved.')),
-                              );
+                              gToast(c, 'My Usual saved.');
                             }
                           },
                     child: Text('Save as usual'),
@@ -1890,12 +1879,9 @@ class _CheckoutState extends TiffeState<Checkout> {
       await widget.store.saveSelection(widget.date, i, widget.selections[i]);
     }
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          widget.plan == Plan.none ? 'Choices saved.' : 'Your plan is ready.',
-        ),
-      ),
+    gToast(
+      context,
+      widget.plan == Plan.none ? 'Choices saved.' : 'Your plan is ready.',
     );
     Navigator.pushReplacement(
       context,
@@ -2413,38 +2399,8 @@ class _EditProfilePageState extends TiffeState<EditProfilePage> {
       ..area = area;
     await widget.store.save();
     if (!mounted) return;
-    final dark = Theme.of(context).brightness == Brightness.dark;
     Navigator.pop(context);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            Icon(Icons.check_circle, color: Color(0xFF75D58A), size: 22),
-            SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                'Profile updated successfully',
-                style: TextStyle(
-                  color: dark ? Colors.white : const Color(0xFF303030),
-                  fontSize: 14,
-                ),
-              ),
-            ),
-          ],
-        ),
-        backgroundColor: dark ? const Color(0xFF303030) : Colors.white,
-        elevation: 0,
-        shape: RoundedRectangleBorder(
-          borderRadius: const BorderRadius.all(Radius.circular(14)),
-          side: dark
-              ? BorderSide.none
-              : const BorderSide(color: Colors.black, width: 1),
-        ),
-        margin: EdgeInsets.fromLTRB(16, 0, 16, 12),
-        duration: Duration(seconds: 2),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
+    gToast(context, 'Profile updated successfully!');
   }
 
   @override

@@ -45,29 +45,12 @@ void main() {
         await t.tap(find.text('Save profile'));
         await t.pumpAndSettle();
         expect(find.text('Abhijeet Ambi'), findsOneWidget);
-        expect(find.text('Profile updated successfully'), findsOneWidget);
+        expect(find.text('Profile updated successfully!'), findsOneWidget);
         final snack = t.widget<SnackBar>(find.byType(SnackBar));
         expect(snack.behavior, SnackBarBehavior.floating);
-        expect(snack.duration, const Duration(seconds: 2));
-        expect(
-          snack.backgroundColor,
-          dark ? const Color(0xFF303030) : Colors.white,
-        );
-        final feedback = t.widget<Text>(
-          find.text('Profile updated successfully'),
-        );
-        expect(
-          feedback.style?.color,
-          dark ? Colors.white : const Color(0xFF303030),
-        );
-        final shape = snack.shape! as RoundedRectangleBorder;
-        expect(
-          shape.side,
-          dark
-              ? BorderSide.none
-              : const BorderSide(color: Colors.black, width: 1),
-        );
-        expect(find.byIcon(Icons.check_circle), findsWidgets);
+        expect(snack.backgroundColor, const Color(0xFF1B3B2B));
+        expect(find.byIcon(Icons.check_circle_outline), findsWidgets);
+        expect(find.byIcon(Icons.close), findsWidgets);
         await helpers.capture(
           t,
           'profile-save-styled-${dark ? "dark" : "light"}',

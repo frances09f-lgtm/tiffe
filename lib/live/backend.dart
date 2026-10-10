@@ -40,6 +40,19 @@ class TiffeBackend {
     await client.auth.updateUser(UserAttributes(password: password));
   }
 
+  /// Chosen bhajis per order (public.order_items). RLS decides what the
+  /// session may read; callers must tolerate an empty or failed read.
+  Future<List<Map<String, dynamic>>> orderItems(List<String> orderIds) async {
+    if (orderIds.isEmpty) return [];
+    final rows = await client
+        .from('order_items')
+        .select('order_id,tiffin,menu_item_id,item_name,extra_price_paise')
+        .inFilter('order_id', orderIds)
+        .order('tiffin')
+        .timeout(const Duration(seconds: 10));
+    return List<Map<String, dynamic>>.from(rows);
+  }
+
   Stream<List<Map<String, dynamic>>> menu() =>
       client.from('menu_items').stream(primaryKey: ['id']).order('sort_order');
   Stream<List<Map<String, dynamic>>> settings() =>

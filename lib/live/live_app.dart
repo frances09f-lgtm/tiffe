@@ -5,6 +5,9 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'package:flutter/material.dart';
 
+import '../ui/gemini/edit_profile_screen.dart';
+import '../ui/gemini/toast.dart';
+
 import '../ui/tracking_map.dart';
 import 'bug_report.dart';
 import 'update_check.dart';
@@ -13,6 +16,7 @@ import '../ui/gemini/home_screen.dart';
 import '../ui/gemini/menu_screen.dart';
 import '../ui/gemini/orders_screen.dart';
 import '../ui/gemini/profile_screen.dart';
+import '../ui/gemini/track_screen.dart';
 
 import '../data/store.dart';
 import '../domain/tiffin.dart' as food;
@@ -466,10 +470,48 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
     }, onError: (Object _) {});
     orderListener = orderStream.listen((rows) {
       if (mounted) setState(() => orderRows = rows);
+      if (widget.role == null && mounted) loadItems();
     }, onError: (Object _) {});
     planListener = subscriptionStream?.listen((rows) {
       if (mounted) setState(() => subRows = rows);
     }, onError: (Object _) {});
+  }
+
+  /// order id -> chosen bhaji names per tiffin (from order_items).
+  Map<String, List<List<String>>> itemsByOrder = {};
+  Future<void> loadItems() async {
+    try {
+      final rows = await widget.backend.orderItems([
+        for (final o in orderRows) o['id'] as String,
+      ]);
+      final m = <String, Map<int, List<String>>>{};
+      for (final r in rows) {
+        final n = r['item_name'];
+        if (n is! String || n.isEmpty) continue;
+        m
+            .putIfAbsent(r['order_id'] as String, () => {})
+            .putIfAbsent((r['tiffin'] as num?)?.toInt() ?? 1, () => [])
+            .add(n);
+      }
+      final out = {
+        for (final e in m.entries)
+          e.key: [for (final k in (e.value.keys.toList()..sort())) e.value[k]!],
+      };
+      if (mounted) setState(() => itemsByOrder = out);
+    } catch (_) {}
+  }
+
+  String _orderTitle(Map<String, dynamic> o) {
+    final t = itemsByOrder[o['id']];
+    if (t != null && t.isNotEmpty) {
+      return t.length == 1
+          ? t[0].join(', ')
+          : [
+              for (var i = 0; i < t.length; i++)
+                'Tiffin ${i + 1}: ${t[i].join(', ')}',
+            ].join(' · ');
+    }
+    return '${o['quantity']} Tiffin${o['quantity'] == 1 ? '' : 's'}';
   }
 
   Map<String, dynamic>? get activeSubscription {
@@ -747,13 +789,7 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
       );
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Could not update this order. Refresh and try again.',
-            ),
-          ),
-        );
+        gToast(context, 'Could not update this order. Refresh and try again.');
       }
     }
   }
@@ -783,9 +819,7 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
       await widget.backend.verifyPayment(order['id'] as String);
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Could not verify payment. Try again.')),
-        );
+        gToast(context, 'Could not verify payment. Try again.');
       }
     }
   }
@@ -796,19 +830,13 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
       riders = await widget.backend.deliveryStaff();
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Could not load riders. Try again.')),
-        );
+        gToast(context, 'Could not load riders. Try again.');
       }
       return;
     }
     if (!mounted) return;
     if (riders.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('No delivery staff yet. Add riders in Supabase first.'),
-        ),
-      );
+      gToast(context, 'No delivery staff yet. Add riders in Supabase first.');
       return;
     }
     String? chosen;
@@ -856,11 +884,7 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
       await widget.backend.assignRider(order['id'] as String, chosen!);
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Could not assign the rider. Try again.'),
-          ),
-        );
+        gToast(context, 'Could not assign the rider. Try again.');
       }
     }
   }
@@ -2759,17 +2783,13 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
       customers = await widget.backend.customers();
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Could not load customers. Try again.')),
-        );
+        gToast(context, 'Could not load customers. Try again.');
       }
       return;
     }
     if (!mounted) return;
     if (customers.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No customer profiles yet.')),
-      );
+      gToast(context, 'No customer profiles yet.');
       return;
     }
     String? customerId;
@@ -2989,12 +3009,7 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
     );
     if (placed == true && mounted) {
       setState(() => tab = 2);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Order placed - the kitchen has it.'),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+      gToast(context, 'Order placed - the kitchen has it.');
     }
   }
 
@@ -3033,41 +3048,7 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
           profileComplete = true;
           if (widget.role == null) tab = 0;
         });
-        final dark = Theme.of(context).brightness == Brightness.dark;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: [
-                const Icon(
-                  Icons.check_circle,
-                  color: Color(0xFF75D58A),
-                  size: 22,
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    'Profile updated successfully',
-                    style: TextStyle(
-                      color: dark ? Colors.white : const Color(0xFF303030),
-                      fontSize: 14,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            backgroundColor: dark ? const Color(0xFF303030) : Colors.white,
-            elevation: 0,
-            shape: RoundedRectangleBorder(
-              borderRadius: const BorderRadius.all(Radius.circular(14)),
-              side: dark
-                  ? BorderSide.none
-                  : const BorderSide(color: Colors.black, width: 1),
-            ),
-            margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-            duration: const Duration(seconds: 2),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
+        gToast(context, 'Profile updated successfully!');
       }
     } catch (_) {
       if (mounted) {
@@ -3126,12 +3107,9 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
                         await widget.backend.changePassword(password.text);
                         if (c.mounted) Navigator.pop(c);
                         if (mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text(
-                                'Password changed. Use it next time you sign in.',
-                              ),
-                            ),
+                          gToast(
+                            context,
+                            'Password changed. Use it next time you sign in.',
                           );
                         }
                       } on AuthException catch (e) {
@@ -3222,15 +3200,11 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
       ),
     );
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(switch (result) {
-          ReportResult.sent => 'Report sent. Thank you.',
-          ReportResult.queued => 'Saved on this phone. It will be sent later.',
-          ReportResult.full => 'Could not send, and the saved list on this phone is full. Please try again later.',
-        }),
-      ),
-    );
+    gToast(context, switch (result) {
+      ReportResult.sent => 'Report sent. Thank you.',
+      ReportResult.queued => 'Saved on this phone. It will be sent later.',
+      ReportResult.full => 'Could not send, and the saved list on this phone is full. Please try again later.',
+    });
   }
 
   Widget profile({bool onboarding = false, bool settings = true}) => Column(
@@ -4068,26 +4042,35 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
     ),
   );
 
-  void _editProfilePage() => _push(
-    'Edit Profile',
-    () => Column(
-      children: [
-        profile(settings: false),
-        panel(
-          child: Material(
-            color: Colors.transparent,
-            child: ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: const Icon(Icons.lock_outline),
-              title: const Text('Change password'),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: changePassword,
-            ),
+  void _editProfilePage() {
+    final email = widget.backend.client.auth.currentUser?.email ?? '';
+    Navigator.of(routeContext).push(
+      MaterialPageRoute<void>(
+        builder: (c) => ValueListenableBuilder<int>(
+          valueListenable: _rev,
+          builder: (c2, _, _) => GEditProfile(
+            name: name,
+            phone: phone,
+            address: address,
+            email: email,
+            area: area.text,
+            areas: areas,
+            onArea: (v) => setState(() => area.text = v),
+            error: profileError,
+            saving: saving,
+            loaded: loaded,
+            onPassword: changePassword,
+            onSave: () async {
+              await saveProfile();
+              if (mounted && profileError == null && c2.mounted) {
+                Navigator.of(c2).maybePop();
+              }
+            },
           ),
         ),
-      ],
-    ),
-  );
+      ),
+    );
+  }
 
   void _subscriptionPage() => _push(
     'My Tiffin Subscription',
@@ -4112,23 +4095,133 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
   static String _shortId(String id) =>
       (id.length > 6 ? id.substring(0, 6) : id).toUpperCase();
 
-  void _trackPage(String id) => _push('Order tracking', () {
-    Map<String, dynamic>? row;
-    for (final o in orderRows) {
-      if ('#${_shortId(o['id'] as String)}' == id) {
-        row = o;
-      }
+  static String? _clock(Object? iso, {bool day = false}) {
+    final d = iso is String ? DateTime.tryParse(iso)?.toLocal() : null;
+    if (d == null) return null;
+    final h = d.hour % 12 == 0 ? 12 : d.hour % 12;
+    final t =
+        '$h:${d.minute.toString().padLeft(2, '0')} ${d.hour >= 12 ? 'PM' : 'AM'}';
+    if (!day) return t;
+    final n = DateTime.now();
+    if (d.year == n.year && d.month == n.month && d.day == n.day) {
+      return 'Today, $t';
     }
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        if (row == null || row['status'] == 'Out for Delivery')
-          trackingCard()
-        else
-          panel(child: orderProgress(row)),
-      ],
+    return '${_niceDay('${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}').replaceFirst(' ${d.year}', '')}, $t';
+  }
+
+  /// Real delivery time: the kitchen ETA if set, else the kitchen's
+  /// delivery_time setting on the delivery date.
+  String? _dueText(Map<String, dynamic> o) {
+    final eta = _clock(o['eta_at'], day: true);
+    if (eta != null) return 'Arriving by $eta';
+    final dt = (cfg?['delivery_time'] as String? ?? '').split(':');
+    if (dt.length < 2) return null;
+    final hh = int.tryParse(dt[0]), mm = int.tryParse(dt[1]);
+    if (hh == null || mm == null) return null;
+    final h = hh % 12 == 0 ? 12 : hh % 12;
+    final day = o['delivery_date'] as String;
+    final n = DateTime.now();
+    final today =
+        '${n.year}-${n.month.toString().padLeft(2, '0')}-${n.day.toString().padLeft(2, '0')}';
+    return 'Delivery ${day == today ? 'today' : _niceDay(day)} around $h:${mm.toString().padLeft(2, '0')} ${hh >= 12 ? 'PM' : 'AM'}';
+  }
+
+  void _livePage(String id) {
+    Navigator.of(routeContext).push(
+      MaterialPageRoute<void>(
+        builder: (c) => ValueListenableBuilder<int>(
+          valueListenable: _rev,
+          builder: (c2, _, _) {
+            Map<String, dynamic>? row;
+            for (final o in orderRows) {
+              if ('#${_shortId(o['id'] as String)}' == id) row = o;
+            }
+            final eta = row == null ? null : _clock(row['eta_at'], day: true);
+            return GLive(
+              headline: eta != null
+                  ? 'Kitchen estimate: $eta'
+                  : row?['status'] == 'Out for Delivery'
+                  ? 'On its way'
+                  : '${row?['status'] ?? 'Order'}',
+              detail: eta != null
+                  ? 'Your order is out for delivery. The rider on the map below is a simulated preview, not your exact door.'
+                  : 'The kitchen has not shared an arrival time yet. The rider on the map below is a simulated preview.',
+              map: trackingCard(),
+            );
+          },
+        ),
+      ),
     );
-  });
+  }
+
+  void _trackPage(String id) {
+    Map<String, dynamic>? find() {
+      for (final o in orderRows) {
+        if ('#${_shortId(o['id'] as String)}' == id) return o;
+      }
+      return null;
+    }
+
+    final nav = Navigator.of(routeContext);
+    nav.push(
+      MaterialPageRoute<void>(
+        builder: (c) => ValueListenableBuilder<int>(
+          valueListenable: _rev,
+          builder: (c2, _, _) {
+            final row = mounted ? find() : null;
+            if (row == null) {
+              return GTrack(
+                orderId: id,
+                subtitle: 'Order details are not available right now.',
+                steps: const [],
+              );
+            }
+            const names = {
+              'Confirmed': 'Order confirmed',
+              'Preparing': 'Meal being prepared in the kitchen',
+              'Packed': 'Packed and ready for dispatch',
+              'Out for Delivery': 'Out for delivery',
+              'Delivered': 'Delivered',
+            };
+            const order = [
+              'Confirmed',
+              'Preparing',
+              'Packed',
+              'Out for Delivery',
+              'Delivered',
+            ];
+            final status = row['status'] as String;
+            final at = order.indexOf(status);
+            final out = status == 'Out for Delivery';
+            return GTrack(
+              orderId: id,
+              subtitle:
+                  '${row['subscription_id'] == null ? 'One-time' : 'Subscription'} • $status • ${row['quantity']} Tiffin${row['quantity'] == 1 ? '' : 's'}',
+              steps: [
+                for (var i = 0; i < order.length; i++)
+                  GTrackStep(
+                    names[order[i]]!,
+                    at < 0
+                        ? GStepState.pending
+                        : i < at || (i == at && order[i] == 'Delivered')
+                        ? GStepState.done
+                        : i == at
+                        ? GStepState.current
+                        : GStepState.pending,
+                    note: order[i] == 'Out for Delivery' && out
+                        ? (row['eta_at'] == null
+                              ? 'The kitchen has not shared an arrival time yet.'
+                              : 'Kitchen estimate: ${_clock(row['eta_at'], day: true) ?? row['eta_at']}')
+                        : null,
+                  ),
+              ],
+              onMap: out ? () => _livePage(id) : null,
+            );
+          },
+        ),
+      ),
+    );
+  }
 
   Future<void> _orderBhajis(List<String> names) async {
     if (cfg == null) return;
@@ -4154,12 +4247,7 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
     );
     if (placed == true && mounted) {
       setState(() => tab = 2);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Order placed - the kitchen has it.'),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+      gToast(context, 'Order placed - the kitchen has it.');
     }
   }
 
@@ -4203,10 +4291,12 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
                 '#${_shortId(o['id'] as String)}',
                 o['subscription_id'] == null ? 'One-time' : 'Subscription',
                 o['status'] as String,
-                '${o['quantity']} Tiffin${o['quantity'] == 1 ? '' : 's'}',
+                _orderTitle(o),
                 _niceDay(o['delivery_date'] as String),
                 '₹${((o['total_paise'] as num) / 100).toStringAsFixed(0)} · ${o['payment_status']}',
                 live: o['status'] == 'Out for Delivery',
+                placed: _clock(o['created_at'], day: true),
+                due: _dueText(o),
               ),
           ],
           emptyText: 'No orders yet. Order a tiffin from the Menu and it will show up here.',
