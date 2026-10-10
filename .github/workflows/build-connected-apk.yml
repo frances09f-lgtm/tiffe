@@ -29,13 +29,13 @@ jobs:
         run: |
           printf '%s' "$TIFFE_KEYSTORE_BASE64" | base64 -d > "$TIFFE_KEYSTORE_FILE"
           flutter build apk --release --target-platform android-arm64 \
-            -t lib/connected_main.dart --build-name=1.0.14 --build-number=14 \
+            -t lib/connected_main.dart --build-name=1.0.28 --build-number=28 \
             --dart-define=TIFFE_SUPABASE_URL=https://obbtxyjglgivcpusjpcx.supabase.co \
             --dart-define=TIFFE_SUPABASE_KEY=sb_publishable__5qR0bvVmwqKykgbQpAtRw_H0eIgl3_ \
             --dart-define=TIFFE_OWNER_EMAIL=frances09f@gmail.com
-          mv build/app/outputs/flutter-apk/app-release.apk build/app/outputs/flutter-apk/Tiffe-connected.apk
+          mv build/app/outputs/flutter-apk/app-release.apk build/app/outputs/flutter-apk/Tiffe.apk
           rm -f "$TIFFE_KEYSTORE_FILE"
       - uses: actions/upload-artifact@v4
         with:
           name: tiffe-connected-apk
-          path: build/app/outputs/flutter-apk/Tiffe-connected.apk
+          path: build/app/outputs/flutter-apk/Tiffe.apk

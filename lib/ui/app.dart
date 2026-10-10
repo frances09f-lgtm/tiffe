@@ -18,10 +18,19 @@ const cream = Color(0xFFFAF8F0),
 
 class TiffePalette {
   final bool dark;
-  const TiffePalette(this.dark);
-  Color get cream => const Color(0xFFFAF8F0);
-  Color get green => dark ? const Color(0xFFA8D4A5) : const Color(0xFF285A3F);
-  Color get ink => dark ? const Color(0xFFF1F0E5) : const Color(0xFF263A2E);
+  final bool stitch;
+  const TiffePalette(this.dark, {this.stitch = false});
+  Color get cream => stitch ? const Color(0xFFF9F9FB) : const Color(0xFFFAF8F0);
+  Color get green => dark
+      ? const Color(0xFFA8D4A5)
+      : stitch
+      ? const Color(0xFF012D1D)
+      : const Color(0xFF285A3F);
+  Color get ink => dark
+      ? const Color(0xFFF1F0E5)
+      : stitch
+      ? const Color(0xFF1A1C1E)
+      : const Color(0xFF263A2E);
   Color get muted => dark ? const Color(0xFFAEB9AE) : const Color(0xFF738074);
   Color get surface => dark ? const Color(0xFF202D24) : Colors.white;
   Color tone(Color color) {
@@ -33,8 +42,10 @@ class TiffePalette {
   }
 }
 
-TiffePalette palette(BuildContext c) =>
-    TiffePalette(Theme.of(c).brightness == Brightness.dark);
+TiffePalette palette(BuildContext c) => TiffePalette(
+  Theme.of(c).brightness == Brightness.dark,
+  stitch: Theme.of(c).colorScheme.primary == const Color(0xFF012D1D),
+);
 
 abstract class TiffeState<T extends StatefulWidget> extends State<T> {
   Color get tcream => palette(context).cream;

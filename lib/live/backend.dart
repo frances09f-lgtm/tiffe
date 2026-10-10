@@ -1,0 +1,227 @@
+import 'dart:async';
+import 'dart:convert';
+
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+class BackendConfig {
+  static const ownerEmail = String.fromEnvironment('TIFFE_OWNER_EMAIL');
+  static String loginEmail(String input, {required bool admin}) {
+    final value = input.trim();
+    return admin && value.toLowerCase() == 'admin' && ownerEmail.isNotEmpty
+        ? ownerEmail
+        : value;
+  }
+
+  static const url = String.fromEnvironment('TIFFE_SUPABASE_URL');
+  static const publishableKey = String.fromEnvironment('TIFFE_SUPABASE_KEY');
+  static bool get configured => url.isNotEmpty && publishableKey.isNotEmpty;
+  static bool _initialized = false;
+  static Future<SupabaseClient?> initialize() async {
+    if (!configured) return null;
+    if (_initialized) return Supabase.instance.client;
+    await Supabase.initialize(url: url, publishableKey: publishableKey);
+    _initialized = true;
+    return Supabase.instance.client;
+  }
+}
+
+/// Both entry points use the same schema. RLS scopes streams to the session.
+class TiffeBackend {
+  final SupabaseClient client;
+  TiffeBackend(this.client);
+  String? get userId => client.auth.currentUser?.id;
+  Stream<AuthState> get authChanges => client.auth.onAuthStateChange;
+  Future<AuthResponse> signIn(String email, String password) =>
+      client.auth.signInWithPassword(email: email, password: password);
+  Future<AuthResponse> signUp(String email, String password) =>
+      client.auth.signUp(email: email, password: password);
+  Future<void> signOut() => client.auth.signOut();
+  Future<void> changePassword(String password) async {
+    await client.auth.updateUser(UserAttributes(password: password));
+  }
+
+  Stream<List<Map<String, dynamic>>> menu() =>
+      client.from('menu_items').stream(primaryKey: ['id']).order('sort_order');
+  Stream<List<Map<String, dynamic>>> settings() =>
+      client.from('settings').stream(primaryKey: ['id']);
+  Stream<List<Map<String, dynamic>>> orders({bool customer = false}) {
+    final stream = client.from('orders').stream(primaryKey: ['id']);
+    if (!customer) return stream.order('created_at', ascending: false);
+    final live = stream
+        .eq('customer_id', userId ?? '')
+        .order('created_at', ascending: false);
+    // Realtime can stall (sleeping phone, dropped socket), so the customer
+    // list is also re-read every 15 seconds. Only changes are emitted.
+    late StreamController<List<Map<String, dynamic>>> out;
+    StreamSubscription<List<Map<String, dynamic>>>? sub;
+    Timer? timer;
+    String? last;
+    void emit(List<Map<String, dynamic>> rows) {
+      final key = jsonEncode(rows);
+      if (key == last || out.isClosed) return;
+      last = key;
+      out.add(rows);
+    }
+
+    Future<void> poll() async {
+      try {
+        final rows = await client
+            .from('orders')
+            .select()
+            .eq('customer_id', userId ?? '')
+            .order('created_at', ascending: false)
+            .timeout(const Duration(seconds: 10));
+        emit(List<Map<String, dynamic>>.from(rows));
+      } catch (_) {}
+    }
+
+    out = StreamController<List<Map<String, dynamic>>>(
+      onListen: () {
+        sub = live.listen(emit, onError: (_) {});
+        timer = Timer.periodic(const Duration(seconds: 15), (_) => poll());
+      },
+      onCancel: () async {
+        timer?.cancel();
+        await sub?.cancel();
+      },
+    );
+    return out.stream;
+  }
+
+  Stream<List<Map<String, dynamic>>> subscriptions() => client
+      .from('subscriptions')
+      .stream(primaryKey: ['id'])
+      .eq('customer_id', userId ?? '');
+  Future<String?> role() async {
+    if (userId == null) return null;
+    final row = await client
+        .from('staff_members')
+        .select('role')
+        .eq('user_id', userId!)
+        .maybeSingle();
+    return row?['role'] as String?;
+  }
+
+  Future<void> saveMenu({
+    String? id,
+    required String name,
+    required String description,
+    required bool available,
+  }) async {
+    final values = {
+      'name': name,
+      'description': description,
+      'available': available,
+      'updated_at': DateTime.now().toUtc().toIso8601String(),
+    };
+    if (id == null) {
+      await client.from('menu_items').insert(values);
+    } else {
+      await client.from('menu_items').update(values).eq('id', id);
+    }
+  }
+
+  Future<Map<String, dynamic>?> currentSettings() async =>
+      client.from('settings').select().eq('id', true).maybeSingle();
+
+  Future<Map<String, dynamic>?> profile() async {
+    if (userId == null) return null;
+    return client.from('profiles').select().eq('id', userId!).maybeSingle();
+  }
+
+  Future<void> saveProfile({
+    required String name,
+    required String phone,
+    required String address,
+    required String area,
+  }) async {
+    if (userId == null) throw StateError('Sign in required');
+    await client.from('profiles').upsert({
+      'id': userId,
+      'name': name,
+      'phone': phone,
+      'address': address,
+      'area': area,
+    });
+  }
+
+  Future<String> placeOrder({
+    required String date,
+    required List<List<String>> tiffins,
+    required String idempotencyKey,
+    String instructions = '',
+    String? subscriptionId,
+  }) async {
+    return (await client.rpc(
+      'place_order',
+      params: {
+        'p_date': date,
+        'p_tiffins': tiffins,
+        'p_key': idempotencyKey,
+        'p_instructions': instructions,
+        'p_subscription': subscriptionId,
+      },
+    )) as String;
+  }
+
+  Future<List<Map<String, dynamic>>> customers() async =>
+      client.from('profiles').select('id, name, phone, area');
+
+  Future<List<Map<String, dynamic>>> allSubscriptions() async => client
+      .from('subscriptions')
+      .select()
+      .order('starts_on', ascending: false);
+
+  Future<void> saveSubscription({
+    required String customerId,
+    required String plan,
+    required String startsOn,
+    required String endsOn,
+    required bool verified,
+  }) async => client.from('subscriptions').insert({
+    'customer_id': customerId,
+    'plan': plan,
+    'starts_on': startsOn,
+    'ends_on': endsOn,
+    'verified': verified,
+  });
+
+  Future<void> verifyPayment(String orderId) async =>
+      client.rpc('verify_payment', params: {'p_order': orderId});
+
+  Future<void> assignRider(String orderId, String riderId) async => client.rpc(
+    'assign_rider',
+    params: {'p_order': orderId, 'p_rider': riderId},
+  );
+
+  Future<List<Map<String, dynamic>>> deliveryStaff() async {
+    final staff = await client
+        .from('staff_members')
+        .select('user_id')
+        .eq('role', 'delivery');
+    final people = await client.from('profiles').select('id,name');
+    return staff
+        .map(
+          (r) => <String, dynamic>{
+            ...r,
+            'name':
+                people
+                    .where((p) => p['id'] == r['user_id'])
+                    .map((p) => p['name'])
+                    .firstOrNull ??
+                '',
+          },
+        )
+        .toList();
+  }
+
+  Future<void> advance(String id, String status, {DateTime? eta}) async =>
+      client.rpc(
+        'advance_order',
+        params: {
+          'p_order': id,
+          'p_status': status,
+          'p_eta': eta?.toUtc().toIso8601String(),
+        },
+      );
+}
