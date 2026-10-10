@@ -62,7 +62,10 @@ def main():
         subprocess.run(['gh', 'api', '-H', 'Accept: application/octet-stream',
                         f'repos/{repository}/releases/assets/{asset["id"]}'], stdout=out, check=True)
     with apk.open('rb') as binary:
-        require(hashlib.file_digest(binary, 'sha256').hexdigest() == expected, 'APK hash mismatch')
+        digest = hashlib.sha256()
+        for block in iter(lambda: binary.read(1024 * 1024), b''):
+            digest.update(block)
+        require(digest.hexdigest() == expected, 'APK hash mismatch')
     require(apk.stat().st_size == manifest['asset_bytes'], 'Downloaded APK size mismatch')
     tools = pathlib.Path(os.environ['AUDIT_ANDROID_TOOLS']) if os.environ.get('AUDIT_ANDROID_TOOLS') else pathlib.Path(os.environ['ANDROID_HOME']) / 'build-tools' / '35.0.0'
     badging = cmd(str(tools / 'aapt'), 'dump', 'badging', str(apk))
