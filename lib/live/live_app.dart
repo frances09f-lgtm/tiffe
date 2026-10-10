@@ -407,9 +407,13 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
 
   bool _lastDark = false;
   TiffePalette get uiPalette {
-    // A pushed page can rebuild while this state is being torn down.
-    if (mounted && context is Element && (context as Element).debugIsActive) {
-      _lastDark = Theme.of(context).brightness == Brightness.dark;
+    // A pushed page can rebuild while this state is being torn down; keep the
+    // last known brightness then. (Do not use debugIsActive: it is always
+    // false in release builds.)
+    if (mounted) {
+      try {
+        _lastDark = Theme.of(context).brightness == Brightness.dark;
+      } catch (_) {}
     }
     return TiffePalette(_lastDark, stitch: widget.role == null);
   }
@@ -2490,7 +2494,9 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
                     style: TextStyle(
                       fontWeight: i == step ? FontWeight.w700 : FontWeight.w400,
                       color: i == step
-                          ? const Color(0xFF9E4300)
+                          ? (Theme.of(context).brightness == Brightness.dark
+                                ? const Color(0xFFFFB68F)
+                                : const Color(0xFF9E4300))
                           : uiPalette.ink,
                     ),
                   ),
@@ -3512,9 +3518,11 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
     padding: const EdgeInsets.only(bottom: 10),
     child: Text(
       text.toUpperCase(),
-      style: const TextStyle(
+      style: TextStyle(
         fontFamily: 'PlusJakartaSans',
-        color: Color(0xFF9E4300),
+        color: Theme.of(context).brightness == Brightness.dark
+            ? const Color(0xFFFFB68F)
+            : const Color(0xFF9E4300),
         fontSize: 11,
         letterSpacing: 1,
         fontWeight: FontWeight.w700,
@@ -3999,7 +4007,9 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
         builder: (c) => Theme(
           data: themeData,
           child: Scaffold(
-            backgroundColor: const Color(0xFFFBF9F5),
+            backgroundColor: themeData.brightness == Brightness.dark
+                ? themeData.scaffoldBackgroundColor
+                : const Color(0xFFFBF9F5),
             appBar: AppBar(
               title: Text(
                 title,
