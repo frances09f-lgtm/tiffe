@@ -117,11 +117,11 @@ class UpdateCheck {
     final update = await showDialog<bool>(
       context: context,
       builder: (d) => AlertDialog(
-        backgroundColor: Colors.white,
+        backgroundColor: GColors.card,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
         title: Text(
           'New version available',
-          style: gText(18, w: FontWeight.w800, c: GColors.green),
+          style: gText(18, w: FontWeight.w800, c: GColors.ink),
         ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
