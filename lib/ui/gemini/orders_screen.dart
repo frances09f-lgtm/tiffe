@@ -211,6 +211,7 @@ class GOrders extends StatefulWidget {
 
 class _GOrdersState extends State<GOrders> {
   bool open = false;
+  bool openClosed = false;
 
   Future<void> _change(GSlot s) async {
     final picked = await showModalBottomSheet<List<String>>(
@@ -245,7 +246,11 @@ class _GOrdersState extends State<GOrders> {
     ];
     final done = [
       for (final o in widget.orders)
-        if (isHistoryOrder(o)) o,
+        if (o.status == 'Delivered') o,
+    ];
+    final closed = [
+      for (final o in widget.orders)
+        if (isHistoryOrder(o) && o.status != 'Delivered') o,
     ];
     final days = <String>[];
     for (final s in widget.slots) {
@@ -285,7 +290,7 @@ class _GOrdersState extends State<GOrders> {
             ),
           ),
           Expanded(
-            child: nothing && done.isEmpty
+            child: nothing && done.isEmpty && closed.isEmpty
                 ? Center(
                     child: Padding(
                       padding: const EdgeInsets.all(32),
@@ -338,6 +343,17 @@ class _GOrdersState extends State<GOrders> {
                           ),
                         ),
                       if (done.isNotEmpty) _completed(done),
+                      if (closed.isNotEmpty) ...[
+                        if (done.isNotEmpty) const SizedBox(height: 12),
+                        _completed(
+                          closed,
+                          title: 'Cancelled & refunded',
+                          icon: Icons.cancel_outlined,
+                          isOpen: openClosed,
+                          toggle: () =>
+                              setState(() => openClosed = !openClosed),
+                        ),
+                      ],
                     ],
                   ),
           ),
@@ -347,56 +363,68 @@ class _GOrdersState extends State<GOrders> {
     );
   }
 
-  Widget _completed(List<GOrder> done) => Column(
-    children: [
-      GestureDetector(
-        onTap: () => setState(() => open = !open),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-          decoration: BoxDecoration(
-            color: GColors.card,
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: GColors.line),
-          ),
-          child: Row(
-            children: [
-              Icon(Icons.check_circle_outline, size: 20, color: GColors.ink),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  'Completed',
-                  style: gText(14, w: FontWeight.w700, c: GColors.ink),
+  Widget _completed(
+    List<GOrder> done, {
+    String title = 'Completed',
+    IconData icon = Icons.check_circle_outline,
+    bool? isOpen,
+    VoidCallback? toggle,
+  }) {
+    final open = isOpen ?? this.open;
+    return Column(
+      children: [
+        GestureDetector(
+          onTap: toggle ?? () => setState(() => this.open = !this.open),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+            decoration: BoxDecoration(
+              color: GColors.card,
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: GColors.line),
+            ),
+            child: Row(
+              children: [
+                Icon(icon, size: 20, color: GColors.ink),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    title,
+                    style: gText(14, w: FontWeight.w700, c: GColors.ink),
+                  ),
                 ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
-                decoration: BoxDecoration(
-                  color: GColors.chip,
-                  borderRadius: BorderRadius.circular(10),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 9,
+                    vertical: 3,
+                  ),
+                  decoration: BoxDecoration(
+                    color: GColors.chip,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(
+                    '${done.length}',
+                    style: gText(11.5, w: FontWeight.w700, c: GColors.ink),
+                  ),
                 ),
-                child: Text(
-                  '${done.length}',
-                  style: gText(11.5, w: FontWeight.w700, c: GColors.ink),
+                const SizedBox(width: 8),
+                Icon(
+                  open ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+                  color: GColors.grey,
                 ),
-              ),
-              const SizedBox(width: 8),
-              Icon(
-                open ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
-                color: GColors.grey,
-              ),
-            ],
+              ],
+            ),
           ),
         ),
-      ),
-      if (open) ...[
-        const SizedBox(height: 16),
-        for (final o in done) ...[
-          GOrderCard(o, onTrack: widget.onTrack),
+        if (open) ...[
           const SizedBox(height: 16),
+          for (final o in done) ...[
+            GOrderCard(o, onTrack: widget.onTrack),
+            const SizedBox(height: 16),
+          ],
         ],
       ],
-    ],
-  );
+    );
+  }
 }
 
 class GSlotCard extends StatelessWidget {
@@ -509,27 +537,38 @@ class GSlotCard extends StatelessWidget {
             if (slot.locked)
               Icon(Icons.lock_outline, size: 18, color: GColors.grey)
             else
-              GestureDetector(
-                onTap: onChange,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 8,
-                  ),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: GColors.ink, width: 1.2),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.edit_outlined, size: 15, color: GColors.ink),
-                      const SizedBox(width: 6),
-                      Text(
-                        'Change bhajis',
-                        style: gText(12, w: FontWeight.w700, c: GColors.ink),
-                      ),
-                    ],
+              Flexible(
+                flex: 2,
+                child: GestureDetector(
+                  onTap: onChange,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: GColors.ink, width: 1.2),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.edit_outlined, size: 15, color: GColors.ink),
+                        const SizedBox(width: 6),
+                        Flexible(
+                          child: Text(
+                            'Change bhajis',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: gText(
+                              12,
+                              w: FontWeight.w700,
+                              c: GColors.ink,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -557,117 +596,135 @@ class _PickSheetState extends State<_PickSheet> {
       borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
     ),
     padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
-    child: Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Center(
-          child: Container(
-            width: 40,
-            height: 4,
-            decoration: BoxDecoration(
-              color: GColors.line,
-              borderRadius: BorderRadius.circular(2),
+    child: ConstrainedBox(
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.of(context).size.height * 0.88,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Center(
+            child: Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: GColors.line,
+                borderRadius: BorderRadius.circular(2),
+              ),
             ),
           ),
-        ),
-        const SizedBox(height: 16),
-        Text(
-          'Choose bhajis for ${widget.slot.slot}',
-          style: gText(18, w: FontWeight.w800, c: GColors.ink),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          '${widget.slot.day} • ${widget.slot.time} • pick exactly 2',
-          style: gText(12, c: GColors.grey),
-        ),
-        const SizedBox(height: 14),
-        for (final e in widget.options)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: GestureDetector(
-              onTap: () => setState(() {
-                if (sel.contains(e.name)) {
-                  sel.remove(e.name);
-                } else if (sel.length < 2) {
-                  sel.add(e.name);
-                }
-              }),
-              child: Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: GColors.card,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                    color: sel.contains(e.name)
-                        ? GColors.saffron
-                        : GColors.line,
-                    width: sel.contains(e.name) ? 1.6 : 1,
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(10),
-                      child: e.image == null
-                          ? Container(
-                              width: 40,
-                              height: 40,
-                              color: GColors.chip,
-                              child: Icon(
-                                Icons.restaurant,
-                                size: 18,
-                                color: GColors.grey,
-                              ),
-                            )
-                          : Image.asset(
-                              e.image!,
-                              width: 40,
-                              height: 40,
-                              fit: BoxFit.cover,
+          const SizedBox(height: 16),
+          Text(
+            'Choose bhajis for ${widget.slot.slot}',
+            style: gText(18, w: FontWeight.w800, c: GColors.ink),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '${widget.slot.day} • ${widget.slot.time} • pick exactly 2',
+            style: gText(12, c: GColors.grey),
+          ),
+          const SizedBox(height: 14),
+          Flexible(
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  for (final e in widget.options)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: GestureDetector(
+                        onTap: () => setState(() {
+                          if (sel.contains(e.name)) {
+                            sel.remove(e.name);
+                          } else if (sel.length < 2) {
+                            sel.add(e.name);
+                          }
+                        }),
+                        child: Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: GColors.card,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                              color: sel.contains(e.name)
+                                  ? GColors.saffron
+                                  : GColors.line,
+                              width: sel.contains(e.name) ? 1.6 : 1,
                             ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        e.name,
-                        style: gText(13.5, w: FontWeight.w700, c: GColors.ink),
+                          ),
+                          child: Row(
+                            children: [
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(10),
+                                child: e.image == null
+                                    ? Container(
+                                        width: 40,
+                                        height: 40,
+                                        color: GColors.chip,
+                                        child: Icon(
+                                          Icons.restaurant,
+                                          size: 18,
+                                          color: GColors.grey,
+                                        ),
+                                      )
+                                    : Image.asset(
+                                        e.image!,
+                                        width: 40,
+                                        height: 40,
+                                        fit: BoxFit.cover,
+                                      ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Text(
+                                  e.name,
+                                  style: gText(
+                                    13.5,
+                                    w: FontWeight.w700,
+                                    c: GColors.ink,
+                                  ),
+                                ),
+                              ),
+                              Icon(
+                                sel.contains(e.name)
+                                    ? Icons.check_circle
+                                    : Icons.radio_button_unchecked,
+                                color: sel.contains(e.name)
+                                    ? GColors.saffron
+                                    : GColors.grey,
+                              ),
+                              const SizedBox(width: 6),
+                            ],
+                          ),
+                        ),
                       ),
                     ),
-                    Icon(
-                      sel.contains(e.name)
-                          ? Icons.check_circle
-                          : Icons.radio_button_unchecked,
-                      color: sel.contains(e.name)
-                          ? GColors.saffron
-                          : GColors.grey,
-                    ),
-                    const SizedBox(width: 6),
-                  ],
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          GButton(
+            sel.length == 2 ? 'Save' : 'Pick ${2 - sel.length} more',
+            onPressed: sel.length == 2
+                ? () => Navigator.pop(context, [...sel])
+                : null,
+          ),
+          const SizedBox(height: 6),
+          if (widget.slot.defaultBhajis.length == 2)
+            Center(
+              child: TextButton(
+                onPressed: () =>
+                    Navigator.pop(context, [...widget.slot.defaultBhajis]),
+                child: Text(
+                  'Use default bhajis',
+                  style: gText(13, w: FontWeight.w700, c: GColors.grey),
                 ),
               ),
             ),
-          ),
-        const SizedBox(height: 8),
-        GButton(
-          sel.length == 2 ? 'Save' : 'Pick ${2 - sel.length} more',
-          onPressed: sel.length == 2
-              ? () => Navigator.pop(context, [...sel])
-              : null,
-        ),
-        const SizedBox(height: 6),
-        if (widget.slot.defaultBhajis.length == 2)
-          Center(
-            child: TextButton(
-              onPressed: () =>
-                  Navigator.pop(context, [...widget.slot.defaultBhajis]),
-              child: Text(
-                'Use default bhajis',
-                style: gText(13, w: FontWeight.w700, c: GColors.grey),
-              ),
-            ),
-          ),
-      ],
+        ],
+      ),
     ),
   );
 }
