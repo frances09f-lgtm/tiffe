@@ -133,12 +133,12 @@ void main() {
     );
     await t.pumpAndSettle();
     await openMenuAndOrder(t, ['Batata Bhaji', 'Matki Usal']);
-    expect(find.text('Place order'), findsOneWidget);
+    expect(find.textContaining('Place Order'), findsOneWidget);
     // Underfilled tiffin is rejected before any network call.
     await t.tap(find.widgetWithText(FilterChip, 'Matki Usal'));
     await t.pumpAndSettle();
-    await t.ensureVisible(find.text('Place order'));
-    await t.tap(find.text('Place order'));
+    await t.ensureVisible(find.textContaining('Place Order'));
+    await t.tap(find.textContaining('Place Order'));
     await t.pumpAndSettle();
     expect(find.text('Pick 2 to 8 bhajis for each tiffin.'), findsOneWidget);
     expect(b.placedKey, isNull);
@@ -147,8 +147,8 @@ void main() {
     await t.pumpAndSettle();
     expect(find.textContaining('Total: ₹100'), findsOneWidget);
     await capture(t, 'order-sheet-two-bhajis');
-    await t.ensureVisible(find.text('Place order'));
-    await t.tap(find.text('Place order'));
+    await t.ensureVisible(find.textContaining('Place Order'));
+    await t.tap(find.textContaining('Place Order'));
     await t.pumpAndSettle();
     expect(b.placedKey, isNotNull);
     expect(b.placedTiffins!.single, hasLength(2));
@@ -197,7 +197,7 @@ void main() {
       await t.pumpAndSettle();
       await t.tap(find.widgetWithText(FilterChip, 'Batata Bhaji').last);
       await t.pumpAndSettle();
-      await t.tap(find.text('Place order'));
+      await t.tap(find.textContaining('Place Order'));
       await t.pumpAndSettle();
       expect(b.placedSubscription, 'sub-1');
       expect(b.placedTiffins, hasLength(2));

@@ -122,8 +122,8 @@ void main() {
     await t.tap(find.text('Add a second tiffin'));
     await t.pumpAndSettle();
     expect(find.text('₹180'), findsWidgets);
-    expect(find.text('To pay'), findsOneWidget);
-    expect(find.text('Delivery'), findsOneWidget);
+    expect(find.text('Total Amount'), findsOneWidget);
+    expect(find.text('Delivery Charge'), findsOneWidget);
     expect(find.text('₹20'), findsOneWidget);
     expect(t.takeException(), isNull);
   });
@@ -142,7 +142,7 @@ void main() {
       await t.pump(const Duration(milliseconds: 1100));
       await t.pump();
       expect(find.text('Kitchen signal lost'), findsOneWidget);
-      expect(find.text('Place order'), findsNothing);
+      expect(find.textContaining('Place Order'), findsNothing);
       await t.pumpWidget(const SizedBox());
     },
   );

@@ -294,6 +294,9 @@ void main() {
     await t.tap(find.text('Order'));
     await t.pumpAndSettle();
     await shot(t, 'order_sheet');
+    await t.drag(find.byType(ListView).last, const Offset(0, -2000));
+    await t.pumpAndSettle();
+    await shot(t, 'order_summary');
     expect(t.takeException(), isNull);
   });
 

@@ -4694,13 +4694,13 @@ class _OrderSheetState extends State<OrderSheet> {
     }
   }
 
+  String _names(Set<String> ids) => [
+    for (final m in widget.menuRows)
+      if (ids.contains(m['id'])) m['name'] as String,
+  ].join(', ');
+
   @override
   Widget build(BuildContext context) {
-    final c = context;
-    final dark = Theme.of(c).brightness == Brightness.dark;
-    final surface = dark ? const Color(0xFF202D24) : Colors.white;
-    final box = dark ? const Color(0xFF2C3D30) : const Color(0xFFF3F3F6);
-    final muted = palette(c).muted;
     final extra = (widget.cfg['extra_bhaji_paise'] as int? ?? 0) ~/ 100;
     final rows = widget.menuRows.where((m) => m['available'] == true).toList();
     final extras =
@@ -4709,20 +4709,18 @@ class _OrderSheetState extends State<OrderSheet> {
           (sum, t) => sum + (t.length > 2 ? t.length - 2 : 0),
         ) *
         extra;
+    final oneTime = (widget.cfg['one_time_price_paise'] as int? ?? 0) ~/ 100;
+    final delivery =
+        (widget.cfg['one_time_delivery_paise'] as int? ?? 0) ~/ 100;
+    final sub = widget.subscription != null;
     Widget card(Widget child) => Container(
       width: double.infinity,
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: surface,
+        color: Colors.white,
         borderRadius: BorderRadius.circular(28),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x0F000000),
-            blurRadius: 16,
-            offset: Offset(0, 4),
-          ),
-        ],
+        border: Border.all(color: GColors.line),
       ),
       child: child,
     );
@@ -4730,103 +4728,180 @@ class _OrderSheetState extends State<OrderSheet> {
       padding: const EdgeInsets.only(bottom: 12),
       child: Text(
         t,
-        style: const TextStyle(
-          fontFamily: 'PlusJakartaSans',
-          fontSize: 20,
-          fontWeight: FontWeight.w600,
-        ),
+        style: gText(17, w: FontWeight.w700, c: GColors.green),
       ),
     );
-    Widget line(String l, String r) => Padding(
-      padding: const EdgeInsets.symmetric(vertical: 5),
+    Widget line(String l, String r, {bool bold = false, Color? rc}) => Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(child: Text(l)),
-          Text(r),
+          Expanded(
+            child: Text(
+              l,
+              style: gText(
+                14,
+                w: bold ? FontWeight.w800 : FontWeight.w500,
+                c: bold ? GColors.green : GColors.charcoal,
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Text(
+            r,
+            style: gText(
+              14,
+              w: FontWeight.w700,
+              c: rc ?? (bold ? GColors.saffron : GColors.green),
+            ),
+          ),
         ],
       ),
     );
-    final toPay = widget.subscription == null ? 'To pay' : 'Extras to pay';
+    final total = '₹${pricePaise ~/ 100}';
+    final addressLines = [
+      if (widget.address.isNotEmpty) widget.address,
+      if (widget.area.isNotEmpty) widget.area,
+      if (widget.phone.isNotEmpty) widget.phone,
+    ];
     return Theme(
-      data: Theme.of(c).copyWith(
-        scaffoldBackgroundColor: dark
-            ? const Color(0xFF131C17)
-            : const Color(0xFFF9F9FB),
-        textTheme: Theme.of(c).textTheme.apply(fontFamily: 'Inter'),
-        filledButtonTheme: FilledButtonThemeData(
-          style: FilledButton.styleFrom(
-            backgroundColor: const Color(0xFFFF8843),
-            foregroundColor: const Color(0xFF341100),
-            minimumSize: const Size(48, 52),
-            textStyle: const TextStyle(
-              fontFamily: 'PlusJakartaSans',
-              fontWeight: FontWeight.w700,
-            ),
-            shape: const StadiumBorder(),
-          ),
-        ),
+      data: Theme.of(context).copyWith(
+        brightness: Brightness.light,
+        scaffoldBackgroundColor: GColors.cream,
+        textTheme: Theme.of(context).textTheme
+            .apply(fontFamily: 'PlusJakartaSans'),
       ),
       child: Scaffold(
-        appBar: AppBar(
-          scrolledUnderElevation: 0,
-          backgroundColor: dark
-              ? const Color(0xFF131C17)
-              : const Color(0xFFF9F9FB),
-          title: const Text(
-            'Review & Place Order',
-            style: TextStyle(
-              fontFamily: 'PlusJakartaSans',
-              fontSize: 18,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ),
+        backgroundColor: GColors.cream,
         body: SafeArea(
           child: Column(
             children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 20, 24, 8),
+                child: Row(
+                  children: [
+                    GestureDetector(
+                      onTap: busy
+                          ? null
+                          : () => Navigator.of(context).maybePop(),
+                      child: Container(
+                        width: 52,
+                        height: 52,
+                        decoration: const BoxDecoration(
+                          color: Color(0xFFF1ECE2),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.arrow_back,
+                          color: GColors.charcoal,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          'Order Checkout',
+                          style: gText(
+                            24,
+                            w: FontWeight.w800,
+                            c: GColors.green,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
               Expanded(
                 child: ListView(
-                  padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
+                  padding: const EdgeInsets.fromLTRB(24, 12, 24, 16),
                   children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 8,
-                      ),
-                      margin: const EdgeInsets.only(bottom: 14),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFEDEEF0),
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: Text(
-                        'Delivery date: ${deliveryDate()}',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: Color(0xFF1A1C1E),
-                        ),
+                    card(
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          h('Delivery Address'),
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF7F4EE),
+                              borderRadius: BorderRadius.circular(18),
+                            ),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Icon(
+                                  Icons.location_on_outlined,
+                                  color: GColors.saffron,
+                                  size: 26,
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        widget.customerName.isEmpty
+                                            ? 'Delivery address'
+                                            : widget.customerName,
+                                        style: gText(
+                                          14,
+                                          w: FontWeight.w700,
+                                          c: GColors.green,
+                                        ),
+                                      ),
+                                      for (final l in addressLines)
+                                        Padding(
+                                          padding: const EdgeInsets.only(
+                                            top: 3,
+                                          ),
+                                          child: Text(
+                                            l,
+                                            style: gText(
+                                              13,
+                                              c: GColors.grey,
+                                              height: 1.4,
+                                            ),
+                                          ),
+                                        ),
+                                      Padding(
+                                        padding: const EdgeInsets.only(top: 6),
+                                        child: Text(
+                                          'Delivery date: ${deliveryDate()}',
+                                          style: gText(
+                                            12,
+                                            w: FontWeight.w600,
+                                            c: GColors.green,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                     card(
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
-                            'MAKE IT YOUR DABBA',
-                            style: TextStyle(
-                              color: Color(0xFF9E4300),
-                              fontSize: 11,
-                              letterSpacing: 1,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                          const SizedBox(height: 12),
+                          h('Make it your dabba'),
                           for (var i = 0; i < tiffins.length; i++) ...[
                             Text(
                               'Tiffin ${i + 1}: pick 2 to 8 bhajis'
                               '${extra > 0 ? ' (extra ₹$extra each after the first two)' : ''}',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w700,
+                              style: gText(
+                                13,
+                                w: FontWeight.w700,
+                                c: GColors.charcoal,
                               ),
                             ),
                             const SizedBox(height: 8),
@@ -4860,7 +4935,7 @@ class _OrderSheetState extends State<OrderSheet> {
                             ),
                             const SizedBox(height: 14),
                           ],
-                          if (tiffins.length < 2 && widget.subscription == null)
+                          if (tiffins.length < 2 && !sub)
                             TextButton.icon(
                               onPressed: busy
                                   ? null
@@ -4868,31 +4943,6 @@ class _OrderSheetState extends State<OrderSheet> {
                               icon: const Icon(Icons.add),
                               label: const Text('Add a second tiffin'),
                             ),
-                        ],
-                      ),
-                    ),
-                    card(
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          h('Delivery Address'),
-                          if (widget.customerName.isNotEmpty)
-                            Text(
-                              widget.customerName,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          const SizedBox(height: 4),
-                          if (widget.address.isNotEmpty)
-                            Text(
-                              widget.address,
-                              style: TextStyle(color: muted),
-                            ),
-                          if (widget.area.isNotEmpty)
-                            Text(widget.area, style: TextStyle(color: muted)),
-                          if (widget.phone.isNotEmpty)
-                            Text(widget.phone, style: TextStyle(color: muted)),
                         ],
                       ),
                     ),
@@ -4915,67 +4965,44 @@ class _OrderSheetState extends State<OrderSheet> {
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          h('Bill Details'),
-                          line(
-                            widget.subscription == null
-                                ? '${tiffins.length} tiffin${tiffins.length == 1 ? '' : 's'}'
-                                : 'Base meals covered by your active plan',
-                            widget.subscription == null
-                                ? '₹${((widget.cfg['one_time_price_paise'] as int? ?? 0) * tiffins.length) ~/ 100}'
-                                : '₹0',
-                          ),
-                          if (widget.subscription == null)
+                          h('Order Summary'),
+                          for (var i = 0; i < tiffins.length; i++)
                             line(
-                              'Delivery',
-                              '₹${(widget.cfg['one_time_delivery_paise'] as int? ?? 0) ~/ 100}',
+                              tiffins[i].isEmpty
+                                  ? 'Tiffin ${i + 1}'
+                                  : 'Tiffin ${i + 1} (${_names(tiffins[i])})',
+                              sub ? 'In your plan' : '₹$oneTime',
                             ),
-                          line('Extra bhajis', '₹$extras'),
-                          const SizedBox(height: 10),
-                          Container(
-                            width: double.infinity,
-                            padding: const EdgeInsets.all(16),
-                            decoration: BoxDecoration(
-                              color: box,
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: Row(
-                              children: [
-                                Expanded(
-                                  child: Text(
-                                    toPay,
-                                    style: const TextStyle(
-                                      fontFamily: 'PlusJakartaSans',
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                ),
-                                Text(
-                                  '₹${pricePaise ~/ 100}',
-                                  style: const TextStyle(
-                                    fontFamily: 'PlusJakartaSans',
-                                    fontSize: 22,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                              ],
-                            ),
+                          if (extras > 0) line('Extra bhajis', '₹$extras'),
+                          line(
+                            'Delivery Charge',
+                            sub
+                                ? 'In your plan'
+                                : delivery == 0
+                                ? 'FREE'
+                                : '₹$delivery',
                           ),
-                          const SizedBox(height: 12),
+                          const Divider(height: 24, color: GColors.line),
+                          line(
+                            sub ? 'Extras to pay' : 'Total Amount',
+                            total,
+                            bold: true,
+                          ),
+                          const SizedBox(height: 6),
                           Text(
-                            widget.subscription != null
+                            sub
                                 ? pricePaise == 0
                                       ? 'Covered by your Tiffe plan.'
-                                      : 'Extras: ₹${pricePaise ~/ 100}. The rest is covered by your plan.'
-                                : 'Total: ₹${pricePaise ~/ 100}. Online payment is not in the app yet - Tiffe confirms payment with you directly.',
-                            style: TextStyle(color: muted, fontSize: 13),
+                                      : 'Extras: $total. The rest is covered by your plan.'
+                                : 'Total: $total. Online payment is not in the app yet - Tiffe confirms payment with you directly.',
+                            style: gText(12.5, c: GColors.grey, height: 1.4),
                           ),
                           if (error != null)
                             Padding(
                               padding: const EdgeInsets.only(top: 8),
                               child: Text(
                                 error!,
-                                style: const TextStyle(color: Colors.redAccent),
+                                style: gText(13, c: const Color(0xFFB3261E)),
                               ),
                             ),
                         ],
@@ -4984,36 +5011,15 @@ class _OrderSheetState extends State<OrderSheet> {
                   ],
                 ),
               ),
-              Container(
-                padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
-                decoration: BoxDecoration(
-                  color: surface,
-                  boxShadow: const [
-                    BoxShadow(
-                      color: Color(0x14000000),
-                      blurRadius: 16,
-                      offset: Offset(0, -4),
-                    ),
-                  ],
-                ),
-                child: Row(
-                  children: [
-                    Text(
-                      '₹${pricePaise ~/ 100}',
-                      style: const TextStyle(
-                        fontFamily: 'PlusJakartaSans',
-                        fontSize: 20,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    Text('Total', style: TextStyle(color: muted, fontSize: 12)),
-                    const Spacer(),
-                    FilledButton(
-                      onPressed: busy ? null : place,
-                      child: Text(busy ? 'Placing...' : 'Place order'),
-                    ),
-                  ],
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 8, 24, 16),
+                child: GButton(
+                  busy
+                      ? 'Placing...'
+                      : pricePaise == 0
+                      ? 'Place Order'
+                      : 'Place Order · $total',
+                  onPressed: busy ? null : place,
                 ),
               ),
             ],
