@@ -8,6 +8,7 @@ class GProfile extends StatelessWidget {
   final String name, contact;
   final VoidCallback? onEdit, onAddresses, onSubscription, onNotifications;
   final VoidCallback? onHelp, onLogout;
+  final bool showAddresses, showNotifications;
   final ValueChanged<int>? onTab;
   const GProfile({
     super.key,
@@ -18,6 +19,8 @@ class GProfile extends StatelessWidget {
     this.onSubscription,
     this.onNotifications,
     this.onHelp,
+    this.showAddresses = true,
+    this.showNotifications = true,
     this.onLogout,
     this.onTab,
   });
@@ -96,24 +99,26 @@ class GProfile extends StatelessWidget {
                 'Edit Profile',
                 onEdit,
               ),
-              _row(
-                Icons.location_on_outlined,
-                GColors.saffron,
-                'Saved Addresses',
-                onAddresses,
-              ),
+              if (showAddresses)
+                _row(
+                  Icons.location_on_outlined,
+                  GColors.saffron,
+                  'Saved Addresses',
+                  onAddresses,
+                ),
               _row(
                 Icons.repeat,
                 GColors.green,
                 'My Tiffin Subscription',
                 onSubscription,
               ),
-              _row(
-                Icons.notifications_none,
-                GColors.green,
-                'Notifications',
-                onNotifications,
-              ),
+              if (showNotifications)
+                _row(
+                  Icons.notifications_none,
+                  GColors.green,
+                  'Notifications',
+                  onNotifications,
+                ),
               _row(Icons.help_outline, GColors.green, 'Help & Support', onHelp),
               _logout(),
             ],

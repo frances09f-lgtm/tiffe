@@ -90,7 +90,11 @@ void main() {
       ),
     );
     await t.pumpAndSettle();
-    await t.tap(find.byTooltip('Report a problem'));
+    await t.tap(find.text('Profile').last);
+    await t.pumpAndSettle();
+    await t.tap(find.text('Help & Support'));
+    await t.pumpAndSettle();
+    await t.tap(find.text('Report a problem'));
     await t.pumpAndSettle();
     expect(find.text('What went wrong? (optional)'), findsOneWidget);
     await t.tap(find.text('Send report'));

@@ -108,26 +108,29 @@ void main() {
     for (final e in {
       'Menu': 'menu',
       'Orders': 'orders',
-      'Plan': 'plan',
       'Profile': 'profile',
     }.entries) {
       await t.tap(find.text(e.key).last);
       await t.pumpAndSettle();
       await capture(t, e.value);
     }
-    await t.tap(find.text('Plan').last);
+    await t.tap(find.text('My Tiffin Subscription'));
     await t.pumpAndSettle();
+    await capture(t, 'plan');
     await t.tap(find.text('Subscribe to this plan').first);
     await t.pumpAndSettle();
     await capture(t, 'review');
     await t.pageBack();
     await t.pumpAndSettle();
-    await t.tap(find.text('Home').last);
+    await t.pageBack();
     await t.pumpAndSettle();
-    await t.tap(find.text('Choose my dabba'));
+    await t.tap(find.text('Menu').last);
     await t.pumpAndSettle();
-    await t.tap(find.widgetWithText(FilterChip, 'Batata Bhaji'));
-    await t.tap(find.widgetWithText(FilterChip, 'Matki Usal'));
+    await t.tap(find.text('Batata Bhaji'));
+    await t.tap(find.text('Matki Usal'));
+    await t.pumpAndSettle();
+    await t.tap(find.text('Order'));
+    await t.pumpAndSettle();
     await capture(t, 'checkout');
     await t.pumpWidget(const SizedBox());
   });

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:tiffe/ui/gemini/home_screen.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -88,6 +89,21 @@ class OrderBackend extends TiffeBackend {
   }
 }
 
+Future<void> openMenuAndOrder(WidgetTester t, List<String> picks) async {
+  await t.pump(const Duration(seconds: 6));
+  await t.pumpAndSettle();
+  await t.tap(
+    find.descendant(of: find.byType(GBottomNav), matching: find.text('Menu')),
+  );
+  await t.pumpAndSettle();
+  for (final p in picks) {
+    await t.tap(find.text(p));
+    await t.pumpAndSettle();
+  }
+  await t.tap(find.text('Order'));
+  await t.pumpAndSettle();
+}
+
 void main() {
   setUpAll(() async {
     TestWidgetsFlutterBinding.ensureInitialized();
@@ -116,12 +132,10 @@ void main() {
       ),
     );
     await t.pumpAndSettle();
-    expect(find.text('Choose my dabba'), findsOneWidget);
-    await t.tap(find.text('Choose my dabba'));
-    await t.pumpAndSettle();
+    await openMenuAndOrder(t, ['Batata Bhaji', 'Matki Usal']);
     expect(find.text('Place order'), findsOneWidget);
     // Underfilled tiffin is rejected before any network call.
-    await t.tap(find.widgetWithText(FilterChip, 'Batata Bhaji'));
+    await t.tap(find.widgetWithText(FilterChip, 'Matki Usal'));
     await t.pumpAndSettle();
     await t.ensureVisible(find.text('Place order'));
     await t.tap(find.text('Place order'));
@@ -141,14 +155,7 @@ void main() {
     expect(b.placedDate, matches(RegExp(r'^\d{4}-\d{2}-\d{2}$')));
     expect(find.text('Order placed - the kitchen has it.'), findsOneWidget);
     // Three bhajis would price the third at +₹10: reopen and check preview.
-    await t.tap(find.text('Menu').last);
-    await t.pumpAndSettle();
-    await t.tap(find.text('Order a tiffin'));
-    await t.pumpAndSettle();
-    await t.tap(find.widgetWithText(FilterChip, 'Batata Bhaji'));
-    await t.tap(find.widgetWithText(FilterChip, 'Matki Usal'));
-    await t.tap(find.widgetWithText(FilterChip, 'Vatana'));
-    await t.pumpAndSettle();
+    await openMenuAndOrder(t, ['Batata Bhaji', 'Matki Usal', 'Vatana']);
     expect(find.textContaining('Total: ₹110'), findsOneWidget);
   });
 
@@ -177,8 +184,7 @@ void main() {
         ),
       );
       await t.pumpAndSettle();
-      await t.tap(find.text('Choose my dabba'));
-      await t.pumpAndSettle();
+      await openMenuAndOrder(t, ['Batata Bhaji', 'Matki Usal']);
       // double plan: two tiffin groups fixed, no add button.
       expect(
         find.textContaining('Tiffin 2: pick 2 to 8 bhajis'),
@@ -187,10 +193,6 @@ void main() {
       expect(find.text('Add a second tiffin'), findsNothing);
       expect(find.text('Covered by your Tiffe plan.'), findsOneWidget);
       // tiffin 1: Batata + Matki (first chip of each name); tiffin 2: Vatana + Batata (last).
-      await t.tap(find.widgetWithText(FilterChip, 'Batata Bhaji').first);
-      await t.pumpAndSettle();
-      await t.tap(find.widgetWithText(FilterChip, 'Matki Usal').first);
-      await t.pumpAndSettle();
       await t.tap(find.widgetWithText(FilterChip, 'Vatana').last);
       await t.pumpAndSettle();
       await t.tap(find.widgetWithText(FilterChip, 'Batata Bhaji').last);

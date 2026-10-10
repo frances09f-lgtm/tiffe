@@ -29,6 +29,11 @@ class GMenu extends StatefulWidget {
   final VoidCallback? onWeekly;
   final ValueChanged<List<GMenuItem>>? onOrder;
   final int required;
+
+  /// Most bhajis one tiffin may hold; null means exactly [required].
+  final int? maxPick;
+  final bool showWeekly;
+  final int extraRupees;
   final List<int> initialSelected;
   final ValueChanged<int>? onTab;
   const GMenu({
@@ -40,6 +45,9 @@ class GMenu extends StatefulWidget {
     this.initialCategory = 0,
     this.grid = true,
     this.required = 2,
+    this.maxPick,
+    this.showWeekly = true,
+    this.extraRupees = 0,
     this.initialSelected = const [],
     this.onTab,
   });
@@ -56,10 +64,12 @@ class _GMenuState extends State<GMenu> {
   Set<int> get _sel => _picks.putIfAbsent(_cat, () => <int>{});
   List<GMenuItem> get _items => widget.items[_cat];
 
+  int get _max => widget.maxPick ?? widget.required;
+
   void _toggle(int i) => setState(() {
     if (_sel.contains(i)) {
       _sel.remove(i);
-    } else if (_sel.length < widget.required) {
+    } else if (_sel.length < _max) {
       _sel.add(i);
     }
   });
@@ -106,79 +116,82 @@ class _GMenuState extends State<GMenu> {
                       ),
                     ),
                     const SizedBox(width: 8),
-                    GestureDetector(
-                      onTap: widget.onWeekly,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 7,
-                        ),
-                        decoration: BoxDecoration(
-                          color: const Color(0x1AFFFFFF),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(
-                              Icons.calendar_today_outlined,
-                              size: 14,
-                              color: GColors.saffron,
-                            ),
-                            const SizedBox(width: 6),
-                            Text(
-                              'Weekly Schedule',
-                              style: gText(
-                                12,
-                                w: FontWeight.w700,
-                                c: Colors.white,
+                    if (widget.showWeekly)
+                      GestureDetector(
+                        onTap: widget.onWeekly,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 7,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0x1AFFFFFF),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(
+                                Icons.calendar_today_outlined,
+                                size: 14,
+                                color: GColors.saffron,
                               ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 16),
-              SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.only(right: 24),
-                child: Row(
-                  children: [
-                    for (var i = 0; i < widget.categories.length; i++)
-                      Padding(
-                        padding: const EdgeInsets.only(right: 8),
-                        child: GestureDetector(
-                          onTap: () => setState(() => _cat = i),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 10,
-                            ),
-                            decoration: BoxDecoration(
-                              color: i == _cat
-                                  ? GColors.saffron
-                                  : const Color(0x1AFFFFFF),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Text(
-                              widget.categories[i],
-                              style: gText(
-                                12,
-                                w: i == _cat
-                                    ? FontWeight.w700
-                                    : FontWeight.w500,
-                                c: i == _cat ? Colors.white : GColors.cream,
+                              const SizedBox(width: 6),
+                              Text(
+                                'Weekly Schedule',
+                                style: gText(
+                                  12,
+                                  w: FontWeight.w700,
+                                  c: Colors.white,
+                                ),
                               ),
-                            ),
+                            ],
                           ),
                         ),
                       ),
                   ],
                 ),
               ),
+              if (widget.categories.length > 1) ...[
+                const SizedBox(height: 16),
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.only(right: 24),
+                  child: Row(
+                    children: [
+                      for (var i = 0; i < widget.categories.length; i++)
+                        Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: GestureDetector(
+                            onTap: () => setState(() => _cat = i),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 10,
+                              ),
+                              decoration: BoxDecoration(
+                                color: i == _cat
+                                    ? GColors.saffron
+                                    : const Color(0x1AFFFFFF),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Text(
+                                widget.categories[i],
+                                style: gText(
+                                  12,
+                                  w: i == _cat
+                                      ? FontWeight.w700
+                                      : FontWeight.w500,
+                                  c: i == _cat ? Colors.white : GColors.cream,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
             ],
           ),
         ),
@@ -210,7 +223,7 @@ class _GMenuState extends State<GMenu> {
 
   Widget _bar() {
     final n = _sel.length;
-    final ready = n == widget.required;
+    final ready = n >= widget.required;
     return Container(
       padding: const EdgeInsets.fromLTRB(24, 12, 24, 12),
       decoration: const BoxDecoration(
@@ -224,13 +237,23 @@ class _GMenuState extends State<GMenu> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  '$n of ${widget.required} selected',
+                  _max > widget.required
+                      ? (n > widget.required && widget.extraRupees > 0
+                            ? '$n selected + ${n - widget.required} extra'
+                            : '$n selected')
+                      : '$n of ${widget.required} selected',
                   style: gText(14, w: FontWeight.w700, c: GColors.green),
                 ),
                 const SizedBox(height: 2),
                 Text(
                   ready
-                      ? 'Ready to order'
+                      ? (n > widget.required && widget.extraRupees > 0
+                            ? '+₹${(n - widget.required) * widget.extraRupees} for extras'
+                            : widget.maxPick != null &&
+                                  widget.maxPick! > widget.required &&
+                                  widget.extraRupees > 0
+                            ? 'Extras ₹${widget.extraRupees} each'
+                            : 'Ready to order')
                       : 'Pick ${widget.required} bhajis to order',
                   style: gText(11, c: GColors.grey),
                 ),
@@ -369,123 +392,130 @@ class _GMenuState extends State<GMenu> {
 
   Widget _gridCard(int idx, GMenuItem it) {
     final on = _sel.contains(idx);
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: on ? GColors.saffron : GColors.line,
-          width: on ? 1.6 : 1,
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: (!on && _sel.length >= _max) ? null : () => _toggle(idx),
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: on ? GColors.saffron : GColors.line,
+            width: on ? 1.6 : 1,
+          ),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x0F000000),
+              blurRadius: 10,
+              offset: Offset(0, 4),
+            ),
+          ],
         ),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x0F000000),
-            blurRadius: 10,
-            offset: Offset(0, 4),
-          ),
-        ],
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            height: 112,
-            width: double.infinity,
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                Image.asset(it.image, fit: BoxFit.cover),
-                Positioned(
-                  left: 8,
-                  top: 8,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 3,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      it.tag,
-                      style: gText(
-                        9.5,
-                        w: FontWeight.w700,
-                        c: it.special ? GColors.saffron : GColors.green,
-                      ),
-                    ),
-                  ),
-                ),
-                if (on)
-                  Positioned(
-                    right: 8,
-                    top: 8,
-                    child: Container(
-                      width: 26,
-                      height: 26,
-                      decoration: const BoxDecoration(
-                        color: GColors.saffron,
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(
-                        Icons.check,
-                        size: 16,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
-            child: Row(
-              children: [
-                Expanded(
-                  child: FittedBox(
-                    fit: BoxFit.scaleDown,
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      it.title,
-                      style: gText(13, w: FontWeight.w700, c: GColors.green),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 4),
-                Text(
-                  it.price,
-                  style: gText(12, w: FontWeight.w700, c: GColors.saffron),
-                ),
-              ],
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 4, 12, 0),
-            child: Text(
-              it.blurb,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: gText(10, c: GColors.grey, height: 1.35),
-            ),
-          ),
-          const Spacer(),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-            child: SizedBox(
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(
+              height: 112,
               width: double.infinity,
-              child: _selectBtn(idx, fill: true),
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  Image.asset(it.image, fit: BoxFit.cover),
+                  if (it.tag.isNotEmpty)
+                    Positioned(
+                      left: 8,
+                      top: 8,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          it.tag,
+                          style: gText(
+                            9.5,
+                            w: FontWeight.w700,
+                            c: it.special ? GColors.saffron : GColors.green,
+                          ),
+                        ),
+                      ),
+                    ),
+                  if (on)
+                    Positioned(
+                      right: 8,
+                      top: 8,
+                      child: Container(
+                        width: 26,
+                        height: 26,
+                        decoration: const BoxDecoration(
+                          color: GColors.saffron,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.check,
+                          size: 16,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
             ),
-          ),
-        ],
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        it.title,
+                        style: gText(13, w: FontWeight.w700, c: GColors.green),
+                      ),
+                    ),
+                  ),
+                  if (it.price.isNotEmpty) ...[
+                    const SizedBox(width: 4),
+                    Text(
+                      it.price,
+                      style: gText(12, w: FontWeight.w700, c: GColors.saffron),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 4, 12, 0),
+              child: Text(
+                it.blurb,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: gText(10, c: GColors.grey, height: 1.35),
+              ),
+            ),
+            const Spacer(),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+              child: SizedBox(
+                width: double.infinity,
+                child: _selectBtn(idx, fill: true),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 
   Widget _selectBtn(int idx, {bool fill = false}) {
     final on = _sel.contains(idx);
-    final locked = !on && _sel.length >= widget.required;
+    final locked = !on && _sel.length >= _max;
     return GestureDetector(
       onTap: locked ? null : () => _toggle(idx),
       child: Container(
@@ -508,12 +538,17 @@ class _GMenuState extends State<GMenu> {
               color: locked ? const Color(0xFF8A908C) : Colors.white,
             ),
             const SizedBox(width: 4),
-            Text(
-              on ? 'Selected' : 'Select',
-              style: gText(
-                12,
-                w: FontWeight.w700,
-                c: locked ? const Color(0xFF8A908C) : Colors.white,
+            Flexible(
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  on ? 'Selected' : 'Select',
+                  style: gText(
+                    12,
+                    w: FontWeight.w700,
+                    c: locked ? const Color(0xFF8A908C) : Colors.white,
+                  ),
+                ),
               ),
             ),
           ],

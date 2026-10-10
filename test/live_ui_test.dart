@@ -96,16 +96,12 @@ void main() {
     await capture(t, 'live-menu-empty');
     await t.tap(find.text('Orders').last);
     await t.pumpAndSettle();
-    await t.scrollUntilVisible(
-      find.text('No orders yet'),
-      500,
-      scrollable: find.byType(Scrollable).first,
-    );
-    await t.pumpAndSettle();
-    expect(find.text('No orders yet'), findsOneWidget);
+    expect(find.textContaining('No orders yet'), findsOneWidget);
     expect(find.text('Delivered'), findsNothing);
     await capture(t, 'live-orders-empty');
-    await t.tap(find.text('Plan').last);
+    await t.tap(find.text('Profile').last);
+    await t.pumpAndSettle();
+    await t.tap(find.text('My Tiffin Subscription'));
     await t.pumpAndSettle();
     await t.scrollUntilVisible(
       find.text('No active subscription'),

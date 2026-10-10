@@ -8,6 +8,10 @@ import 'package:flutter/material.dart';
 import '../ui/tracking_map.dart';
 import 'bug_report.dart';
 import 'update_check.dart';
+import '../ui/gemini/home_screen.dart';
+import '../ui/gemini/menu_screen.dart';
+import '../ui/gemini/orders_screen.dart';
+import '../ui/gemini/profile_screen.dart';
 
 import '../data/store.dart';
 import '../domain/tiffin.dart' as food;
@@ -561,10 +565,15 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
     if (state == AppLifecycleState.resumed) retryReports();
   }
 
-  TiffePalette get uiPalette => TiffePalette(
-    Theme.of(context).brightness == Brightness.dark,
-    stitch: widget.role == null,
-  );
+  bool _lastDark = false;
+  TiffePalette get uiPalette {
+    // A pushed page can rebuild while this state is being torn down.
+    if (mounted && context is Element && (context as Element).debugIsActive) {
+      _lastDark = Theme.of(context).brightness == Brightness.dark;
+    }
+    return TiffePalette(_lastDark, stitch: widget.role == null);
+  }
+
   BuildContext? themedContext;
   BuildContext get routeContext => themedContext ?? context;
   int tab = 0;
@@ -3354,7 +3363,9 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
       ),
     );
     if (send != true) return;
-    BugLog.screen = tabNames[tab.clamp(0, 4)];
+    BugLog.screen = widget.role == null
+        ? const ['Home', 'Menu', 'Orders', 'Profile'][tab.clamp(0, 3)]
+        : tabNames[tab.clamp(0, 4)];
     final result = await BugReports.send(
       widget.backend.client,
       widget.store.prefs,
@@ -3376,7 +3387,7 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
     );
   }
 
-  Widget profile({bool onboarding = false}) => Column(
+  Widget profile({bool onboarding = false, bool settings = true}) => Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
       panel(
@@ -3535,7 +3546,7 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
         ),
       ],
       const SizedBox(height: 20),
-      if (!onboarding)
+      if (!onboarding && settings)
         panel(
           child: Material(
             color: Colors.transparent,
@@ -3583,11 +3594,12 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
           ),
         ),
       const SizedBox(height: 12),
-      TextButton.icon(
-        onPressed: widget.backend.signOut,
-        icon: const Icon(Icons.logout),
-        label: const Text('Sign out'),
-      ),
+      if (settings)
+        TextButton.icon(
+          onPressed: widget.backend.signOut,
+          icon: const Icon(Icons.logout),
+          label: const Text('Sign out'),
+        ),
     ],
   );
   @override
@@ -4103,8 +4115,324 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
     );
   }
 
+  // ---- Redesigned customer shell (Home, Menu, Orders, Profile) ----
+  final ValueNotifier<int> _rev = ValueNotifier<int>(0);
+
+  @override
+  void setState(VoidCallback fn) {
+    super.setState(fn);
+    _rev.value++;
+  }
+
+  static String _istDay([int plusDays = 0]) {
+    final d = DateTime.now()
+        .toUtc()
+        .add(const Duration(hours: 5, minutes: 30, days: 0))
+        .add(Duration(days: plusDays));
+    return '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+  }
+
+  static String _niceDay(String iso) {
+    const m = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+    final p = iso.split('-');
+    if (p.length != 3) return iso;
+    return '${int.parse(p[2])} ${m[int.parse(p[1]) - 1]} ${p[0]}';
+  }
+
+  Future<void> _push(String title, Widget Function() body) {
+    final themeData = Theme.of(routeContext);
+    return Navigator.of(routeContext).push(
+      MaterialPageRoute<void>(
+        builder: (c) => Theme(
+          data: themeData,
+          child: Scaffold(
+            backgroundColor: const Color(0xFFFBF9F5),
+            appBar: AppBar(
+              title: Text(
+                title,
+                style: const TextStyle(
+                  fontFamily: 'PlusJakartaSans',
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+            body: SafeArea(
+              child: ValueListenableBuilder<int>(
+                valueListenable: _rev,
+                builder: (_, _, _) => ListView(
+                  padding: const EdgeInsets.all(20),
+                  children: [body()],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _helpPage() => _push(
+    'Help & Support',
+    () => panel(
+      child: Material(
+        color: Colors.transparent,
+        child: Column(
+          children: [
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.system_update_outlined),
+              title: const Text('Check for updates'),
+              subtitle: Text('Version $appVersion'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => UpdateCheck.run(
+                routeContext,
+                widget.store.prefs,
+                manual: true,
+              ),
+            ),
+            const Divider(),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.flag_outlined),
+              title: const Text('Report a problem'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: reportProblem,
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+
+  void _editProfilePage() => _push(
+    'Edit Profile',
+    () => Column(
+      children: [
+        profile(settings: false),
+        panel(
+          child: Material(
+            color: Colors.transparent,
+            child: ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.lock_outline),
+              title: const Text('Change password'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: changePassword,
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
+
+  void _subscriptionPage() => _push(
+    'My Tiffin Subscription',
+    () => Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        subscriptionSummary(),
+        const SizedBox(height: 20),
+        planScreen(),
+      ],
+    ),
+  );
+
+  void _schedulePage() => _push(
+    'Your schedule',
+    () => Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [data(orderStream, mealCalendar)],
+    ),
+  );
+
+  static String _shortId(String id) =>
+      (id.length > 6 ? id.substring(0, 6) : id).toUpperCase();
+
+  void _trackPage(String id) => _push('Order tracking', () {
+    Map<String, dynamic>? row;
+    for (final o in orderRows) {
+      if ('#${_shortId(o['id'] as String)}' == id) {
+        row = o;
+      }
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (row == null || row['status'] == 'Out for Delivery')
+          trackingCard()
+        else
+          panel(child: orderProgress(row)),
+      ],
+    );
+  });
+
+  Future<void> _orderBhajis(List<String> names) async {
+    if (cfg == null) return;
+    final ids = <String>[
+      for (final n in names)
+        for (final m in menuRows)
+          if (m['name'] == n && m['available'] == true) m['id'] as String,
+    ];
+    final placed = await Navigator.of(routeContext).push<bool>(
+      MaterialPageRoute<bool>(
+        builder: (c) => OrderSheet(
+          backend: widget.backend,
+          cfg: cfg!,
+          menuRows: menuRows,
+          subscription: activeSubscription,
+          customerName: name.text.trim(),
+          phone: phone.text.trim(),
+          area: area.text.trim(),
+          address: address.text.trim(),
+          initialBhajis: ids,
+        ),
+      ),
+    );
+    if (placed == true && mounted) {
+      setState(() => tab = 2);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Order placed - the kitchen has it.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
+  Widget customerShell() {
+    final t = tab.clamp(0, 3);
+    void go(int i) => setState(() => tab = i);
+    final avail = menuRows.where((m) => m['available'] == true).toList();
+    var email = '';
+    try {
+      email = widget.backend.client.auth.currentUser?.email ?? '';
+    } catch (_) {}
+    final first = name.text.trim().split(' ').first;
+    Widget body;
+    switch (t) {
+      case 1:
+        body = GMenu(
+          categories: const ['Today’s Menu'],
+          items: [
+            [
+              for (final m in avail)
+                GMenuItem(
+                  m['name'] as String,
+                  (m['description'] as String?) ?? '',
+                  '',
+                  '',
+                  foodImage(m['name'] as String),
+                ),
+            ],
+          ],
+          showWeekly: false,
+          maxPick: 8,
+          extraRupees: ((cfg?['extra_bhaji_paise'] as num?) ?? 0) ~/ 100,
+          onTab: go,
+          onOrder: (sel) => _orderBhajis([for (final i in sel) i.title]),
+        );
+      case 2:
+        body = GOrders(
+          orders: [
+            for (final o in orderRows)
+              GOrder(
+                '#${_shortId(o['id'] as String)}',
+                o['subscription_id'] == null ? 'One-time' : 'Subscription',
+                o['status'] as String,
+                '${o['quantity']} Tiffin${o['quantity'] == 1 ? '' : 's'}',
+                _niceDay(o['delivery_date'] as String),
+                '₹${((o['total_paise'] as num) / 100).toStringAsFixed(0)} · ${o['payment_status']}',
+                live: o['status'] == 'Out for Delivery',
+              ),
+          ],
+          emptyText: 'No orders yet. Order a tiffin from the Menu and it will show up here.',
+          onTab: go,
+          onTrack: (o) => _trackPage(o.id),
+        );
+      case 3:
+        body = GProfile(
+          name: name.text.trim().isEmpty ? 'Your profile' : name.text.trim(),
+          contact: email,
+          showAddresses: false,
+          showNotifications: false,
+          onEdit: _editProfilePage,
+          onSubscription: _subscriptionPage,
+          onHelp: _helpPage,
+          onLogout: widget.backend.signOut,
+          onTab: go,
+        );
+      default:
+        final sub = activeSubscription;
+        Map<String, dynamic>? today;
+        for (final o in orderRows) {
+          if (o['delivery_date'] == _istDay()) today = o;
+        }
+        final monthlyFrom = cfg == null
+            ? ''
+            : 'From ${money('daily_price_paise')} / month + ${money('monthly_delivery_paise')} delivery';
+        final feat = avail.isEmpty ? null : avail.first;
+        body = GHome(
+          address: area.text.isEmpty ? 'Your home' : 'Home · ${area.text}',
+          name: first.isEmpty ? 'there' : first,
+          subtitle: 'Rozcha dabba. Tumchya choice cha.',
+          planTitle: sub == null
+              ? 'No active plan'
+              : sub['plan'] == 'double'
+              ? 'Double Tiffe'
+              : 'Daily Tiffe',
+          planSubtitle: sub == null
+              ? 'Order one tiffin or start a monthly plan'
+              : 'Valid till ${_niceDay(sub['ends_on'] as String)}',
+          todayLabel: 'Today: ',
+          todayMeal: today == null
+              ? 'No order yet'
+              : '${today['quantity']} Tiffin${today['quantity'] == 1 ? '' : 's'}',
+          todayStatus: today == null ? '' : today['status'] as String,
+          showPause: false,
+          hasPlan: sub != null,
+          showBell: false,
+          showFeatured: feat != null,
+          featuredHeading: 'On Today’s Menu',
+          thaliImage: feat == null
+              ? 'assets/food/hero.jpg'
+              : foodImage(feat['name'] as String),
+          thaliTitle: feat == null ? '' : feat['name'] as String,
+          thaliBlurb: feat == null
+              ? ''
+              : (feat['description'] as String?) ?? '',
+          thaliPrice: '',
+          thaliTag: '',
+          thaliNote: 'Homemade daily',
+          monthlySub: monthlyFrom,
+          onViewSchedule: _schedulePage,
+          onViewMenu: () => go(1),
+          onOrder: () =>
+              _orderBhajis(feat == null ? const [] : [feat['name'] as String]),
+          onQuickOne: () => go(1),
+          onQuickMonthly: _subscriptionPage,
+          onTab: go,
+        );
+    }
+    return Theme(data: Theme.of(routeContext), child: body);
+  }
+
   Widget workspaceBuild(BuildContext c) {
     final admin = widget.role != null;
+    if (!admin && profileComplete) return customerShell();
     if (!admin && !profileComplete) {
       return Scaffold(
         appBar: AppBar(title: const Text('Welcome to Tiffe')),
@@ -4306,6 +4634,7 @@ class OrderSheet extends StatefulWidget {
   final Map<String, dynamic>? subscription;
   final String? date;
   final String customerName, phone, area, address;
+  final List<String> initialBhajis;
   const OrderSheet({
     super.key,
     required this.backend,
@@ -4317,6 +4646,7 @@ class OrderSheet extends StatefulWidget {
     this.phone = '',
     this.area = '',
     this.address = '',
+    this.initialBhajis = const [],
   });
   @override
   State<OrderSheet> createState() => _OrderSheetState();
@@ -4325,7 +4655,7 @@ class OrderSheet extends StatefulWidget {
 class _OrderSheetState extends State<OrderSheet> {
   final instructions = TextEditingController();
   late final List<Set<String>> tiffins = [
-    {},
+    {...widget.initialBhajis},
     if (widget.subscription?['plan'] == 'double') {},
   ];
   bool busy = false;

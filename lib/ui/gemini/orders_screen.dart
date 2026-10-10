@@ -22,7 +22,14 @@ class GOrders extends StatelessWidget {
   final List<GOrder> orders;
   final ValueChanged<GOrder>? onTrack;
   final ValueChanged<int>? onTab;
-  const GOrders({super.key, required this.orders, this.onTrack, this.onTab});
+  final String emptyText;
+  const GOrders({
+    super.key,
+    required this.orders,
+    this.onTrack,
+    this.onTab,
+    this.emptyText = 'No orders yet.',
+  });
 
   @override
   Widget build(BuildContext context) => Scaffold(
@@ -58,12 +65,23 @@ class GOrders extends StatelessWidget {
           ),
         ),
         Expanded(
-          child: ListView.separated(
-            padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
-            itemCount: orders.length,
-            separatorBuilder: (_, _) => const SizedBox(height: 16),
-            itemBuilder: (_, i) => _card(orders[i]),
-          ),
+          child: orders.isEmpty
+              ? Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(32),
+                    child: Text(
+                      emptyText,
+                      textAlign: TextAlign.center,
+                      style: gText(14, c: GColors.grey, height: 1.5),
+                    ),
+                  ),
+                )
+              : ListView.separated(
+                  padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
+                  itemCount: orders.length,
+                  separatorBuilder: (_, _) => const SizedBox(height: 16),
+                  itemBuilder: (_, i) => _card(orders[i]),
+                ),
         ),
         GBottomNav(tab: 2, onTab: onTab),
       ],
@@ -146,11 +164,17 @@ class GOrders extends StatelessWidget {
         const SizedBox(height: 10),
         Row(
           children: [
-            Text(
-              o.total,
-              style: gText(12, w: FontWeight.w700, c: GColors.green),
+            Expanded(
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  o.total,
+                  style: gText(12, w: FontWeight.w700, c: GColors.green),
+                ),
+              ),
             ),
-            const Spacer(),
+            const SizedBox(width: 8),
             GestureDetector(
               onTap: () => onTrack?.call(o),
               child: Row(

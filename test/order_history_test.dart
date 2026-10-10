@@ -45,15 +45,9 @@ void main() {
     await t.pumpAndSettle();
     await t.tap(find.text('Orders').last);
     await t.pumpAndSettle();
-    await t.scrollUntilVisible(
-      find.text('Order history'),
-      400,
-      scrollable: find.byType(Scrollable).first,
-    );
-    expect(find.text('Order history'), findsOneWidget);
-    expect(find.text('2026-10-10'), findsWidgets);
-    expect(find.text('2 Tiffins · Delivered'), findsOneWidget);
-    // the delivered order has no progress tracker of its own
-    expect(find.text('2026-10-09'), findsOneWidget);
+    expect(find.text('Delivered'), findsWidgets);
+    expect(find.textContaining('10 Oct 2026'), findsWidgets);
+    expect(find.text('2 Tiffins'), findsWidgets);
+    expect(find.textContaining('9 Oct 2026'), findsOneWidget);
   });
 }

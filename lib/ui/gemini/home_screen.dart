@@ -10,6 +10,9 @@ class GHome extends StatelessWidget {
   final String thaliImage;
   final String thaliTitle, thaliBlurb, thaliPrice, thaliTag;
   final String thaliNote;
+  final String featuredHeading, monthlySub;
+  final bool showPause, showFeatured, hasPlan, showBell;
+  final String todayLabel;
   final VoidCallback? onQuickOne, onQuickMonthly;
   final VoidCallback? onViewSchedule, onPauseTomorrow, onViewMenu, onOrder;
   final int tab;
@@ -24,6 +27,13 @@ class GHome extends StatelessWidget {
     required this.todayMeal,
     required this.todayStatus,
     this.thaliNote = 'Homemade daily',
+    this.featuredHeading = 'Today’s Most Ordered Bhaji',
+    this.monthlySub = 'Save up to 20% with monthly subscription',
+    this.todayLabel = 'Today’s Bhaji: ',
+    this.showPause = true,
+    this.hasPlan = true,
+    this.showBell = true,
+    this.showFeatured = true,
     this.onQuickOne,
     this.onQuickMonthly,
     this.thaliImage = 'assets/food/batata.jpg',
@@ -72,7 +82,7 @@ class GHome extends StatelessWidget {
                           children: [
                             Expanded(
                               child: Text(
-                                'Today’s Most Ordered Bhaji',
+                                featuredHeading,
                                 style: gText(
                                   17,
                                   w: FontWeight.w700,
@@ -94,8 +104,10 @@ class GHome extends StatelessWidget {
                           ],
                         ),
                         const SizedBox(height: 14),
-                        _thaliCard(),
-                        const SizedBox(height: 26),
+                        if (showFeatured) ...[
+                          _thaliCard(),
+                          const SizedBox(height: 26),
+                        ],
                         _quickOrder(),
                         const SizedBox(height: 8),
                       ],
@@ -152,14 +164,16 @@ class GHome extends StatelessWidget {
                 ],
               ),
             ),
-            const SizedBox(width: 4),
-            const Icon(
-              Icons.keyboard_arrow_down,
-              size: 20,
-              color: Colors.white,
-            ),
-            const SizedBox(width: 8),
-            _circle(Icons.notifications_none),
+            if (showBell) ...[
+              const SizedBox(width: 4),
+              const Icon(
+                Icons.keyboard_arrow_down,
+                size: 20,
+                color: Colors.white,
+              ),
+              const SizedBox(width: 8),
+              _circle(Icons.notifications_none),
+            ],
           ],
         ),
         const SizedBox(height: 22),
@@ -216,29 +230,30 @@ class GHome extends StatelessWidget {
     ),
     child: Stack(
       children: [
-        Positioned(
-          right: 0,
-          top: 0,
-          child: Container(
-            padding: const EdgeInsets.fromLTRB(14, 6, 16, 6),
-            decoration: const BoxDecoration(
-              color: GColors.green,
-              borderRadius: BorderRadius.only(
-                topRight: Radius.circular(24),
-                bottomLeft: Radius.circular(14),
+        if (hasPlan)
+          Positioned(
+            right: 0,
+            top: 0,
+            child: Container(
+              padding: const EdgeInsets.fromLTRB(14, 6, 16, 6),
+              decoration: const BoxDecoration(
+                color: GColors.green,
+                borderRadius: BorderRadius.only(
+                  topRight: Radius.circular(24),
+                  bottomLeft: Radius.circular(14),
+                ),
               ),
-            ),
-            child: Text(
-              'ACTIVE PLAN',
-              style: gText(
-                9.5,
-                w: FontWeight.w700,
-                c: Colors.white,
-                spacing: .5,
+              child: Text(
+                'ACTIVE PLAN',
+                style: gText(
+                  9.5,
+                  w: FontWeight.w700,
+                  c: Colors.white,
+                  spacing: .5,
+                ),
               ),
             ),
           ),
-        ),
         Padding(
           padding: const EdgeInsets.all(18),
           child: Column(
@@ -293,7 +308,7 @@ class GHome extends StatelessWidget {
                   children: [
                     Expanded(
                       child: Text(
-                        'Today’s Bhaji: $todayMeal',
+                        '$todayLabel$todayMeal',
                         style: gText(11.5, w: FontWeight.w500),
                       ),
                     ),
@@ -321,14 +336,15 @@ class GHome extends StatelessWidget {
                       onTap: onViewSchedule,
                     ),
                   ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: _planButton(
-                      'Pause Tomorrow',
-                      const Color(0xFFF0EBDD),
-                      onTap: onPauseTomorrow,
+                  if (showPause) const SizedBox(width: 10),
+                  if (showPause)
+                    Expanded(
+                      child: _planButton(
+                        'Pause Tomorrow',
+                        const Color(0xFFF0EBDD),
+                        onTap: onPauseTomorrow,
+                      ),
                     ),
-                  ),
                 ],
               ),
             ],
@@ -396,53 +412,55 @@ class GHome extends StatelessWidget {
             fit: StackFit.expand,
             children: [
               Image.asset(thaliImage, fit: BoxFit.cover),
-              Positioned(
-                left: 12,
-                top: 12,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: GColors.green,
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(
-                        Icons.schedule,
-                        size: 13,
-                        color: GColors.saffron,
-                      ),
-                      const SizedBox(width: 5),
-                      Text(
-                        thaliTag,
-                        style: gText(11, w: FontWeight.w700, c: Colors.white),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              Positioned(
-                right: 12,
-                bottom: 12,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: GColors.saffron,
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Text(
-                    thaliPrice,
-                    style: gText(12, w: FontWeight.w700, c: Colors.white),
+              if (thaliTag.isNotEmpty)
+                Positioned(
+                  left: 12,
+                  top: 12,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: GColors.green,
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.schedule,
+                          size: 13,
+                          color: GColors.saffron,
+                        ),
+                        const SizedBox(width: 5),
+                        Text(
+                          thaliTag,
+                          style: gText(11, w: FontWeight.w700, c: Colors.white),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              ),
+              if (thaliPrice.isNotEmpty)
+                Positioned(
+                  right: 12,
+                  bottom: 12,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: GColors.saffron,
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Text(
+                      thaliPrice,
+                      style: gText(12, w: FontWeight.w700, c: Colors.white),
+                    ),
+                  ),
+                ),
             ],
           ),
         ),
@@ -581,7 +599,7 @@ class GHome extends StatelessWidget {
                 const Color(0x1A1B3B2B),
                 GColors.green,
                 'Monthly Tiffin',
-                'Save up to 20% with monthly subscription',
+                monthlySub,
                 onQuickMonthly,
               ),
             ),
