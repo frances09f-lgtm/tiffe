@@ -231,7 +231,7 @@ class _TrackingMapState extends State<TrackingMap>
                         Icon(Icons.circle, size: 8, color: Color(0xFFFF8843)),
                         SizedBox(width: 6),
                         Text(
-                          'Demo delivery preview',
+                          'Delivery preview',
                           style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w700,
@@ -272,7 +272,7 @@ class _TrackingMapState extends State<TrackingMap>
                       ),
                       child: Text(
                         real == null
-                            ? 'DEMO PREVIEW'
+                            ? 'PREVIEW'
                             : 'ORDER: ${real.toUpperCase()}',
                         style: const TextStyle(
                           fontSize: 10.5,
@@ -296,12 +296,12 @@ class _TrackingMapState extends State<TrackingMap>
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      '$km km away - about $mins min (demo)',
+                      '$km km away - about $mins min (preview)',
                       style: const TextStyle(fontSize: 14),
                     ),
                     const SizedBox(height: 10),
                     Text(
-                      'The delivery partner on this map is a simulated demo and the pin marks the centre of ${widget.area.isEmpty ? 'your area' : widget.area}, not your exact door. '
+                      'The delivery partner on this map is a simulated preview and the pin marks the centre of ${widget.area.isEmpty ? 'your area' : widget.area}, not your exact door. '
                       'Real live rider location is coming later.',
                       style: TextStyle(
                         fontSize: 12.5,
