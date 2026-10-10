@@ -4141,6 +4141,19 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
     return 'Delivery ${day == today ? 'today' : _niceDay(day)} around $h:${mm.toString().padLeft(2, '0')} ${hh >= 12 ? 'PM' : 'AM'}';
   }
 
+  /// Real rider details only: optional rider_name / rider_phone columns on
+  /// the order. Nothing is invented when they are absent.
+  static String? _riderName(Map<String, dynamic> o) {
+    final n = o['rider_name'];
+    return n is String && n.trim().isNotEmpty ? n.trim() : null;
+  }
+
+  static String? _riderPhone(Map<String, dynamic> o) {
+    final n = o['rider_phone'];
+    final d = n is String ? n.replaceAll(RegExp(r'[^0-9+]'), '') : '';
+    return d.length >= 8 ? d : null;
+  }
+
   void _livePage(String id) {
     Navigator.of(routeContext).push(
       MaterialPageRoute<void>(
@@ -4152,16 +4165,23 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
               if ('#${_shortId(o['id'] as String)}' == id) row = o;
             }
             final eta = row == null ? null : _clock(row['eta_at'], day: true);
+            final rider = row == null ? null : _riderName(row);
+            final phone = row == null ? null : _riderPhone(row);
             return GLive(
               headline: eta != null
-                  ? 'Kitchen estimate: $eta'
+                  ? 'Arriving by $eta'
                   : row?['status'] == 'Out for Delivery'
                   ? 'On its way'
                   : '${row?['status'] ?? 'Order'}',
-              detail: eta != null
-                  ? 'Your order is out for delivery. The rider on the map below is a simulated preview, not your exact door.'
-                  : 'The kitchen has not shared an arrival time yet. The rider on the map below is a simulated preview.',
+              detail: rider != null
+                  ? 'Delivery partner $rider has your order. The kitchen ${eta != null ? 'estimate is above' : 'has not shared an arrival time yet'}.'
+                  : eta != null
+                  ? 'Your order is out for delivery.'
+                  : 'The kitchen has not shared an arrival time yet.',
               map: trackingCard(compact: true),
+              onCall: phone == null
+                  ? null
+                  : () => UpdateCheck.opener(Uri.parse('tel:$phone')),
             );
           },
         ),
@@ -4191,13 +4211,6 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
                 steps: const [],
               );
             }
-            const names = {
-              'Confirmed': 'Order confirmed',
-              'Preparing': 'Meal being prepared in the kitchen',
-              'Packed': 'Packed and ready for dispatch',
-              'Out for Delivery': 'Out for delivery',
-              'Delivered': 'Delivered',
-            };
             const order = [
               'Confirmed',
               'Preparing',
@@ -4208,28 +4221,43 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
             final status = row['status'] as String;
             final at = order.indexOf(status);
             final out = status == 'Out for Delivery';
+            final rider = _riderName(row);
+            String label(String st, bool done) => switch (st) {
+              'Confirmed' => 'Order Confirmed',
+              'Preparing' =>
+                done
+                    ? 'Meal Prepared in the Kitchen'
+                    : 'Meal being prepared in the kitchen',
+              'Packed' =>
+                done ? 'Packed and Ready for Dispatch' : 'Packing your order',
+              'Out for Delivery' =>
+                rider == null
+                    ? 'Out for Delivery'
+                    : 'Out for Delivery (Delivery Partner: $rider)',
+              _ => 'Delivered',
+            };
             return GTrack(
               orderId: id,
               subtitle:
                   '${row['subscription_id'] == null ? 'One-time' : 'Subscription'} • $status • ${row['quantity']} Tiffin${row['quantity'] == 1 ? '' : 's'}',
-              steps: [
-                for (var i = 0; i < order.length; i++)
-                  GTrackStep(
-                    names[order[i]]!,
-                    at < 0
-                        ? GStepState.pending
-                        : i < at || (i == at && order[i] == 'Delivered')
-                        ? GStepState.done
-                        : i == at
-                        ? GStepState.current
-                        : GStepState.pending,
-                    note: order[i] == 'Out for Delivery' && out
-                        ? (row['eta_at'] == null
-                              ? 'The kitchen has not shared an arrival time yet.'
-                              : 'Kitchen estimate: ${_clock(row['eta_at'], day: true) ?? row['eta_at']}')
-                        : null,
-                  ),
-              ],
+              steps: at < 0
+                  ? [GTrackStep(status, GStepState.pending)]
+                  : [
+                      // Finished steps and the current one; later steps are
+                      // not shown, like the prototype.
+                      for (var i = 0; i <= at; i++)
+                        GTrackStep(
+                          label(order[i], i < at || order[i] == 'Delivered'),
+                          i < at || order[i] == 'Delivered'
+                              ? GStepState.done
+                              : GStepState.current,
+                          note: order[i] == 'Out for Delivery' && out
+                              ? (row['eta_at'] == null
+                                    ? 'The kitchen has not shared an arrival time yet.'
+                                    : 'Kitchen estimate: ${_clock(row['eta_at'], day: true) ?? row['eta_at']}')
+                              : null,
+                        ),
+                    ],
               onMap: out ? () => _livePage(id) : null,
             );
           },

@@ -229,11 +229,15 @@ class _SpinnerState extends State<_Spinner>
 class GLive extends StatelessWidget {
   final String headline, detail;
   final Widget map;
+
+  /// Dials the real delivery partner; null hides the button.
+  final VoidCallback? onCall;
   const GLive({
     super.key,
     required this.headline,
     required this.detail,
     required this.map,
+    this.onCall,
   });
 
   @override
@@ -298,41 +302,32 @@ class GLive extends StatelessWidget {
                     borderRadius: BorderRadius.circular(24),
                     border: Border.all(color: GColors.line),
                   ),
-                  child: Row(
+                  child: Column(
                     children: [
                       Container(
-                        width: 52,
-                        height: 52,
+                        width: 76,
+                        height: 76,
                         decoration: const BoxDecoration(
-                          color: Color(0xFFFDE9DC),
+                          color: Color(0xFFFDEEE5),
                           shape: BoxShape.circle,
                         ),
                         child: const Icon(
-                          Icons.delivery_dining,
-                          size: 28,
-                          color: GColors.saffron,
+                          Icons.pedal_bike,
+                          size: 38,
+                          color: Color(0xFFF1A27C),
                         ),
                       ),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              headline,
-                              style: gText(
-                                16,
-                                w: FontWeight.w800,
-                                c: GColors.green,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              detail,
-                              style: gText(12, c: GColors.grey, height: 1.4),
-                            ),
-                          ],
-                        ),
+                      const SizedBox(height: 14),
+                      Text(
+                        headline,
+                        textAlign: TextAlign.center,
+                        style: gText(20, w: FontWeight.w800, c: GColors.green),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        detail,
+                        textAlign: TextAlign.center,
+                        style: gText(13, c: GColors.grey, height: 1.45),
                       ),
                     ],
                   ),
@@ -343,6 +338,37 @@ class GLive extends StatelessWidget {
             ),
           ),
         ),
+        if (onCall != null)
+          Padding(
+            padding: EdgeInsets.fromLTRB(
+              24,
+              8,
+              24,
+              16 + MediaQuery.of(context).padding.bottom,
+            ),
+            child: GestureDetector(
+              onTap: onCall,
+              child: Container(
+                width: double.infinity,
+                height: 56,
+                decoration: BoxDecoration(
+                  color: GColors.green,
+                  borderRadius: BorderRadius.circular(28),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.call, color: GColors.saffron, size: 22),
+                    const SizedBox(width: 10),
+                    Text(
+                      'Call Delivery Partner',
+                      style: gText(15, w: FontWeight.w700, c: Colors.white),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
       ],
     ),
   );
