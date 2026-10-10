@@ -30,19 +30,19 @@ class GEditProfile extends StatelessWidget {
 
   InputDecoration _dec() => InputDecoration(
     filled: true,
-    fillColor: Colors.white,
+    fillColor: GColors.card,
     contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 18),
     border: OutlineInputBorder(
       borderRadius: BorderRadius.circular(30),
-      borderSide: const BorderSide(color: GColors.line),
+      borderSide: BorderSide(color: GColors.line),
     ),
     enabledBorder: OutlineInputBorder(
       borderRadius: BorderRadius.circular(30),
-      borderSide: const BorderSide(color: GColors.line),
+      borderSide: BorderSide(color: GColors.line),
     ),
     focusedBorder: OutlineInputBorder(
       borderRadius: BorderRadius.circular(30),
-      borderSide: const BorderSide(color: GColors.green, width: 1.5),
+      borderSide: BorderSide(color: GColors.green, width: 1.5),
     ),
   );
 
@@ -71,14 +71,11 @@ class GEditProfile extends StatelessWidget {
                     child: Container(
                       width: 52,
                       height: 52,
-                      decoration: const BoxDecoration(
-                        color: Color(0xFFF1ECE2),
+                      decoration: BoxDecoration(
+                        color: GColors.alt(const Color(0xFFF1ECE2), GColors.chip),
                         shape: BoxShape.circle,
                       ),
-                      child: const Icon(
-                        Icons.arrow_back,
-                        color: GColors.charcoal,
-                      ),
+                      child: Icon(Icons.arrow_back, color: GColors.charcoal),
                     ),
                   ),
                   const SizedBox(width: 16),
@@ -88,7 +85,7 @@ class GEditProfile extends StatelessWidget {
                       alignment: Alignment.centerLeft,
                       child: Text(
                         'Edit Profile',
-                        style: gText(24, w: FontWeight.w800, c: GColors.green),
+                        style: gText(24, w: FontWeight.w800, c: GColors.ink),
                       ),
                     ),
                   ),
@@ -153,15 +150,11 @@ class GEditProfile extends StatelessWidget {
                             decoration: _dec().copyWith(
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(24),
-                                borderSide: const BorderSide(
-                                  color: GColors.line,
-                                ),
+                                borderSide: BorderSide(color: GColors.line),
                               ),
                               enabledBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(24),
-                                borderSide: const BorderSide(
-                                  color: GColors.line,
-                                ),
+                                borderSide: BorderSide(color: GColors.line),
                               ),
                             ),
                           ),
@@ -176,9 +169,9 @@ class GEditProfile extends StatelessWidget {
                           const SizedBox(height: 8),
                           TextButton.icon(
                             onPressed: onPassword,
-                            icon: const Icon(
+                            icon: Icon(
                               Icons.lock_outline,
-                              color: GColors.green,
+                              color: GColors.ink,
                               size: 20,
                             ),
                             label: Text(
@@ -186,7 +179,7 @@ class GEditProfile extends StatelessWidget {
                               style: gText(
                                 14,
                                 w: FontWeight.w700,
-                                c: GColors.green,
+                                c: GColors.ink,
                               ),
                             ),
                           ),

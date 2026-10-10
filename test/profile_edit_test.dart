@@ -48,7 +48,10 @@ void main() {
         expect(find.text('Profile updated successfully!'), findsOneWidget);
         final snack = t.widget<SnackBar>(find.byType(SnackBar));
         expect(snack.behavior, SnackBarBehavior.floating);
-        expect(snack.backgroundColor, const Color(0xFF1B3B2B));
+        expect(
+          snack.backgroundColor,
+          dark ? const Color(0xFF1F4631) : const Color(0xFF1B3B2B),
+        );
         expect(find.byIcon(Icons.check_circle_outline), findsWidgets);
         expect(find.byIcon(Icons.close), findsWidgets);
         await helpers.capture(

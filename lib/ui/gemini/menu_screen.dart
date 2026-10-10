@@ -81,7 +81,7 @@ class _GMenuState extends State<GMenu> {
       children: [
         Container(
           width: double.infinity,
-          decoration: const BoxDecoration(
+          decoration: BoxDecoration(
             color: GColors.green,
             borderRadius: BorderRadius.vertical(bottom: Radius.circular(32)),
             boxShadow: [
@@ -226,8 +226,8 @@ class _GMenuState extends State<GMenu> {
     final ready = n >= widget.required;
     return Container(
       padding: const EdgeInsets.fromLTRB(24, 12, 24, 12),
-      decoration: const BoxDecoration(
-        color: Colors.white,
+      decoration: BoxDecoration(
+        color: GColors.card,
         border: Border(top: BorderSide(color: GColors.line)),
       ),
       child: Row(
@@ -242,7 +242,7 @@ class _GMenuState extends State<GMenu> {
                             ? '$n selected + ${n - widget.required} extra'
                             : '$n selected')
                       : '$n of ${widget.required} selected',
-                  style: gText(14, w: FontWeight.w700, c: GColors.green),
+                  style: gText(14, w: FontWeight.w700, c: GColors.ink),
                 ),
                 const SizedBox(height: 2),
                 Text(
@@ -268,7 +268,7 @@ class _GMenuState extends State<GMenu> {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 13),
               decoration: BoxDecoration(
-                color: ready ? GColors.green : const Color(0xFFD9DDD9),
+                color: ready ? GColors.green : GColors.alt(const Color(0xFFD9DDD9), GColors.chip),
                 borderRadius: BorderRadius.circular(16),
               ),
               child: Text(
@@ -289,7 +289,7 @@ class _GMenuState extends State<GMenu> {
   Widget _card(int idx, GMenuItem it) => Container(
     padding: const EdgeInsets.all(16),
     decoration: BoxDecoration(
-      color: Colors.white,
+      color: GColors.card,
       borderRadius: BorderRadius.circular(20),
       border: Border.all(color: GColors.line),
       boxShadow: const [
@@ -327,7 +327,7 @@ class _GMenuState extends State<GMenu> {
                         it.title,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: gText(14, w: FontWeight.w700, c: GColors.green),
+                        style: gText(14, w: FontWeight.w700, c: GColors.ink),
                       ),
                     ),
                     const SizedBox(width: 6),
@@ -362,7 +362,7 @@ class _GMenuState extends State<GMenu> {
                           decoration: BoxDecoration(
                             color: it.special
                                 ? const Color(0x1AE86324)
-                                : const Color(0xFFE8EBE9),
+                                : GColors.alt(const Color(0xFFE8EBE9), GColors.chip),
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Text(
@@ -372,7 +372,7 @@ class _GMenuState extends State<GMenu> {
                             style: gText(
                               10,
                               w: FontWeight.w600,
-                              c: it.special ? GColors.saffron : GColors.green,
+                              c: it.special ? GColors.saffron : GColors.ink,
                             ),
                           ),
                         ),
@@ -397,7 +397,7 @@ class _GMenuState extends State<GMenu> {
       onTap: (!on && _sel.length >= _max) ? null : () => _toggle(idx),
       child: Container(
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: GColors.card,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
             color: on ? GColors.saffron : GColors.line,
@@ -432,7 +432,7 @@ class _GMenuState extends State<GMenu> {
                           vertical: 3,
                         ),
                         decoration: BoxDecoration(
-                          color: Colors.white,
+                          color: GColors.card,
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: Text(
@@ -440,7 +440,7 @@ class _GMenuState extends State<GMenu> {
                           style: gText(
                             9.5,
                             w: FontWeight.w700,
-                            c: it.special ? GColors.saffron : GColors.green,
+                            c: it.special ? GColors.saffron : GColors.ink,
                           ),
                         ),
                       ),
@@ -476,7 +476,7 @@ class _GMenuState extends State<GMenu> {
                       alignment: Alignment.centerLeft,
                       child: Text(
                         it.title,
-                        style: gText(13, w: FontWeight.w700, c: GColors.green),
+                        style: gText(13, w: FontWeight.w700, c: GColors.ink),
                       ),
                     ),
                   ),
@@ -524,7 +524,7 @@ class _GMenuState extends State<GMenu> {
           color: on
               ? GColors.saffron
               : locked
-              ? const Color(0xFFEDEDED)
+              ? GColors.alt(const Color(0xFFEDEDED), GColors.chip)
               : GColors.green,
           borderRadius: BorderRadius.circular(14),
         ),

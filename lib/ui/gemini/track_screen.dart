@@ -35,7 +35,7 @@ class GTrack extends StatelessWidget {
       children: [
         Container(
           width: double.infinity,
-          decoration: const BoxDecoration(
+          decoration: BoxDecoration(
             color: GColors.green,
             borderRadius: BorderRadius.vertical(bottom: Radius.circular(32)),
             boxShadow: [
@@ -101,7 +101,7 @@ class GTrack extends StatelessWidget {
               width: double.infinity,
               padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: GColors.card,
                 borderRadius: BorderRadius.circular(28),
                 border: Border.all(color: GColors.line),
               ),
@@ -110,7 +110,7 @@ class GTrack extends StatelessWidget {
                 children: [
                   Text(
                     'Delivery Progress',
-                    style: gText(16, w: FontWeight.w700, c: GColors.green),
+                    style: gText(16, w: FontWeight.w700, c: GColors.ink),
                   ),
                   const SizedBox(height: 18),
                   for (var i = 0; i < steps.length; i++)
@@ -151,7 +151,7 @@ class GTrack extends StatelessWidget {
                     decoration: BoxDecoration(
                       color: s.state == GStepState.done
                           ? GColors.saffron
-                          : const Color(0xFFE3DED3),
+                          : GColors.alt(const Color(0xFFE3DED3), GColors.line),
                       borderRadius: BorderRadius.circular(1),
                     ),
                   ),
@@ -192,7 +192,7 @@ class GTrack extends StatelessWidget {
         style: gText(
           14,
           w: s.state == GStepState.pending ? FontWeight.w500 : FontWeight.w600,
-          c: s.state == GStepState.pending ? GColors.grey : GColors.green,
+          c: s.state == GStepState.pending ? GColors.grey : GColors.ink,
           height: 1.3,
         ),
       ),
@@ -263,7 +263,7 @@ class GLive extends StatelessWidget {
       children: [
         Container(
           width: double.infinity,
-          decoration: const BoxDecoration(
+          decoration: BoxDecoration(
             color: GColors.green,
             borderRadius: BorderRadius.vertical(bottom: Radius.circular(32)),
           ),
@@ -314,7 +314,7 @@ class GLive extends StatelessWidget {
                   width: double.infinity,
                   padding: const EdgeInsets.all(18),
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: GColors.card,
                     borderRadius: BorderRadius.circular(24),
                     border: Border.all(color: GColors.line),
                   ),
@@ -323,8 +323,8 @@ class GLive extends StatelessWidget {
                       Container(
                         width: 76,
                         height: 76,
-                        decoration: const BoxDecoration(
-                          color: Color(0xFFFDEEE5),
+                        decoration: BoxDecoration(
+                          color: GColors.saffronTint,
                           shape: BoxShape.circle,
                         ),
                         child: const Icon(
@@ -337,7 +337,7 @@ class GLive extends StatelessWidget {
                       Text(
                         headline,
                         textAlign: TextAlign.center,
-                        style: gText(20, w: FontWeight.w800, c: GColors.green),
+                        style: gText(20, w: FontWeight.w800, c: GColors.ink),
                       ),
                       const SizedBox(height: 6),
                       Text(

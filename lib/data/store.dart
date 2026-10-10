@@ -23,7 +23,8 @@ class TiffeStore extends ChangeNotifier {
       address = d['address'] ?? '';
       area = d['area'] ?? 'Kothrud';
       onboarded = d['onboarded'] == true;
-      darkMode = false; // dark mode is not designed yet; clears old saved flag
+      // New key: older builds may have saved a stale dark flag. Default is light.
+      darkMode = d['darkModeV40'] == true;
       plan = Plan.values.firstWhere(
         (p) => p.name == d['plan'],
         orElse: () => Plan.none,
@@ -65,7 +66,7 @@ class TiffeStore extends ChangeNotifier {
         'area': area,
         'plan': plan.name,
         'onboarded': onboarded,
-        'darkMode': darkMode,
+        'darkModeV40': darkMode,
         'selections': selections,
         'usual': usual,
       }),

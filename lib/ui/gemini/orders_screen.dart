@@ -46,7 +46,7 @@ class GOrders extends StatelessWidget {
       children: [
         Container(
           width: double.infinity,
-          decoration: const BoxDecoration(
+          decoration: BoxDecoration(
             color: GColors.green,
             borderRadius: BorderRadius.vertical(bottom: Radius.circular(32)),
             boxShadow: [
@@ -96,11 +96,7 @@ class GOrders extends StatelessWidget {
                         padding: const EdgeInsets.only(top: 8, bottom: 16),
                         child: Text(
                           'Order history',
-                          style: gText(
-                            18,
-                            w: FontWeight.w800,
-                            c: GColors.green,
-                          ),
+                          style: gText(18, w: FontWeight.w800, c: GColors.ink),
                         ),
                       ),
                       for (final o in orders.where(_isHistory)) ...[
@@ -122,7 +118,7 @@ class GOrders extends StatelessWidget {
   Widget _card(GOrder o) => Container(
     padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
     decoration: BoxDecoration(
-      color: Colors.white,
+      color: GColors.card,
       borderRadius: BorderRadius.circular(20),
       border: Border.all(color: GColors.line),
       boxShadow: const [
@@ -151,7 +147,7 @@ class GOrders extends StatelessWidget {
               style: gText(
                 11.5,
                 w: FontWeight.w700,
-                c: o.live ? GColors.saffron : GColors.green,
+                c: o.live ? GColors.saffron : GColors.ink,
               ),
             ),
           ],
@@ -163,14 +159,10 @@ class GOrders extends StatelessWidget {
               width: 48,
               height: 48,
               decoration: BoxDecoration(
-                color: const Color(0xFFE8EBE9),
+                color: GColors.alt(const Color(0xFFE8EBE9), GColors.chip),
                 borderRadius: BorderRadius.circular(14),
               ),
-              child: const Icon(
-                Icons.restaurant,
-                size: 22,
-                color: GColors.green,
-              ),
+              child: Icon(Icons.restaurant, size: 22, color: GColors.ink),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -181,7 +173,7 @@ class GOrders extends StatelessWidget {
                     o.title,
                     maxLines: 3,
                     overflow: TextOverflow.ellipsis,
-                    style: gText(14, w: FontWeight.w700, c: GColors.green),
+                    style: gText(14, w: FontWeight.w700, c: GColors.ink),
                   ),
                   const SizedBox(height: 2),
                   if (o.due != null || o.placed == null)
@@ -204,7 +196,7 @@ class GOrders extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 12),
-        const Divider(height: 1, color: GColors.line),
+        Divider(height: 1, color: GColors.line),
         const SizedBox(height: 10),
         Row(
           children: [
@@ -214,7 +206,7 @@ class GOrders extends StatelessWidget {
                 alignment: Alignment.centerLeft,
                 child: Text(
                   o.total,
-                  style: gText(12, w: FontWeight.w700, c: GColors.green),
+                  style: gText(12, w: FontWeight.w700, c: GColors.ink),
                 ),
               ),
             ),
@@ -226,14 +218,10 @@ class GOrders extends StatelessWidget {
                 children: [
                   Text(
                     _isHistory(o) ? 'Order Details' : 'Track Details',
-                    style: gText(12, w: FontWeight.w700, c: GColors.green),
+                    style: gText(12, w: FontWeight.w700, c: GColors.ink),
                   ),
                   const SizedBox(width: 4),
-                  const Icon(
-                    Icons.chevron_right,
-                    size: 18,
-                    color: GColors.green,
-                  ),
+                  Icon(Icons.chevron_right, size: 18, color: GColors.ink),
                 ],
               ),
             ),

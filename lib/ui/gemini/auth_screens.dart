@@ -5,13 +5,35 @@ import 'package:flutter/services.dart';
 
 /// Palette sampled from the Gemini "Tiffie" design system page.
 class GColors {
-  static const green = Color(0xFF1B3B2B);
-  static const cream = Color(0xFFFBF9F5);
+  /// Dark mode switch. The app sets it from the saved choice.
+  static bool dark = false;
+  static Color _p(Color light, Color dk) => dark ? dk : light;
+
+  /// Keeps an exact light colour, swaps to [dk] in dark mode.
+  static Color alt(Color light, Color dk) => _p(light, dk);
+
+  /// Brand green: headers, filled buttons, selected fills.
+  static Color get green =>
+      _p(const Color(0xFF1B3B2B), const Color(0xFF1F4631));
+
+  /// Titles, icons and green text on the page background.
+  static Color get ink => _p(const Color(0xFF1B3B2B), const Color(0xFFE4EFE8));
+  static Color get cream =>
+      _p(const Color(0xFFFBF9F5), const Color(0xFF0E1511));
+  static Color get card => _p(Colors.white, const Color(0xFF17211B));
   static const saffron = Color(0xFFE86324);
-  static const charcoal = Color(0xFF222222);
-  static const grey = Color(0xFF666666);
-  static const line = Color(0xFFE8E2D6);
-  static const chip = Color(0xFFF0EBDD);
+  static Color get charcoal =>
+      _p(const Color(0xFF222222), const Color(0xFFECEFEA));
+  static Color get grey => _p(const Color(0xFF666666), const Color(0xFFA3AFA8));
+  static Color get line => _p(const Color(0xFFE8E2D6), const Color(0xFF263329));
+  static Color get chip => _p(const Color(0xFFF0EBDD), const Color(0xFF1F2B24));
+  static Color get dangerBg =>
+      _p(const Color(0xFFFEF2F2), const Color(0xFF2B1A1A));
+  static Color get dangerLine =>
+      _p(const Color(0xFFFECACA), const Color(0xFF5C2B2B));
+  static Color get saffronTint =>
+      _p(const Color(0xFFFDEEE5), const Color(0xFF2E1D14));
+  static Color get tint => _p(const Color(0x1A1B3B2B), const Color(0x26E4EFE8));
 }
 
 const gFont = 'PlusJakartaSans';
@@ -19,14 +41,14 @@ const gFont = 'PlusJakartaSans';
 TextStyle gText(
   double size, {
   FontWeight w = FontWeight.w400,
-  Color c = GColors.charcoal,
+  Color? c,
   double? height,
   double? spacing,
 }) => TextStyle(
   fontFamily: gFont,
   fontSize: size,
   fontWeight: w,
-  color: c,
+  color: c ?? GColors.charcoal,
   height: height,
   letterSpacing: spacing,
 );
@@ -86,11 +108,8 @@ class GBack extends StatelessWidget {
       child: Container(
         width: 40,
         height: 40,
-        decoration: const BoxDecoration(
-          color: GColors.chip,
-          shape: BoxShape.circle,
-        ),
-        child: const Icon(Icons.arrow_back, size: 20, color: GColors.charcoal),
+        decoration: BoxDecoration(color: GColors.chip, shape: BoxShape.circle),
+        child: Icon(Icons.arrow_back, size: 20, color: GColors.charcoal),
       ),
     ),
   );
@@ -251,7 +270,7 @@ class GOnboarding extends StatelessWidget {
             Text(
               'Like Mother’s Kitchen',
               textAlign: TextAlign.center,
-              style: gText(23, w: FontWeight.w700, c: GColors.green),
+              style: gText(23, w: FontWeight.w700, c: GColors.ink),
             ),
             const SizedBox(height: 10),
             Text(
@@ -306,7 +325,7 @@ class _GLoginState extends State<GLogin> {
             const Spacer(flex: 3),
             Text(
               'Welcome Back',
-              style: gText(26, w: FontWeight.w700, c: GColors.green),
+              style: gText(26, w: FontWeight.w700, c: GColors.ink),
             ),
             const SizedBox(height: 10),
             Text(
@@ -323,7 +342,7 @@ class _GLoginState extends State<GLogin> {
               height: 50,
               padding: const EdgeInsets.symmetric(horizontal: 16),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: GColors.card,
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(color: GColors.line),
               ),
@@ -369,7 +388,7 @@ class _GLoginState extends State<GLogin> {
                     ),
                     TextSpan(
                       text: 'Terms of Service & Privacy Policy',
-                      style: gText(12, w: FontWeight.w600, c: GColors.green),
+                      style: gText(12, w: FontWeight.w600, c: GColors.ink),
                     ),
                   ],
                 ),
@@ -431,7 +450,7 @@ class _GOtpState extends State<GOtp> {
               const Spacer(flex: 3),
               Text(
                 'Verify OTP',
-                style: gText(26, w: FontWeight.w700, c: GColors.green),
+                style: gText(26, w: FontWeight.w700, c: GColors.ink),
               ),
               const SizedBox(height: 10),
               Text.rich(
@@ -466,7 +485,7 @@ class _GOtpState extends State<GOtp> {
                             height: 62,
                             alignment: Alignment.center,
                             decoration: BoxDecoration(
-                              color: Colors.white,
+                              color: GColors.card,
                               borderRadius: BorderRadius.circular(16),
                               border: Border.all(
                                 color: i == code.length && focus.hasFocus
@@ -511,11 +530,7 @@ class _GOtpState extends State<GOtp> {
                         const TextSpan(text: 'Didn’t receive code? '),
                         TextSpan(
                           text: 'Resend',
-                          style: gText(
-                            13,
-                            w: FontWeight.w700,
-                            c: GColors.green,
-                          ),
+                          style: gText(13, w: FontWeight.w700, c: GColors.ink),
                         ),
                       ],
                     ),
@@ -628,7 +643,7 @@ class _GEmailLoginState extends State<GEmailLogin> {
         height: 50,
         padding: const EdgeInsets.symmetric(horizontal: 16),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: GColors.card,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: GColors.line),
         ),
@@ -662,7 +677,7 @@ class _GEmailLoginState extends State<GEmailLogin> {
                 const SizedBox(height: 48),
                 Text(
                   registering ? 'Create your account' : 'Welcome Back',
-                  style: gText(26, w: FontWeight.w700, c: GColors.green),
+                  style: gText(26, w: FontWeight.w700, c: GColors.ink),
                 ),
                 const SizedBox(height: 10),
                 Text(
@@ -698,7 +713,7 @@ class _GEmailLoginState extends State<GEmailLogin> {
                     padding: const EdgeInsets.only(top: 14),
                     child: Text(
                       widget.notice!,
-                      style: gText(12.5, c: GColors.green),
+                      style: gText(12.5, c: GColors.ink),
                     ),
                   ),
                 const SizedBox(height: 20),
@@ -729,7 +744,7 @@ class _GEmailLoginState extends State<GEmailLogin> {
                       registering
                           ? 'Already have an account? Sign in'
                           : 'New to Tiffe? Create account',
-                      style: gText(13, w: FontWeight.w600, c: GColors.green),
+                      style: gText(13, w: FontWeight.w600, c: GColors.ink),
                     ),
                   ),
                 ),

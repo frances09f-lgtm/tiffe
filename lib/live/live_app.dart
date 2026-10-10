@@ -25,7 +25,8 @@ import '../ui/gemini/track_screen.dart';
 
 import '../data/store.dart';
 import '../domain/tiffin.dart' as food;
-import '../ui/app.dart' show palette, panel, Logo, TiffePalette;
+import '../ui/app.dart'
+    show palette, panel, Logo, TiffePalette, tiffeLightTheme;
 import 'backend.dart';
 
 bool isCompleteProfile(Map<String, dynamic>? profile) =>
@@ -54,6 +55,13 @@ class LiveGate extends StatefulWidget {
 class _LiveGateState extends State<LiveGate> {
   @override
   Widget build(BuildContext c) {
+    final page = _page(c);
+    // Dark mode is for the customer app only. Admin and kitchen screens,
+    // including their sign-in, always stay light.
+    return widget.admin ? _StaffLight(store: widget.store, child: page) : page;
+  }
+
+  Widget _page(BuildContext c) {
     if (widget.backend == null) {
       return Scaffold(
         appBar: AppBar(title: const Text('Tiffe')),
@@ -129,6 +137,30 @@ class _LiveGateState extends State<LiveGate> {
         );
       },
     );
+  }
+}
+
+/// Keeps the staff area light even when the customer chose dark mode on this
+/// phone. Restores the customer choice when the staff area closes.
+class _StaffLight extends StatefulWidget {
+  final TiffeStore store;
+  final Widget child;
+  const _StaffLight({required this.store, required this.child});
+  @override
+  State<_StaffLight> createState() => _StaffLightState();
+}
+
+class _StaffLightState extends State<_StaffLight> {
+  @override
+  void dispose() {
+    GColors.dark = widget.store.darkMode;
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    GColors.dark = false;
+    return Theme(data: tiffeLightTheme(), child: widget.child);
   }
 }
 
@@ -2301,7 +2333,7 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
                         vertical: 7,
                       ),
                       decoration: BoxDecoration(
-                        color: Colors.white,
+                        color: GColors.card,
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: const Row(
@@ -3977,7 +4009,7 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
                           vertical: 6,
                         ),
                         decoration: BoxDecoration(
-                          color: Colors.white,
+                          color: GColors.card,
                           borderRadius: BorderRadius.circular(20),
                         ),
                         child: const Row(
@@ -4043,7 +4075,7 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
                               vertical: 10,
                             ),
                             decoration: BoxDecoration(
-                              color: Colors.white,
+                              color: GColors.card,
                               borderRadius: BorderRadius.circular(22),
                             ),
                             child: const Text(
@@ -4630,6 +4662,8 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
           version: 'v$currentBuild',
           onUpdate: () =>
               UpdateCheck.run(routeContext, widget.store.prefs, manual: true),
+          dark: widget.store.darkMode,
+          onDark: widget.store.setDarkMode,
           onLogout: widget.backend.signOut,
           onTab: go,
         );
@@ -5155,7 +5189,7 @@ class _OrderSheetState extends State<OrderSheet> {
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: GColors.card,
         borderRadius: BorderRadius.circular(28),
         border: Border.all(color: GColors.line),
       ),
@@ -5165,7 +5199,7 @@ class _OrderSheetState extends State<OrderSheet> {
       padding: const EdgeInsets.only(bottom: 12),
       child: Text(
         t,
-        style: gText(17, w: FontWeight.w700, c: GColors.green),
+        style: gText(17, w: FontWeight.w700, c: GColors.ink),
       ),
     );
     Widget line(String l, String r, {bool bold = false, Color? rc}) => Padding(
@@ -5179,7 +5213,7 @@ class _OrderSheetState extends State<OrderSheet> {
               style: gText(
                 14,
                 w: bold ? FontWeight.w800 : FontWeight.w500,
-                c: bold ? GColors.green : GColors.charcoal,
+                c: bold ? GColors.ink : GColors.charcoal,
               ),
             ),
           ),
@@ -5189,7 +5223,7 @@ class _OrderSheetState extends State<OrderSheet> {
             style: gText(
               14,
               w: FontWeight.w700,
-              c: rc ?? (bold ? GColors.saffron : GColors.green),
+              c: rc ?? (bold ? GColors.saffron : GColors.ink),
             ),
           ),
         ],
@@ -5224,14 +5258,14 @@ class _OrderSheetState extends State<OrderSheet> {
                       child: Container(
                         width: 52,
                         height: 52,
-                        decoration: const BoxDecoration(
-                          color: Color(0xFFF1ECE2),
+                        decoration: BoxDecoration(
+                          color: GColors.alt(
+                            const Color(0xFFF1ECE2),
+                            GColors.chip,
+                          ),
                           shape: BoxShape.circle,
                         ),
-                        child: const Icon(
-                          Icons.arrow_back,
-                          color: GColors.charcoal,
-                        ),
+                        child: Icon(Icons.arrow_back, color: GColors.charcoal),
                       ),
                     ),
                     const SizedBox(width: 16),
@@ -5241,11 +5275,7 @@ class _OrderSheetState extends State<OrderSheet> {
                         alignment: Alignment.centerLeft,
                         child: Text(
                           'Order Checkout',
-                          style: gText(
-                            24,
-                            w: FontWeight.w800,
-                            c: GColors.green,
-                          ),
+                          style: gText(24, w: FontWeight.w800, c: GColors.ink),
                         ),
                       ),
                     ),
@@ -5265,7 +5295,10 @@ class _OrderSheetState extends State<OrderSheet> {
                             width: double.infinity,
                             padding: const EdgeInsets.all(16),
                             decoration: BoxDecoration(
-                              color: const Color(0xFFF7F4EE),
+                              color: GColors.alt(
+                                const Color(0xFFF7F4EE),
+                                GColors.chip,
+                              ),
                               borderRadius: BorderRadius.circular(18),
                             ),
                             child: Row(
@@ -5289,7 +5322,7 @@ class _OrderSheetState extends State<OrderSheet> {
                                         style: gText(
                                           14,
                                           w: FontWeight.w700,
-                                          c: GColors.green,
+                                          c: GColors.ink,
                                         ),
                                       ),
                                       for (final l in addressLines)
@@ -5313,7 +5346,7 @@ class _OrderSheetState extends State<OrderSheet> {
                                           style: gText(
                                             12,
                                             w: FontWeight.w600,
-                                            c: GColors.green,
+                                            c: GColors.ink,
                                           ),
                                         ),
                                       ),
@@ -5404,7 +5437,7 @@ class _OrderSheetState extends State<OrderSheet> {
                                 ? 'FREE'
                                 : '₹$delivery',
                           ),
-                          const Divider(height: 24, color: GColors.line),
+                          Divider(height: 24, color: GColors.line),
                           line(
                             sub ? 'Extras to pay' : 'Total Payable',
                             total,

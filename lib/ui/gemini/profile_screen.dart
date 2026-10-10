@@ -8,6 +8,10 @@ class GProfile extends StatelessWidget {
   final String name, contact;
   final VoidCallback? onEdit, onAddresses, onSubscription, onNotifications;
   final VoidCallback? onHelp, onLogout, onUpdate;
+
+  /// Dark mode switch row. Hidden when [onDark] is null.
+  final bool? dark;
+  final ValueChanged<bool>? onDark;
   final String? version;
   final bool showAddresses, showNotifications;
   final ValueChanged<int>? onTab;
@@ -21,6 +25,8 @@ class GProfile extends StatelessWidget {
     this.onNotifications,
     this.onHelp,
     this.onUpdate,
+    this.dark,
+    this.onDark,
     this.version,
     this.showAddresses = true,
     this.showNotifications = true,
@@ -35,7 +41,7 @@ class GProfile extends StatelessWidget {
       children: [
         Container(
           width: double.infinity,
-          decoration: const BoxDecoration(
+          decoration: BoxDecoration(
             color: GColors.green,
             borderRadius: BorderRadius.vertical(bottom: Radius.circular(32)),
             boxShadow: [
@@ -65,7 +71,7 @@ class GProfile extends StatelessWidget {
                 ),
                 child: Text(
                   name.isEmpty ? '' : name[0].toUpperCase(),
-                  style: gText(26, w: FontWeight.w700, c: GColors.green),
+                  style: gText(26, w: FontWeight.w700, c: GColors.ink),
                 ),
               ),
               const SizedBox(width: 16),
@@ -98,7 +104,7 @@ class GProfile extends StatelessWidget {
             children: [
               _row(
                 Icons.manage_accounts_outlined,
-                GColors.green,
+                GColors.ink,
                 'Edit Profile',
                 onEdit,
               ),
@@ -111,14 +117,14 @@ class GProfile extends StatelessWidget {
                 ),
               _row(
                 Icons.repeat,
-                GColors.green,
+                GColors.ink,
                 'My Tiffin Subscription',
                 onSubscription,
               ),
               if (showNotifications)
                 _row(
                   Icons.notifications_none,
-                  GColors.green,
+                  GColors.ink,
                   'Notifications',
                   onNotifications,
                 ),
@@ -130,7 +136,20 @@ class GProfile extends StatelessWidget {
                   onUpdate,
                   note: version,
                 ),
-              _row(Icons.help_outline, GColors.green, 'Help & Support', onHelp),
+              if (onDark != null)
+                _row(
+                  Icons.dark_mode_outlined,
+                  GColors.ink,
+                  'Dark mode',
+                  () => onDark!(!(dark ?? false)),
+                  trailing: Switch(
+                    value: dark ?? false,
+                    onChanged: onDark,
+                    activeThumbColor: GColors.saffron,
+                    activeTrackColor: GColors.saffron.withValues(alpha: 0.35),
+                  ),
+                ),
+              _row(Icons.help_outline, GColors.ink, 'Help & Support', onHelp),
               _logout(),
             ],
           ),
@@ -146,6 +165,7 @@ class GProfile extends StatelessWidget {
     String label,
     VoidCallback? onTap, {
     String? note,
+    Widget? trailing,
   }) => Padding(
     padding: const EdgeInsets.only(bottom: 12),
     child: GestureDetector(
@@ -153,7 +173,7 @@ class GProfile extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: GColors.card,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: GColors.line),
           boxShadow: const [
@@ -173,14 +193,15 @@ class GProfile extends StatelessWidget {
                 label,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: gText(12.5, w: FontWeight.w700, c: GColors.green),
+                style: gText(12.5, w: FontWeight.w700, c: GColors.ink),
               ),
             ),
             if (note != null) ...[
               Text(note, style: gText(11, c: GColors.grey)),
               const SizedBox(width: 6),
             ],
-            const Icon(Icons.chevron_right, size: 20, color: GColors.grey),
+            trailing ??
+                Icon(Icons.chevron_right, size: 20, color: GColors.grey),
           ],
         ),
       ),
@@ -192,9 +213,9 @@ class GProfile extends StatelessWidget {
     child: Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       decoration: BoxDecoration(
-        color: const Color(0xFFFEF2F2),
+        color: GColors.dangerBg,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFFECACA)),
+        border: Border.all(color: GColors.dangerLine),
       ),
       child: Row(
         children: [

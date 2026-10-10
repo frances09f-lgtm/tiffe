@@ -7,7 +7,7 @@ Widget _flowCard(Widget child, {Color? bg, bool selected = false}) => Container(
   margin: const EdgeInsets.only(bottom: 18),
   padding: const EdgeInsets.all(22),
   decoration: BoxDecoration(
-    color: bg ?? Colors.white,
+    color: bg ?? GColors.card,
     borderRadius: BorderRadius.circular(26),
     border: Border.all(
       color: selected ? GColors.green : GColors.line,
@@ -31,11 +31,11 @@ Widget _flowHeader(BuildContext context, String title) => Padding(
         child: Container(
           width: 44,
           height: 44,
-          decoration: const BoxDecoration(
-            color: Color(0xFFF0EBE0),
+          decoration: BoxDecoration(
+            color: GColors.alt(const Color(0xFFF0EBE0), GColors.chip),
             shape: BoxShape.circle,
           ),
-          child: const Icon(Icons.arrow_back, size: 20, color: GColors.green),
+          child: Icon(Icons.arrow_back, size: 20, color: GColors.ink),
         ),
       ),
       const SizedBox(width: 14),
@@ -45,7 +45,7 @@ Widget _flowHeader(BuildContext context, String title) => Padding(
           alignment: Alignment.centerLeft,
           child: Text(
             title,
-            style: gText(21, w: FontWeight.w800, c: GColors.green),
+            style: gText(21, w: FontWeight.w800, c: GColors.ink),
           ),
         ),
       ),
@@ -63,7 +63,7 @@ Widget _line(String a, String b, {bool big = false}) => Padding(
           style: gText(
             big ? 16 : 14,
             w: big ? FontWeight.w800 : FontWeight.w500,
-            c: big ? GColors.green : GColors.grey,
+            c: big ? GColors.ink : GColors.grey,
           ),
         ),
       ),
@@ -118,7 +118,7 @@ class GPlanCheckout extends StatelessWidget {
                   children: [
                     Text(
                       cardTitle,
-                      style: gText(16, w: FontWeight.w800, c: GColors.green),
+                      style: gText(16, w: FontWeight.w800, c: GColors.ink),
                     ),
                     const SizedBox(height: 12),
                     Row(
@@ -155,7 +155,7 @@ class GPlanCheckout extends StatelessWidget {
                   children: [
                     Text(
                       'Delivery Address',
-                      style: gText(16, w: FontWeight.w800, c: GColors.green),
+                      style: gText(16, w: FontWeight.w800, c: GColors.ink),
                     ),
                     const SizedBox(height: 14),
                     Container(
@@ -182,7 +182,7 @@ class GPlanCheckout extends StatelessWidget {
                                   style: gText(
                                     14,
                                     w: FontWeight.w700,
-                                    c: GColors.green,
+                                    c: GColors.ink,
                                   ),
                                 ),
                                 const SizedBox(height: 3),
@@ -209,13 +209,13 @@ class GPlanCheckout extends StatelessWidget {
                   children: [
                     Text(
                       'Price Breakdown',
-                      style: gText(16, w: FontWeight.w800, c: GColors.green),
+                      style: gText(16, w: FontWeight.w800, c: GColors.ink),
                     ),
                     const SizedBox(height: 10),
                     _line(priceLabel, planPrice),
                     _line('Delivery Charges', deliveryPrice),
                     _line('Taxes & Packaging', 'Included'),
-                    const Divider(height: 22, color: GColors.line),
+                    Divider(height: 22, color: GColors.line),
                     _line('Total Payable', total, big: true),
                   ],
                 ),
@@ -260,7 +260,7 @@ class _GPlanPayState extends State<GPlanPay> {
           margin: const EdgeInsets.only(bottom: 14),
           padding: const EdgeInsets.all(18),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: GColors.card,
             borderRadius: BorderRadius.circular(24),
             border: Border.all(
               color: sel == i ? GColors.green : GColors.line,
@@ -269,7 +269,7 @@ class _GPlanPayState extends State<GPlanPay> {
           ),
           child: Row(
             children: [
-              Icon(icon, color: ic ?? GColors.green, size: 28),
+              Icon(icon, color: ic ?? GColors.ink, size: 28),
               const SizedBox(width: 14),
               Expanded(
                 child: Column(
@@ -277,7 +277,7 @@ class _GPlanPayState extends State<GPlanPay> {
                   children: [
                     Text(
                       title,
-                      style: gText(14.5, w: FontWeight.w700, c: GColors.green),
+                      style: gText(14.5, w: FontWeight.w700, c: GColors.ink),
                     ),
                     const SizedBox(height: 2),
                     Text(sub, style: gText(12, c: GColors.grey)),
@@ -286,7 +286,7 @@ class _GPlanPayState extends State<GPlanPay> {
               ),
               Icon(
                 sel == i ? Icons.radio_button_checked : Icons.radio_button_off,
-                color: sel == i ? GColors.green : const Color(0xFFD9D3C5),
+                color: sel == i ? GColors.green : GColors.alt(const Color(0xFFD9D3C5), GColors.line),
               ),
             ],
           ),
@@ -434,7 +434,7 @@ class _GPlanConfirmedState extends State<GPlanConfirmed>
                                 return Transform.scale(
                                   scale: t,
                                   child: Container(
-                                    decoration: const BoxDecoration(
+                                    decoration: BoxDecoration(
                                       color: GColors.green,
                                       shape: BoxShape.circle,
                                     ),
@@ -460,7 +460,7 @@ class _GPlanConfirmedState extends State<GPlanConfirmed>
                     Text(
                       done ? widget.title : 'Processing payment...',
                       textAlign: TextAlign.center,
-                      style: gText(24, w: FontWeight.w800, c: GColors.green),
+                      style: gText(24, w: FontWeight.w800, c: GColors.ink),
                     ),
                     const SizedBox(height: 10),
                     Text(
@@ -492,7 +492,7 @@ class _GPlanConfirmedState extends State<GPlanConfirmed>
                         height: 52,
                         alignment: Alignment.center,
                         decoration: BoxDecoration(
-                          color: const Color(0xFFF0EBE0),
+                          color: GColors.alt(const Color(0xFFF0EBE0), GColors.chip),
                           borderRadius: BorderRadius.circular(18),
                         ),
                         child: Text(
@@ -500,7 +500,7 @@ class _GPlanConfirmedState extends State<GPlanConfirmed>
                           style: gText(
                             15,
                             w: FontWeight.w700,
-                            c: GColors.green,
+                            c: GColors.ink,
                           ),
                         ),
                       ),

@@ -123,12 +123,11 @@ void main() {
     );
     await t.tap(find.byType(SwitchListTile));
     await t.pumpAndSettle();
-    // Dark mode is not designed yet: the app stays light and a saved flag is
-    // cleared on load.
-    expect(TiffeStore(s.prefs).darkMode, isFalse);
+    // The switch turns dark mode on and the choice is saved.
+    expect(TiffeStore(s.prefs).darkMode, isTrue);
     expect(
       Theme.of(t.element(find.byType(Shell))).brightness,
-      Brightness.light,
+      Brightness.dark,
     );
     await capture(t, 'profile-dark-toggle');
     for (final tab in ['Home', 'Menu', 'Orders', 'Plan']) {

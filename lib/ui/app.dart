@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import 'gemini/auth_screens.dart' show GColors;
 import 'gemini/toast.dart';
 
 import 'package:flutter/services.dart';
@@ -63,7 +64,7 @@ abstract class TiffeState<T extends StatefulWidget> extends State<T> {
 ThemeData tiffeDarkTheme() => ThemeData(
   useMaterial3: true,
   brightness: Brightness.dark,
-  scaffoldBackgroundColor: const Color(0xFF131C17),
+  scaffoldBackgroundColor: const Color(0xFF0E1511),
   fontFamily: 'TiffeSans',
   colorScheme: ColorScheme.fromSeed(
     seedColor: const Color(0xFFA8D4A5),
@@ -125,6 +126,56 @@ String dayLabel(DateTime d) {
   return '${months[d.month - 1]} ${d.day}';
 }
 
+/// The customer light theme. Staff screens always use this one.
+ThemeData tiffeLightTheme() => ThemeData(
+  useMaterial3: true,
+  scaffoldBackgroundColor: cream,
+  colorScheme: ColorScheme.fromSeed(
+    seedColor: green,
+    primary: green,
+    surface: cream,
+  ),
+  fontFamily: 'TiffeSans',
+  textTheme: const TextTheme(
+    bodyMedium: TextStyle(color: ink, fontSize: 15, height: 1.45),
+  ),
+  appBarTheme: const AppBarTheme(
+    backgroundColor: cream,
+    foregroundColor: ink,
+    centerTitle: false,
+  ),
+  filledButtonTheme: FilledButtonThemeData(
+    style: FilledButton.styleFrom(
+      minimumSize: const Size(48, 54),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      textStyle: const TextStyle(
+        fontSize: 16,
+        fontWeight: FontWeight.w600,
+        fontFamily: 'TiffeSans',
+      ),
+    ),
+  ),
+  textButtonTheme: TextButtonThemeData(
+    style: TextButton.styleFrom(
+      textStyle: const TextStyle(fontFamily: 'TiffeSans', fontSize: 14),
+    ),
+  ),
+  outlinedButtonTheme: OutlinedButtonThemeData(
+    style: OutlinedButton.styleFrom(
+      textStyle: const TextStyle(fontFamily: 'TiffeSans', fontSize: 14),
+    ),
+  ),
+  inputDecorationTheme: InputDecorationTheme(
+    filled: true,
+    fillColor: Colors.white,
+    border: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(16),
+      borderSide: const BorderSide(color: Color(0xFFDCE2D7)),
+    ),
+    contentPadding: const EdgeInsets.all(18),
+  ),
+);
+
 class TiffeApp extends StatelessWidget {
   final TiffeStore store;
   final Widget? startScreen;
@@ -132,64 +183,17 @@ class TiffeApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) => ListenableBuilder(
     listenable: store,
-    builder: (context, _) => MaterialApp(
-      // Dark mode is not designed yet: always light.
-      themeMode: ThemeMode.light,
-      darkTheme: tiffeDarkTheme(),
-      debugShowCheckedModeBanner: false,
-      title: 'Tiffe',
-      theme: ThemeData(
-        useMaterial3: true,
-        scaffoldBackgroundColor: cream,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: green,
-          primary: green,
-          surface: cream,
-        ),
-        fontFamily: 'TiffeSans',
-        textTheme: const TextTheme(
-          bodyMedium: TextStyle(color: ink, fontSize: 15, height: 1.45),
-        ),
-        appBarTheme: const AppBarTheme(
-          backgroundColor: cream,
-          foregroundColor: ink,
-          centerTitle: false,
-        ),
-        filledButtonTheme: FilledButtonThemeData(
-          style: FilledButton.styleFrom(
-            minimumSize: const Size(48, 54),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            textStyle: const TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-              fontFamily: 'TiffeSans',
-            ),
-          ),
-        ),
-        textButtonTheme: TextButtonThemeData(
-          style: TextButton.styleFrom(
-            textStyle: const TextStyle(fontFamily: 'TiffeSans', fontSize: 14),
-          ),
-        ),
-        outlinedButtonTheme: OutlinedButtonThemeData(
-          style: OutlinedButton.styleFrom(
-            textStyle: const TextStyle(fontFamily: 'TiffeSans', fontSize: 14),
-          ),
-        ),
-        inputDecorationTheme: InputDecorationTheme(
-          filled: true,
-          fillColor: Colors.white,
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(16),
-            borderSide: const BorderSide(color: Color(0xFFDCE2D7)),
-          ),
-          contentPadding: const EdgeInsets.all(18),
-        ),
-      ),
-      home: startScreen ?? Splash(store: store),
-    ),
+    builder: (context, _) {
+      GColors.dark = store.darkMode;
+      return MaterialApp(
+        themeMode: store.darkMode ? ThemeMode.dark : ThemeMode.light,
+        darkTheme: tiffeDarkTheme(),
+        debugShowCheckedModeBanner: false,
+        title: 'Tiffe',
+        theme: tiffeLightTheme(),
+        home: startScreen ?? Splash(store: store),
+      );
+    },
   );
 }
 

@@ -51,7 +51,7 @@ class GPlans extends StatelessWidget {
       children: [
         Container(
           width: double.infinity,
-          decoration: const BoxDecoration(
+          decoration: BoxDecoration(
             color: GColors.green,
             borderRadius: BorderRadius.vertical(bottom: Radius.circular(32)),
           ),
@@ -125,7 +125,7 @@ class GPlans extends StatelessWidget {
     padding: const EdgeInsets.only(bottom: 18),
     child: Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: GColors.card,
         borderRadius: BorderRadius.circular(28),
         border: Border.all(
           color: p.popular ? GColors.green : GColors.line,
@@ -144,7 +144,7 @@ class GPlans extends StatelessWidget {
                   padding: EdgeInsets.only(top: p.popular ? 8 : 0),
                   child: Text(
                     p.name,
-                    style: gText(21, w: FontWeight.w800, c: GColors.green),
+                    style: gText(21, w: FontWeight.w800, c: GColors.ink),
                   ),
                 ),
                 const SizedBox(height: 6),
@@ -182,7 +182,7 @@ class GPlans extends StatelessWidget {
                             vertical: 5,
                           ),
                           decoration: BoxDecoration(
-                            color: const Color(0xFFEFEDE6),
+                            color: GColors.alt(const Color(0xFFEFEDE6), GColors.chip),
                             borderRadius: BorderRadius.circular(10),
                           ),
                           child: Text(
@@ -190,7 +190,7 @@ class GPlans extends StatelessWidget {
                             style: gText(
                               12,
                               w: FontWeight.w700,
-                              c: GColors.green,
+                              c: GColors.ink,
                             ),
                           ),
                         ),
@@ -205,7 +205,7 @@ class GPlans extends StatelessWidget {
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Icon(Icons.check, size: 18, color: GColors.green),
+                        Icon(Icons.check, size: 18, color: GColors.ink),
                         const SizedBox(width: 10),
                         Expanded(
                           child: Text(
@@ -232,14 +232,14 @@ class GPlans extends StatelessWidget {
                           ? const Color(0xFFE3EDE7)
                           : p.popular
                           ? GColors.green
-                          : const Color(0xFFF0EBE0),
+                          : GColors.alt(const Color(0xFFF0EBE0), GColors.chip),
                       borderRadius: BorderRadius.circular(18),
                     ),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         if (active) ...[
-                          const Icon(
+                          Icon(
                             Icons.check_circle,
                             size: 20,
                             color: GColors.green,

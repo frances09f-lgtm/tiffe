@@ -94,7 +94,7 @@ class GHome extends StatelessWidget {
                                 style: gText(
                                   17,
                                   w: FontWeight.w700,
-                                  c: GColors.green,
+                                  c: GColors.ink,
                                 ),
                               ),
                             ),
@@ -158,7 +158,7 @@ class GHome extends StatelessWidget {
 
   Widget _header(BuildContext context) => Container(
     width: double.infinity,
-    decoration: const BoxDecoration(
+    decoration: BoxDecoration(
       color: GColors.green,
       borderRadius: BorderRadius.vertical(bottom: Radius.circular(32)),
     ),
@@ -238,7 +238,7 @@ class GHome extends StatelessWidget {
               ),
               child: Text(
                 name.isEmpty ? '' : name[0].toUpperCase(),
-                style: gText(20, w: FontWeight.w700, c: GColors.green),
+                style: gText(20, w: FontWeight.w700, c: GColors.ink),
               ),
             ),
           ],
@@ -250,7 +250,7 @@ class GHome extends StatelessWidget {
   Widget _planCard() => Container(
     width: double.infinity,
     decoration: BoxDecoration(
-      color: Colors.white,
+      color: GColors.card,
       borderRadius: BorderRadius.circular(24),
       border: Border.all(color: GColors.line),
       boxShadow: const [
@@ -269,7 +269,7 @@ class GHome extends StatelessWidget {
             top: 0,
             child: Container(
               padding: const EdgeInsets.fromLTRB(14, 6, 16, 6),
-              decoration: const BoxDecoration(
+              decoration: BoxDecoration(
                 color: GColors.green,
                 borderRadius: BorderRadius.only(
                   topRight: Radius.circular(24),
@@ -298,13 +298,13 @@ class GHome extends StatelessWidget {
                     width: 44,
                     height: 44,
                     decoration: BoxDecoration(
-                      color: const Color(0xFFE8EBE9),
+                      color: GColors.alt(const Color(0xFFE8EBE9), GColors.chip),
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    child: const Icon(
+                    child: Icon(
                       Icons.event_available_outlined,
                       size: 22,
-                      color: GColors.green,
+                      color: GColors.ink,
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -317,7 +317,7 @@ class GHome extends StatelessWidget {
                           style: gText(
                             14.5,
                             w: FontWeight.w700,
-                            c: GColors.green,
+                            c: GColors.ink,
                           ),
                         ),
                         const SizedBox(height: 2),
@@ -364,7 +364,7 @@ class GHome extends StatelessWidget {
                   Expanded(
                     child: _planButton(
                       'View Schedule',
-                      const Color(0xFFE8EBE9),
+                      GColors.alt(const Color(0xFFE8EBE9), GColors.chip),
                       icon: Icons.calendar_today_outlined,
                       onTap: onViewSchedule,
                     ),
@@ -374,7 +374,7 @@ class GHome extends StatelessWidget {
                     Expanded(
                       child: _planButton(
                         'Pause Tomorrow',
-                        const Color(0xFFF0EBDD),
+                        GColors.alt(const Color(0xFFF0EBDD), GColors.chip),
                         onTap: onPauseTomorrow,
                       ),
                     ),
@@ -408,12 +408,12 @@ class GHome extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             if (icon != null) ...[
-              Icon(icon, size: 14, color: GColors.green),
+              Icon(icon, size: 14, color: GColors.ink),
               const SizedBox(width: 6),
             ],
             Text(
               label,
-              style: gText(12, w: FontWeight.w700, c: GColors.green),
+              style: gText(12, w: FontWeight.w700, c: GColors.ink),
             ),
           ],
         ),
@@ -423,7 +423,7 @@ class GHome extends StatelessWidget {
 
   Widget _thaliCard() => Container(
     decoration: BoxDecoration(
-      color: Colors.white,
+      color: GColors.card,
       borderRadius: BorderRadius.circular(24),
       border: Border.all(color: GColors.line),
       boxShadow: const [
@@ -504,7 +504,7 @@ class GHome extends StatelessWidget {
             children: [
               Text(
                 thaliTitle,
-                style: gText(15, w: FontWeight.w700, c: GColors.green),
+                style: gText(15, w: FontWeight.w700, c: GColors.ink),
               ),
               const SizedBox(height: 6),
               Text(
@@ -512,7 +512,7 @@ class GHome extends StatelessWidget {
                 style: gText(11.5, c: GColors.grey, height: 1.4),
               ),
               const SizedBox(height: 10),
-              const Divider(height: 1, color: GColors.line),
+              Divider(height: 1, color: GColors.line),
               const SizedBox(height: 10),
               Row(
                 children: [
@@ -527,7 +527,7 @@ class GHome extends StatelessWidget {
                       thaliNote,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: gText(11.5, w: FontWeight.w600, c: GColors.green),
+                      style: gText(11.5, w: FontWeight.w600, c: GColors.ink),
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -569,7 +569,7 @@ class GHome extends StatelessWidget {
     child: Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: GColors.card,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: GColors.line),
       ),
@@ -589,7 +589,7 @@ class GHome extends StatelessWidget {
             fit: BoxFit.scaleDown,
             child: Text(
               title,
-              style: gText(12, w: FontWeight.w700, c: GColors.green),
+              style: gText(12, w: FontWeight.w700, c: GColors.ink),
             ),
           ),
           const SizedBox(height: 4),
@@ -608,7 +608,7 @@ class GHome extends StatelessWidget {
     children: [
       Text(
         'Quick Order Options',
-        style: gText(16, w: FontWeight.w700, c: GColors.green),
+        style: gText(16, w: FontWeight.w700, c: GColors.ink),
       ),
       const SizedBox(height: 12),
       IntrinsicHeight(
@@ -629,8 +629,8 @@ class GHome extends StatelessWidget {
             Expanded(
               child: _quickCard(
                 Icons.repeat,
-                const Color(0x1A1B3B2B),
-                GColors.green,
+                GColors.tint,
+                GColors.ink,
                 'Monthly Tiffin',
                 monthlySub,
                 onQuickMonthly,
@@ -660,8 +660,8 @@ class GBottomNav extends StatelessWidget {
       [Icons.person_outline, Icons.person, 'Profile'],
     ];
     return Container(
-      decoration: const BoxDecoration(
-        color: Colors.white,
+      decoration: BoxDecoration(
+        color: GColors.card,
         border: Border(top: BorderSide(color: GColors.line)),
       ),
       padding: const EdgeInsets.only(top: 8, bottom: 14),
