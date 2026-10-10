@@ -110,6 +110,10 @@ void main() {
           cfg: ContentBackend().fixture['settings'],
           menuRows: (ContentBackend().fixture['menu'] as List)
               .cast<Map<String, dynamic>>(),
+          initialBhajis: [
+            for (final m in (ContentBackend().fixture['menu'] as List).take(2))
+              (m as Map)['id'] as String,
+          ],
         ),
       ),
     );
@@ -120,6 +124,17 @@ void main() {
     await t.ensureVisible(find.text('Add a second tiffin'));
     await t.pumpAndSettle();
     await t.tap(find.text('Add a second tiffin'));
+    await t.pumpAndSettle();
+    // The Menu page opens to pick the second tiffin's bhajis.
+    final names = [
+      for (final m in (ContentBackend().fixture['menu'] as List).take(2))
+        (m as Map)['name'] as String,
+    ];
+    for (final n in names) {
+      await t.tap(find.text(n));
+      await t.pumpAndSettle();
+    }
+    await t.tap(find.text('Order'));
     await t.pumpAndSettle();
     expect(find.text('₹180'), findsWidgets);
     expect(find.text('Total Amount'), findsOneWidget);

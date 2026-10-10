@@ -4615,6 +4615,68 @@ class _OrderSheetState extends State<OrderSheet> {
   String? error;
   late final String idempotencyKey = newOrderKey();
 
+  @override
+  void initState() {
+    super.initState();
+    // No complete selection yet: send the customer straight to the Menu.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && tiffins[0].length < 2) _pick(0);
+    });
+  }
+
+  int get _firstIncomplete {
+    for (var i = 0; i < tiffins.length; i++) {
+      if (tiffins[i].length < 2) return i;
+    }
+    return -1;
+  }
+
+  /// Bhajis are chosen on the Menu page; checkout only uses the result.
+  Future<bool> _pick(int i) async {
+    final avail = widget.menuRows.where((m) => m['available'] == true).toList();
+    final extraR = ((widget.cfg['extra_bhaji_paise'] as num?) ?? 0) ~/ 100;
+    final names = {
+      for (final m in avail) m['name'] as String: m['id'] as String,
+    };
+    final chosen = await Navigator.of(context).push<List<String>>(
+      MaterialPageRoute<List<String>>(
+        builder: (c) => GMenu(
+          categories: const ['Today’s Menu'],
+          items: [
+            [
+              for (final m in avail)
+                GMenuItem(
+                  m['name'] as String,
+                  (m['description'] as String?) ?? '',
+                  '',
+                  '',
+                  food.menu.any((f) => f.name == m['name'])
+                      ? food.menu.firstWhere((f) => f.name == m['name']).image
+                      : 'assets/food/hero.jpg',
+                ),
+            ],
+          ],
+          showWeekly: false,
+          maxPick: 8,
+          extraRupees: extraR,
+          initialSelected: [
+            for (var k = 0; k < avail.length; k++)
+              if (tiffins[i].contains(avail[k]['id'])) k,
+          ],
+          onTab: (_) => Navigator.of(c).maybePop(),
+          onOrder: (sel) =>
+              Navigator.of(c).pop([for (final it in sel) names[it.title]!]),
+        ),
+      ),
+    );
+    if (chosen == null || !mounted) return false;
+    setState(() {
+      error = null;
+      tiffins[i] = {...chosen};
+    });
+    return true;
+  }
+
   static String newOrderKey() {
     final r = Random();
     final h = List.generate(32, (_) => r.nextInt(16));
@@ -4705,7 +4767,6 @@ class _OrderSheetState extends State<OrderSheet> {
   @override
   Widget build(BuildContext context) {
     final extra = (widget.cfg['extra_bhaji_paise'] as int? ?? 0) ~/ 100;
-    final rows = widget.menuRows.where((m) => m['available'] == true).toList();
     final extras =
         tiffins.fold<int>(
           0,
@@ -4896,63 +4957,6 @@ class _OrderSheetState extends State<OrderSheet> {
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          h('Make it your dabba'),
-                          for (var i = 0; i < tiffins.length; i++) ...[
-                            Text(
-                              'Tiffin ${i + 1}: pick 2 to 8 bhajis'
-                              '${extra > 0 ? ' (extra ₹$extra each after the first two)' : ''}',
-                              style: gText(
-                                13,
-                                w: FontWeight.w700,
-                                c: GColors.charcoal,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            Wrap(
-                              spacing: 8,
-                              runSpacing: 8,
-                              children: rows
-                                  .map(
-                                    (m) => FilterChip(
-                                      label: Text(m['name'] as String),
-                                      selected: tiffins[i].contains(
-                                        m['id'] as String,
-                                      ),
-                                      onSelected: busy
-                                          ? null
-                                          : (v) => setState(() {
-                                              error = null;
-                                              if (v) {
-                                                tiffins[i].add(
-                                                  m['id'] as String,
-                                                );
-                                              } else {
-                                                tiffins[i].remove(
-                                                  m['id'] as String,
-                                                );
-                                              }
-                                            }),
-                                    ),
-                                  )
-                                  .toList(),
-                            ),
-                            const SizedBox(height: 14),
-                          ],
-                          if (tiffins.length < 2 && !sub)
-                            TextButton.icon(
-                              onPressed: busy
-                                  ? null
-                                  : () => setState(() => tiffins.add({})),
-                              icon: const Icon(Icons.add),
-                              label: const Text('Add a second tiffin'),
-                            ),
-                        ],
-                      ),
-                    ),
-                    card(
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
                           h('Kitchen Notes'),
                           TextField(
                             controller: instructions,
@@ -4969,12 +4973,54 @@ class _OrderSheetState extends State<OrderSheet> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           h('Order Summary'),
-                          for (var i = 0; i < tiffins.length; i++)
+                          for (var i = 0; i < tiffins.length; i++) ...[
                             line(
                               tiffins[i].isEmpty
-                                  ? 'Tiffin ${i + 1}'
+                                  ? 'Tiffin ${i + 1}: no bhajis picked yet'
                                   : 'Tiffin ${i + 1} (${_names(tiffins[i])})',
                               sub ? 'In your plan' : '₹$oneTime',
+                            ),
+                            Align(
+                              alignment: Alignment.centerLeft,
+                              child: TextButton(
+                                onPressed: busy ? null : () => _pick(i),
+                                style: TextButton.styleFrom(
+                                  foregroundColor: GColors.saffron,
+                                  padding: EdgeInsets.zero,
+                                  minimumSize: const Size(0, 32),
+                                  tapTargetSize:
+                                      MaterialTapTargetSize.shrinkWrap,
+                                  textStyle: gText(12.5, w: FontWeight.w700),
+                                ),
+                                child: Text(
+                                  tiffins[i].isEmpty
+                                      ? 'Pick bhajis from the Menu'
+                                      : 'Change bhajis in the Menu',
+                                ),
+                              ),
+                            ),
+                          ],
+                          if (tiffins.length < 2 && !sub)
+                            Align(
+                              alignment: Alignment.centerLeft,
+                              child: TextButton.icon(
+                                onPressed: busy
+                                    ? null
+                                    : () async {
+                                        setState(() => tiffins.add({}));
+                                        final ok = await _pick(1);
+                                        if (!ok && mounted) {
+                                          setState(() => tiffins.removeLast());
+                                        }
+                                      },
+                                style: TextButton.styleFrom(
+                                  foregroundColor: GColors.saffron,
+                                  padding: EdgeInsets.zero,
+                                  textStyle: gText(12.5, w: FontWeight.w700),
+                                ),
+                                icon: const Icon(Icons.add, size: 18),
+                                label: const Text('Add a second tiffin'),
+                              ),
                             ),
                           if (extras > 0) line('Extra bhajis', '₹$extras'),
                           line(
@@ -5019,10 +5065,16 @@ class _OrderSheetState extends State<OrderSheet> {
                 child: GButton(
                   busy
                       ? 'Placing...'
+                      : _firstIncomplete >= 0
+                      ? 'Pick bhajis from the Menu'
                       : pricePaise == 0
                       ? 'Place Order'
                       : 'Pay $total & Place Order',
-                  onPressed: busy ? null : place,
+                  onPressed: busy
+                      ? null
+                      : _firstIncomplete >= 0
+                      ? () => _pick(_firstIncomplete)
+                      : place,
                 ),
               ),
             ],
