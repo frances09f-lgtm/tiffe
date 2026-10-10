@@ -24,6 +24,8 @@ void main() {
     expect(currentBuild, int.parse(appVersion.split('+').last));
   });
 
+  manualTests();
+
   testWidgets('newer release shows popup; Update opens Firebase page', (
     t,
   ) async {
@@ -69,5 +71,52 @@ void main() {
       await t.pumpAndSettle();
       expect(find.text('New version available'), findsNothing);
     }
+  });
+}
+
+void manualTests() {
+  testWidgets('manual check ignores snooze and says up to date / failed', (
+    t,
+  ) async {
+    SharedPreferences.setMockInitialValues({
+      UpdateCheck.snoozeKey: DateTime.now().millisecondsSinceEpoch + 99999999,
+      UpdateCheck.checkedKey: DateTime.now().millisecondsSinceEpoch,
+    });
+    final prefs = await SharedPreferences.getInstance();
+    late BuildContext ctx;
+    await t.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Builder(
+            builder: (c) {
+              ctx = c;
+              return const SizedBox();
+            },
+          ),
+        ),
+      ),
+    );
+    await UpdateCheck.run(
+      ctx,
+      prefs,
+      manual: true,
+      fetch: () async => currentBuild,
+    );
+    await t.pump();
+    expect(find.text('You are up to date (v$currentBuild).'), findsOneWidget);
+    await UpdateCheck.run(ctx, prefs, manual: true, fetch: () async => null);
+    await t.pump();
+    expect(find.textContaining('Could not check'), findsOneWidget);
+    final f = UpdateCheck.run(
+      ctx,
+      prefs,
+      manual: true,
+      fetch: () async => currentBuild + 1,
+    );
+    await t.pumpAndSettle();
+    expect(find.text('New version available'), findsOneWidget);
+    await t.tap(find.text('Later'));
+    await t.pumpAndSettle();
+    await f;
   });
 }

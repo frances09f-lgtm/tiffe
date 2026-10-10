@@ -3560,9 +3560,21 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
                 const Divider(),
                 ListTile(
                   contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.system_update_outlined),
+                  title: const Text('Check for updates'),
+                  subtitle: Text('Version $appVersion'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => UpdateCheck.run(
+                    context,
+                    widget.store.prefs,
+                    manual: true,
+                  ),
+                ),
+                const Divider(),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
                   leading: const Icon(Icons.flag_outlined),
                   title: const Text('Report a problem'),
-                  subtitle: Text('Version $appVersion'),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: reportProblem,
                 ),

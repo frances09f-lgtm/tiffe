@@ -57,14 +57,33 @@ class UpdateCheck {
     BuildContext context,
     SharedPreferences prefs, {
     FetchLatest fetch = fetchLatestBuild,
+    bool manual = false,
   }) async {
     final now = DateTime.now().millisecondsSinceEpoch;
     final last = prefs.getInt(checkedKey) ?? 0;
     final snoozed = prefs.getInt(snoozeKey) ?? 0;
-    if (now - last < every.inMilliseconds || now < snoozed) return;
+    // Automatic checks respect the 6h gap and the Later snooze; the Check
+    // for updates button always asks and always answers.
+    if (!manual && (now - last < every.inMilliseconds || now < snoozed)) return;
     await prefs.setInt(checkedKey, now);
     final latest = await fetch();
-    if (latest == null || latest <= currentBuild || !context.mounted) return;
+    if (!context.mounted) return;
+    if (latest == null || latest <= currentBuild) {
+      if (manual) {
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(
+            SnackBar(
+              content: Text(
+                latest == null
+                    ? 'Could not check for updates. Please try again later.'
+                    : 'You are up to date (v$currentBuild).',
+              ),
+            ),
+          );
+      }
+      return;
+    }
     final update = await showDialog<bool>(
       context: context,
       builder: (d) => AlertDialog(
