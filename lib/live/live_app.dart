@@ -4226,10 +4226,10 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
               'Confirmed' => 'Order Confirmed',
               'Preparing' =>
                 done
-                    ? 'Meal Prepared in the Kitchen'
+                    ? 'Meal Prepared in Hygienic Kitchen'
                     : 'Meal being prepared in the kitchen',
               'Packed' =>
-                done ? 'Packed and Ready for Dispatch' : 'Packing your order',
+                done ? 'Packed in Insulated Thermal Bag' : 'Packing your order',
               'Out for Delivery' =>
                 rider == null
                     ? 'Out for Delivery'
