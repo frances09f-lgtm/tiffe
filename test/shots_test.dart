@@ -70,29 +70,47 @@ Future<void> capture(WidgetTester t, String name) async {
   });
 }
 
-
 void main() {
   setUpAll(() async {
     TestWidgetsFlutterBinding.ensureInitialized();
     final icons = FontLoader('MaterialIcons')
       ..addFont(rootBundle.load('assets/fonts/MaterialIcons-Regular.otf'));
     await icons.load();
-    for (final f in {'Inter': ['Inter-400','Inter-600','Inter-700'], 'PlusJakartaSans': ['Jakarta-400','Jakarta-600','Jakarta-700'], 'TiffeSans': ['Roboto-Regular','Roboto-Bold']}.entries) {
+    for (final f in {
+      'Inter': ['Inter-400', 'Inter-600', 'Inter-700'],
+      'PlusJakartaSans': ['Jakarta-400', 'Jakarta-600', 'Jakarta-700'],
+      'TiffeSans': ['Roboto-Regular', 'Roboto-Bold'],
+    }.entries) {
       final l = FontLoader(f.key);
-      for (final n in f.value) { l.addFont(rootBundle.load('assets/fonts/$n.ttf')); }
+      for (final n in f.value) {
+        l.addFont(rootBundle.load('assets/fonts/$n.ttf'));
+      }
       await l.load();
     }
     Directory('/tmp/shots').createSync(recursive: true);
   });
   testWidgets('shots', (t) async {
     SharedPreferences.setMockInitialValues({});
-    final s = TiffeStore(await SharedPreferences.getInstance())..darkMode = const bool.fromEnvironment('DARK');
+    final s = TiffeStore(await SharedPreferences.getInstance())
+      ..darkMode = const bool.fromEnvironment('DARK');
     t.view.physicalSize = const Size(390, 1900);
     t.view.devicePixelRatio = 1;
     final b = ContentBackend();
-    await t.pumpWidget(RepaintBoundary(child: TiffeApp(store: s, startScreen: LiveWorkspace(backend: b, store: s))));
+    await t.pumpWidget(
+      RepaintBoundary(
+        child: TiffeApp(
+          store: s,
+          startScreen: LiveWorkspace(backend: b, store: s),
+        ),
+      ),
+    );
     await capture(t, 'home');
-    for (final e in {'Menu': 'menu', 'Orders': 'orders', 'Plan': 'plan', 'Profile': 'profile'}.entries) {
+    for (final e in {
+      'Menu': 'menu',
+      'Orders': 'orders',
+      'Plan': 'plan',
+      'Profile': 'profile',
+    }.entries) {
       await t.tap(find.text(e.key).last);
       await t.pumpAndSettle();
       await capture(t, e.value);
@@ -121,28 +139,42 @@ void main() {
     t.view.devicePixelRatio = 1;
     final b = ContentBackend();
     Future<void> show(String n, Widget w) async {
-      await t.pumpWidget(RepaintBoundary(child: TiffeApp(store: s, startScreen: CustomerStyle(child: w))));
+      await t.pumpWidget(
+        RepaintBoundary(
+          child: TiffeApp(
+            store: s,
+            startScreen: CustomerStyle(child: w),
+          ),
+        ),
+      );
       await t.pump(const Duration(milliseconds: 300));
       await t.runAsync(() => Future.delayed(const Duration(milliseconds: 400)));
       await t.pump(const Duration(milliseconds: 1500));
-      final bd = t.firstRenderObject<RenderRepaintBoundary>(find.byType(RepaintBoundary));
+      final bd = t.firstRenderObject<RenderRepaintBoundary>(
+        find.byType(RepaintBoundary),
+      );
       await t.runAsync(() async {
         final image = await bd.toImage();
         final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
-        await File('/tmp/shots/$n.png').writeAsBytes(bytes!.buffer.asUint8List());
+        await File('/tmp/shots/$n.png')
+            .writeAsBytes(bytes!.buffer.asUint8List());
       });
     }
+
     await show('splash', const CustomerSplash());
     await show('welcome', CustomerWelcome(onContinue: () {}));
     await show('offline', CustomerOffline(busy: false, onRetry: () {}));
     await show('signin', SignIn(backend: b));
     await t.tap(find.text('New to Tiffe? Create account'));
     await t.pump(const Duration(milliseconds: 500));
-    final bd2 = t.firstRenderObject<RenderRepaintBoundary>(find.byType(RepaintBoundary));
+    final bd2 = t.firstRenderObject<RenderRepaintBoundary>(
+      find.byType(RepaintBoundary),
+    );
     await t.runAsync(() async {
       final image = await bd2.toImage();
       final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
-      await File('/tmp/shots/register.png').writeAsBytes(bytes!.buffer.asUint8List());
+      await File('/tmp/shots/register.png')
+          .writeAsBytes(bytes!.buffer.asUint8List());
     });
   });
 }

@@ -5,6 +5,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'package:flutter/material.dart';
 
+import '../ui/tracking_map.dart';
+
 import '../data/store.dart';
 import '../domain/tiffin.dart' as food;
 import '../ui/app.dart' show palette, panel, Logo, TiffePalette;
@@ -1954,6 +1956,25 @@ class _LiveWorkspaceState extends State<LiveWorkspace> {
           ),
         const SizedBox(height: 20),
       ],
+    );
+  }
+
+  Widget trackingCard() {
+    Map<String, dynamic>? live;
+    for (final o in orderRows) {
+      if (o['status'] == 'Out for Delivery') live = o;
+    }
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 20),
+      child: TrackingMap(
+        area: area.text.trim(),
+        kitchenStatus: live?['status'] as String?,
+        etaText: live == null
+            ? null
+            : live['eta_at'] == null
+            ? 'The kitchen has not shared an arrival time yet.'
+            : 'Kitchen estimate: ${live['eta_at']}.',
+      ),
     );
   }
 
@@ -4009,6 +4030,7 @@ class _LiveWorkspaceState extends State<LiveWorkspace> {
               serviceAreas(),
             ],
             if (tab == 2) ...[
+              if (!admin) trackingCard(),
               if (!admin) data(orderStream, mealCalendar),
               orders(),
               orderGuide(admin),

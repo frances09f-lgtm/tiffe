@@ -196,6 +196,11 @@ void main() {
             expect(find.text('Unavailable'), findsOneWidget);
           }
           if (entry.value == 2) {
+            await t.scrollUntilVisible(
+              find.text(admin ? 'No orders to prepare' : 'No orders yet'),
+              300,
+              scrollable: find.byType(Scrollable).first,
+            );
             expect(
               find.text(admin ? 'No orders to prepare' : 'No orders yet'),
               findsOneWidget,
@@ -205,8 +210,14 @@ void main() {
           if (entry.value == 3) {
             expect(find.text('Daily Tiffe'), findsOneWidget);
             expect(find.text('Double Tiffe'), findsOneWidget);
-            expect(find.text(admin ? '₹1500 / month' : '₹1500'), findsOneWidget);
-            expect(find.text(admin ? '₹3000 / month' : '₹3000'), findsOneWidget);
+            expect(
+              find.text(admin ? '₹1500 / month' : '₹1500'),
+              findsOneWidget,
+            );
+            expect(
+              find.text(admin ? '₹3000 / month' : '₹3000'),
+              findsOneWidget,
+            );
           }
           await t.drag(list, const Offset(0, -1500));
           await t.pumpAndSettle();
