@@ -22,6 +22,9 @@ class TrackingMap extends StatefulWidget {
   final String area;
   final String? kitchenStatus; // real order status, if an order is active
   final String? etaText; // real kitchen-set ETA, if any
+  /// Live Delivery Tracking page: map plus the preview disclaimer only.
+  final bool compact;
+
   /// Tests switch this off so pumpAndSettle can finish.
   static bool animateDemo = true;
   const TrackingMap({
@@ -29,6 +32,7 @@ class TrackingMap extends StatefulWidget {
     required this.area,
     this.kitchenStatus,
     this.etaText,
+    this.compact = false,
   });
   @override
   State<TrackingMap> createState() => _TrackingMapState();
@@ -282,23 +286,25 @@ class _TrackingMapState extends State<TrackingMap>
                         ),
                       ),
                     ),
-                    const SizedBox(height: 12),
-                    Text(
-                      'Arriving',
-                      style: TextStyle(
-                        fontFamily: 'PlusJakartaSans',
-                        fontSize: 26,
-                        fontWeight: FontWeight.w700,
-                        color: dark
-                            ? const Color(0xFFA8D4A5)
-                            : const Color(0xFF012D1D),
+                    if (!widget.compact) ...[
+                      const SizedBox(height: 12),
+                      Text(
+                        'Arriving',
+                        style: TextStyle(
+                          fontFamily: 'PlusJakartaSans',
+                          fontSize: 26,
+                          fontWeight: FontWeight.w700,
+                          color: dark
+                              ? const Color(0xFFA8D4A5)
+                              : const Color(0xFF012D1D),
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '$km km away - about $mins min (preview)',
-                      style: const TextStyle(fontSize: 14),
-                    ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '$km km away - about $mins min (preview)',
+                        style: const TextStyle(fontSize: 14),
+                      ),
+                    ],
                     const SizedBox(height: 10),
                     Text(
                       'The delivery partner on this map is a simulated preview and the pin marks the centre of ${widget.area.isEmpty ? 'your area' : widget.area}, not your exact door. '
@@ -311,7 +317,7 @@ class _TrackingMapState extends State<TrackingMap>
                             : const Color(0xFF738074),
                       ),
                     ),
-                    if (widget.etaText != null) ...[
+                    if (widget.etaText != null && !widget.compact) ...[
                       const SizedBox(height: 8),
                       Text(
                         widget.etaText!,

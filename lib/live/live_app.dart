@@ -1890,7 +1890,7 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
     );
   }
 
-  Widget trackingCard() {
+  Widget trackingCard({bool compact = false}) {
     Map<String, dynamic>? live;
     for (final o in orderRows) {
       if (o['status'] == 'Out for Delivery') live = o;
@@ -1898,6 +1898,7 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
     return Padding(
       padding: const EdgeInsets.only(bottom: 20),
       child: TrackingMap(
+        compact: compact,
         area: area.text.trim(),
         kitchenStatus: live?['status'] as String?,
         etaText: live == null
@@ -4146,7 +4147,7 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
               detail: eta != null
                   ? 'Your order is out for delivery. The rider on the map below is a simulated preview, not your exact door.'
                   : 'The kitchen has not shared an arrival time yet. The rider on the map below is a simulated preview.',
-              map: trackingCard(),
+              map: trackingCard(compact: true),
             );
           },
         ),

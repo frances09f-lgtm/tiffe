@@ -328,6 +328,9 @@ void main() {
       await t.tap(find.text('Live Map Tracking'));
       await t.pumpAndSettle();
       expect(find.text('Live Delivery Tracking'), findsOneWidget);
+      expect(find.text('Arriving'), findsNothing);
+      expect(find.textContaining('(preview)'), findsNothing);
+      expect(find.textContaining('simulated preview'), findsWidgets);
       await shot(t, 'live_${dark ? 'dark' : 'light'}');
       await t.tap(find.byIcon(Icons.arrow_back).first);
       await t.pumpAndSettle();
