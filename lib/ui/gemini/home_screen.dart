@@ -255,7 +255,7 @@ class GHome extends StatelessWidget {
             ),
           ),
         Padding(
-          padding: const EdgeInsets.all(18),
+          padding: EdgeInsets.fromLTRB(18, hasPlan ? 34 : 18, 18, 18),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [

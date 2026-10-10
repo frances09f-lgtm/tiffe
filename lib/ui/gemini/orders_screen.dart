@@ -108,7 +108,7 @@ class GOrders extends StatelessWidget {
           children: [
             Expanded(
               child: Text(
-                '${o.id} • ${o.kind}',
+                o.id,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: gText(10.5, w: FontWeight.w600, c: GColors.grey),
@@ -153,7 +153,12 @@ class GOrders extends StatelessWidget {
                     style: gText(14, w: FontWeight.w700, c: GColors.green),
                   ),
                   const SizedBox(height: 2),
-                  Text(o.when, style: gText(11, c: GColors.grey)),
+                  Text(
+                    '${o.when} • ${o.kind}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: gText(11, c: GColors.grey),
+                  ),
                 ],
               ),
             ),

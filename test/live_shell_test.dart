@@ -152,4 +152,90 @@ void main() {
       expect(t.takeException(), isNull);
     });
   }
+
+  testWidgets('home and orders with a plan and orders at 320px x1.3', (
+    t,
+  ) async {
+    t.view.physicalSize = const Size(320, 900);
+    t.view.devicePixelRatio = 1;
+    addTearDown(t.view.resetPhysicalSize);
+    addTearDown(t.view.resetDevicePixelRatio);
+    SharedPreferences.setMockInitialValues({});
+    final store = TiffeStore(await SharedPreferences.getInstance());
+    final now = DateTime.now().toUtc().add(
+      const Duration(hours: 5, minutes: 30),
+    );
+    String d(int k) {
+      final x = now.add(Duration(days: k));
+      return '${x.year}-${x.month.toString().padLeft(2, '0')}-${x.day.toString().padLeft(2, '0')}';
+    }
+
+    final b = DataBackend()
+      ..orderRows = [
+        for (final e in [
+          ['11111111-aaaa', d(0), 'Out for Delivery', 2],
+          ['22222222-bbbb', d(-1), 'Delivered', 1],
+        ])
+          {
+            'id': e[0],
+            'delivery_date': e[1],
+            'quantity': e[3],
+            'status': e[2],
+            'total_paise': 12000,
+            'payment_status': 'verified',
+            'eta_at': null,
+            'subscription_id': null,
+          },
+      ];
+    await t.pumpWidget(
+      RepaintBoundary(
+        child: MediaQuery(
+          data: const MediaQueryData(
+            size: Size(320, 900),
+            textScaler: TextScaler.linear(1.3),
+          ),
+          child: TiffeApp(
+            store: store,
+            startScreen: LiveWorkspace(backend: b, store: store),
+          ),
+        ),
+      ),
+    );
+    await t.runAsync(() async {
+      final ctx = t.element(find.byType(LiveWorkspace));
+      for (final f in Directory('assets/food').listSync().whereType<File>()) {
+        await precacheImage(AssetImage(f.path), ctx);
+      }
+    });
+    await t.pumpAndSettle();
+    await shot(t, 'home_data');
+    expect(find.text('Double Tiffe'), findsOneWidget);
+    expect(find.text('Out for Delivery'), findsWidgets);
+    await t.tap(
+      find.descendant(
+        of: find.byType(GBottomNav),
+        matching: find.text('Orders'),
+      ),
+    );
+    await t.pumpAndSettle();
+    await shot(t, 'orders_data');
+    await t.tap(find.text('Track Details').first);
+    await t.pumpAndSettle();
+    await shot(t, 'track_data');
+    expect(t.takeException(), isNull);
+  });
+}
+
+class DataBackend extends ContentBackend {
+  @override
+  Stream<List<Map<String, dynamic>>> subscriptions() => Stream.value([
+    {
+      'id': 'sub-1',
+      'customer_id': 'fixture-customer',
+      'plan': 'double',
+      'starts_on': '2020-01-01',
+      'ends_on': '2099-01-31',
+      'verified': true,
+    },
+  ]);
 }
