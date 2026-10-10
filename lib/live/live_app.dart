@@ -5520,21 +5520,6 @@ class _OrderSheetState extends State<OrderSheet> {
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          h('Kitchen Notes'),
-                          TextField(
-                            controller: instructions,
-                            maxLength: 200,
-                            decoration: const InputDecoration(
-                              labelText: 'Note for the kitchen (optional)',
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    card(
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
                           h('Price Breakdown'),
                           for (var i = 0; i < tiffins.length; i++) ...[
                             line(

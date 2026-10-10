@@ -138,6 +138,8 @@ void main() {
     expect(find.textContaining('Place Order'), findsOneWidget);
     expect(find.text('Make it your dabba'), findsNothing);
     expect(find.byType(FilterChip), findsNothing);
+    expect(find.text('Kitchen Notes'), findsNothing);
+    expect(find.text('Note for the kitchen (optional)'), findsNothing);
     expect(find.text('Tiffin 1 (Batata Bhaji, Matki Usal)'), findsOneWidget);
     // Two bhajis: total ₹100, one call, one idempotency key.
     expect(find.textContaining('Total: ₹100'), findsOneWidget);
