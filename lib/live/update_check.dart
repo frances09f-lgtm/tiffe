@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 
+import '../ui/gemini/auth_screens.dart';
 import '../ui/gemini/toast.dart';
 
 import 'package:shared_preferences/shared_preferences.dart';
@@ -35,7 +36,9 @@ Future<int?> fetchLatestBuild() async {
     final res = await req.close().timeout(const Duration(seconds: 8));
     if (res.statusCode != 200) return null;
     final body = await res.transform(utf8.decoder).join();
-    final tag = (jsonDecode(body) as Map)['tag_name'] as String?;
+    final json = jsonDecode(body) as Map;
+    final tag = json['tag_name'] as String?;
+    UpdateCheck.latestNote = _firstNote(json['body'] as String?);
     final m = RegExp(r'^v(\d+)$').firstMatch(tag ?? '');
     return m == null ? null : int.parse(m.group(1)!);
   } catch (_) {
@@ -45,7 +48,31 @@ Future<int?> fetchLatestBuild() async {
   }
 }
 
+/// First readable line of the release notes, without markdown marks.
+String? _firstNote(String? body) {
+  for (final raw in (body ?? '').split('\n')) {
+    final l = raw
+        .replaceAll(RegExp(r'[#*`>_]'), '')
+        .replaceFirst(RegExp(r'^\s*-\s*'), '')
+        .trim();
+    if (l.isNotEmpty) return l.length > 160 ? '${l.substring(0, 157)}...' : l;
+  }
+  return null;
+}
+
 class UpdateCheck {
+  static const knownKey = 'update_known_build';
+
+  /// Newer build known to exist, or null. Drives the Home banner.
+  static final ValueNotifier<int?> available = ValueNotifier<int?>(null);
+  static String? latestNote;
+
+  /// Restores the banner from the last check so it stays until updated.
+  static void restore(SharedPreferences prefs) {
+    final known = prefs.getInt(knownKey) ?? 0;
+    available.value = known > currentBuild ? known : null;
+  }
+
   static const snoozeKey = 'update_snooze';
   static const checkedKey = 'update_checked_at';
   static const every = Duration(hours: 6);
@@ -70,6 +97,10 @@ class UpdateCheck {
     if (!manual && (now - last < every.inMilliseconds || now < snoozed)) return;
     await prefs.setInt(checkedKey, now);
     final latest = await fetch();
+    if (latest != null) {
+      await prefs.setInt(knownKey, latest);
+      available.value = latest > currentBuild ? latest : null;
+    }
     if (!context.mounted) return;
     if (latest == null || latest <= currentBuild) {
       if (manual) {
@@ -82,19 +113,51 @@ class UpdateCheck {
       }
       return;
     }
+    final note = latestNote;
     final update = await showDialog<bool>(
       context: context,
       builder: (d) => AlertDialog(
-        title: const Text('New version available'),
-        content: Text('Tiffe v$latest is ready.'),
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        title: Text(
+          'New version available',
+          style: gText(18, w: FontWeight.w800, c: GColors.green),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Tiffe v$latest is ready.',
+              style: gText(14, w: FontWeight.w600, c: GColors.charcoal),
+            ),
+            if (note != null) ...[
+              const SizedBox(height: 8),
+              Text(note, style: gText(13, c: GColors.grey, height: 1.4)),
+            ],
+          ],
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(d, false),
-            child: const Text('Later'),
+            child: Text(
+              'Later',
+              style: gText(14, w: FontWeight.w700, c: GColors.grey),
+            ),
           ),
           FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: GColors.saffron,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
+            ),
             onPressed: () => Navigator.pop(d, true),
-            child: const Text('Update'),
+            child: Text(
+              'Update',
+              style: gText(14, w: FontWeight.w700, c: Colors.white),
+            ),
           ),
         ],
       ),

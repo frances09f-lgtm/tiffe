@@ -43,6 +43,22 @@ void main() {
     expect(opened.toString(), updatePage);
   });
 
+  testWidgets('known newer build drives the Home banner until updated', (
+    t,
+  ) async {
+    SharedPreferences.setMockInitialValues({
+      UpdateCheck.knownKey: currentBuild + 1,
+    });
+    final prefs = await SharedPreferences.getInstance();
+    UpdateCheck.restore(prefs);
+    expect(UpdateCheck.available.value, currentBuild + 1);
+    SharedPreferences.setMockInitialValues({
+      UpdateCheck.knownKey: currentBuild,
+    });
+    UpdateCheck.restore(await SharedPreferences.getInstance());
+    expect(UpdateCheck.available.value, isNull);
+  });
+
   testWidgets('Later snoozes; up to date or offline shows nothing', (t) async {
     SharedPreferences.setMockInitialValues({});
     final prefs = await SharedPreferences.getInstance();

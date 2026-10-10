@@ -17,6 +17,8 @@ class GHome extends StatelessWidget {
   final VoidCallback? onViewSchedule, onPauseTomorrow, onViewMenu, onOrder;
   final int tab;
   final ValueChanged<int>? onTab;
+  final int? updateBuild;
+  final VoidCallback? onUpdate;
   const GHome({
     super.key,
     required this.address,
@@ -33,6 +35,8 @@ class GHome extends StatelessWidget {
     this.showPause = true,
     this.hasPlan = true,
     this.showBell = true,
+    this.updateBuild,
+    this.onUpdate,
     this.showFeatured = true,
     this.onQuickOne,
     this.onQuickMonthly,
@@ -76,6 +80,10 @@ class GHome extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        if (updateBuild != null) ...[
+                          _updateBanner(),
+                          const SizedBox(height: 12),
+                        ],
                         _planCard(),
                         const SizedBox(height: 26),
                         Row(
@@ -120,6 +128,31 @@ class GHome extends StatelessWidget {
         ),
         _nav(),
       ],
+    ),
+  );
+
+  Widget _updateBanner() => GestureDetector(
+    onTap: onUpdate,
+    child: Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: GColors.saffron,
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.system_update_alt, color: Colors.white, size: 22),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              'Update available: Tiffe v$updateBuild. Tap to update.',
+              style: gText(12.5, w: FontWeight.w700, c: Colors.white),
+            ),
+          ),
+          const Icon(Icons.chevron_right, color: Colors.white, size: 20),
+        ],
+      ),
     ),
   );
 

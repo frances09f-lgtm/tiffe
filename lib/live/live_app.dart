@@ -464,6 +464,8 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
         (_) => retryReports(),
       );
     }
+    UpdateCheck.restore(widget.store.prefs);
+    UpdateCheck.available.addListener(_onUpdate);
     loadSettings();
     menuListener = menuStream.listen((rows) {
       if (mounted) setState(() => menuRows = rows);
@@ -475,6 +477,10 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
     planListener = subscriptionStream?.listen((rows) {
       if (mounted) setState(() => subRows = rows);
     }, onError: (Object _) {});
+  }
+
+  void _onUpdate() {
+    if (mounted) setState(() {});
   }
 
   /// order id -> chosen bhaji names per tiffin (from order_items).
@@ -579,6 +585,7 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
     WidgetsBinding.instance.removeObserver(this);
     flushTimer?.cancel();
     menuListener?.cancel();
+    UpdateCheck.available.removeListener(_onUpdate);
     orderListener?.cancel();
     planListener?.cancel();
     name.dispose();
@@ -4327,6 +4334,8 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
             : 'From ${money('daily_price_paise')} / month + ${money('monthly_delivery_paise')} delivery';
         final feat = avail.isEmpty ? null : avail.first;
         body = GHome(
+          updateBuild: UpdateCheck.available.value,
+          onUpdate: () => UpdateCheck.opener(Uri.parse(updatePage)),
           address: area.text.isEmpty ? 'Your home' : 'Home · ${area.text}',
           name: first.isEmpty ? 'there' : first,
           subtitle: 'Rozcha dabba. Tumchya choice cha.',

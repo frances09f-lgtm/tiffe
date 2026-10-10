@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:tiffe/live/update_check.dart';
 import 'package:tiffe/ui/gemini/toast.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:tiffe/data/store.dart';
@@ -211,6 +212,23 @@ void main() {
     });
     await t.pumpAndSettle();
     await shot(t, 'home_data');
+    UpdateCheck.available.value = currentBuild + 1;
+    await t.pumpAndSettle();
+    expect(find.textContaining('Update available'), findsOneWidget);
+    await shot(t, 'home_banner');
+    UpdateCheck.latestNote = 'Fixes unreadable text in dark mode.';
+    final dlg = UpdateCheck.run(
+      t.element(find.byType(LiveWorkspace)),
+      store.prefs,
+      fetch: () async => currentBuild + 1,
+    );
+    await t.pumpAndSettle();
+    await shot(t, 'update_dialog');
+    await t.tap(find.text('Later'));
+    await t.pumpAndSettle();
+    await dlg;
+    UpdateCheck.available.value = null;
+    await t.pumpAndSettle();
     expect(find.text('Double Tiffe'), findsOneWidget);
     expect(find.text('Out for Delivery'), findsWidgets);
     await t.tap(
