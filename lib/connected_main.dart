@@ -8,11 +8,13 @@ import 'ui/customer_style.dart';
 import 'dart:async';
 
 import 'live/backend.dart';
+import 'live/bug_report.dart';
 import 'live/live_app.dart';
 
 /// Connected build: never falls back to demo auth/orders when offline.
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  BugLog.install();
   final store = TiffeStore(await SharedPreferences.getInstance());
   TiffeBackend? backend;
   try {

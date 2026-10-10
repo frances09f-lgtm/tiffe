@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/material.dart';
 
 import '../ui/tracking_map.dart';
+import 'bug_report.dart';
 
 import '../data/store.dart';
 import '../domain/tiffin.dart' as food;
@@ -3202,6 +3203,76 @@ class _LiveWorkspaceState extends State<LiveWorkspace> {
     Future.delayed(const Duration(milliseconds: 400), password.dispose);
   }
 
+  static const tabNames = ['Home', 'Menu', 'Orders', 'Plan', 'Profile'];
+
+  Future<void> reportProblem() async {
+    final comment = TextEditingController();
+    final send = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      builder: (sheet) => Padding(
+        padding: EdgeInsets.fromLTRB(
+          20,
+          20,
+          20,
+          20 + MediaQuery.of(sheet).viewInsets.bottom,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Report a problem',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'One tap sends the app version, the screen you were on and recent errors. Typing is optional.',
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: comment,
+              maxLines: 3,
+              decoration: const InputDecoration(
+                hintText: 'What went wrong? (optional)',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                onPressed: () => Navigator.pop(sheet, true),
+                child: const Text('Send report'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (send != true) return;
+    BugLog.screen = tabNames[tab.clamp(0, 4)];
+    final ok = await BugReports.send(
+      widget.backend.client,
+      widget.store.prefs,
+      BugReports.build(
+        comment: comment.text,
+        role: widget.role ?? 'customer',
+        userId: widget.backend.userId,
+      ),
+    );
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          ok
+              ? 'Report sent. Thank you.'
+              : 'Saved on this phone. It will be sent later.',
+        ),
+      ),
+    );
+  }
+
   Widget profile({bool onboarding = false}) => Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
@@ -3382,6 +3453,15 @@ class _LiveWorkspaceState extends State<LiveWorkspace> {
                   title: const Text('Change password'),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: changePassword,
+                ),
+                const Divider(),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.flag_outlined),
+                  title: const Text('Report a problem'),
+                  subtitle: Text('Version $appVersion'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: reportProblem,
                 ),
               ],
             ),
@@ -3984,6 +4064,11 @@ class _LiveWorkspaceState extends State<LiveWorkspace> {
                 ),
               ]
             : [
+                IconButton(
+                  tooltip: 'Report a problem',
+                  onPressed: reportProblem,
+                  icon: const Icon(Icons.flag_outlined),
+                ),
                 IconButton(
                   tooltip: 'Profile',
                   onPressed: () => setState(() => tab = 4),
