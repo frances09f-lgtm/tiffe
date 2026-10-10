@@ -1,0 +1,15 @@
+{
+  "repository": "frances09f-lgtm/tiffe",
+  "asset_name": "Tiffe.apk",
+  "package_name": "com.ambi.tiffe",
+  "signer_sha256": "92a04460d70c949c2c6ddf0ad42ab3914db6efe6987802279354669ef9a15ae5",
+  "minimum_version_code": 23,
+  "firebase_project_id": "app-testing-2cdba",
+  "firebase_project_number": "509368336413",
+  "firebase_app_id": "1:509368336413:android:281dab933ae0c01e0a46f4",
+  "required_binary_markers": [
+    "obbtxyjglgivcpusjpcx",
+    "Demo delivery preview",
+    "bug_reports"
+  ]
+}

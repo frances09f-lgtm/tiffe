@@ -51,3 +51,7 @@ app.*.map.json
 *.keystore
 key.properties
 screenshots/
+
+# Firebase tooling is installed from locked dependencies in CI.
+distribution/tooling/node_modules/
+**/__pycache__/
