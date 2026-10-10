@@ -86,7 +86,7 @@ void main() {
   });
   testWidgets('shots', (t) async {
     SharedPreferences.setMockInitialValues({});
-    final s = TiffeStore(await SharedPreferences.getInstance());
+    final s = TiffeStore(await SharedPreferences.getInstance())..darkMode = const bool.fromEnvironment('DARK');
     t.view.physicalSize = const Size(390, 1900);
     t.view.devicePixelRatio = 1;
     final b = ContentBackend();

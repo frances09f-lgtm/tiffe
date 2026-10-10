@@ -470,20 +470,46 @@ class CustomerOffline extends StatelessWidget {
             constraints: const BoxConstraints(maxWidth: 460),
             child: Column(
               children: [
-                const Logo(size: 110),
-                const SizedBox(height: 24),
-                const Icon(
-                  Icons.wifi_off_rounded,
-                  color: Color(0xFF9E4300),
-                  size: 36,
+                Container(
+                  width: 190,
+                  height: 190,
+                  decoration: const BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: RadialGradient(
+                      colors: [Color(0xFFFFDBCB), Color(0x00FFDBCB)],
+                    ),
+                  ),
+                  child: const Center(child: Logo(size: 104)),
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 8),
+                const Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.wifi_off_rounded,
+                      color: Color(0xFF9E4300),
+                      size: 16,
+                    ),
+                    SizedBox(width: 6),
+                    Text(
+                      'SIMMER PAUSED',
+                      style: TextStyle(
+                        fontFamily: 'PlusJakartaSans',
+                        color: Color(0xFF9E4300),
+                        fontSize: 11,
+                        letterSpacing: 1,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
                 const Text(
                   'Kitchen signal lost',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontFamily: 'PlusJakartaSans',
-                    fontSize: 30,
+                    fontSize: 28,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
@@ -514,7 +540,14 @@ class CustomerOffline extends StatelessWidget {
                     color: Theme.of(context).brightness == Brightness.dark
                         ? const Color(0xFF202D24)
                         : Colors.white,
-                    borderRadius: BorderRadius.circular(24),
+                    borderRadius: BorderRadius.circular(28),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Color(0x0F000000),
+                        blurRadius: 16,
+                        offset: Offset(0, 4),
+                      ),
+                    ],
                   ),
                   child: const Row(
                     children: [

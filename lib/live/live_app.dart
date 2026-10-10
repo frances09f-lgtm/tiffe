@@ -1209,14 +1209,14 @@ class _LiveWorkspaceState extends State<LiveWorkspace> {
         ),
       ),
       const SizedBox(height: 8),
-      const Text(
+      Text(
         'Wholesome Homemade Meals, Delivered Daily',
         style: TextStyle(
           fontFamily: 'PlusJakartaSans',
           fontSize: 24,
           height: 1.25,
           fontWeight: FontWeight.w700,
-          color: Color(0xFF012D1D),
+          color: uiPalette.green,
         ),
       ),
       const SizedBox(height: 10),
@@ -1298,7 +1298,7 @@ class _LiveWorkspaceState extends State<LiveWorkspace> {
           color: uiPalette.surface,
           borderRadius: BorderRadius.circular(32),
           border: Border.all(
-            color: selected ? const Color(0xFF012D1D) : Colors.transparent,
+            color: selected ? uiPalette.green : Colors.transparent,
             width: 2,
           ),
           boxShadow: const [
@@ -1323,12 +1323,12 @@ class _LiveWorkspaceState extends State<LiveWorkspace> {
                         dbl
                             ? 'TWICE THE DAILY COMFORT'
                             : 'DAILY HOMEMADE MEALS',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontFamily: 'PlusJakartaSans',
                           fontSize: 10.5,
                           letterSpacing: .8,
                           fontWeight: FontWeight.w700,
-                          color: Color(0xFF012D1D),
+                          color: uiPalette.green,
                         ),
                       ),
                       const SizedBox(height: 4),
@@ -1354,9 +1354,7 @@ class _LiveWorkspaceState extends State<LiveWorkspace> {
                   selected
                       ? Icons.radio_button_checked
                       : Icons.radio_button_unchecked,
-                  color: selected
-                      ? const Color(0xFF012D1D)
-                      : const Color(0xFFC1C8C2),
+                  color: selected ? uiPalette.green : const Color(0xFFC1C8C2),
                   size: 26,
                 ),
               ],
@@ -1373,11 +1371,11 @@ class _LiveWorkspaceState extends State<LiveWorkspace> {
                 children: [
                   Text(
                     money(dbl ? 'double_price_paise' : 'daily_price_paise'),
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontFamily: 'PlusJakartaSans',
                       fontSize: 32,
                       fontWeight: FontWeight.w700,
-                      color: Color(0xFF012D1D),
+                      color: uiPalette.green,
                     ),
                   ),
                   const Spacer(),
@@ -1424,10 +1422,10 @@ class _LiveWorkspaceState extends State<LiveWorkspace> {
                 padding: const EdgeInsets.only(bottom: 8),
                 child: Row(
                   children: [
-                    const Icon(
+                    Icon(
                       Icons.check_circle_outline,
                       size: 18,
-                      color: Color(0xFF012D1D),
+                      color: uiPalette.green,
                     ),
                     const SizedBox(width: 10),
                     Expanded(
@@ -1499,13 +1497,13 @@ class _LiveWorkspaceState extends State<LiveWorkspace> {
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
+        Text(
           'ONE-TIME TIFFE',
           style: TextStyle(
             fontSize: 10.5,
             letterSpacing: .8,
             fontWeight: FontWeight.w700,
-            color: Color(0xFF012D1D),
+            color: uiPalette.green,
           ),
         ),
         const SizedBox(height: 4),
@@ -1529,11 +1527,11 @@ class _LiveWorkspaceState extends State<LiveWorkspace> {
             children: [
               Text(
                 money('one_time_price_paise'),
-                style: const TextStyle(
+                style: TextStyle(
                   fontFamily: 'PlusJakartaSans',
                   fontSize: 32,
                   fontWeight: FontWeight.w700,
-                  color: Color(0xFF012D1D),
+                  color: uiPalette.green,
                 ),
               ),
               const Spacer(),
@@ -1662,7 +1660,13 @@ class _LiveWorkspaceState extends State<LiveWorkspace> {
                     fontWeight: FontWeight.w500,
                   ),
                 ),
-                Text(l, style: const TextStyle(fontSize: 11)),
+                Text(
+                  l,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: hi ? const Color(0xFF341100) : null,
+                  ),
+                ),
               ],
             ),
           ),
@@ -1739,11 +1743,11 @@ class _LiveWorkspaceState extends State<LiveWorkspace> {
       children: [
         Text(
           '${months[start.month - 1]} ${start.day} - ${months[end.month - 1]} ${end.day}',
-          style: const TextStyle(
+          style: TextStyle(
             fontFamily: 'PlusJakartaSans',
             fontSize: 28,
             fontWeight: FontWeight.w700,
-            color: Color(0xFF012D1D),
+            color: uiPalette.green,
           ),
         ),
         const SizedBox(height: 2),
@@ -1983,7 +1987,7 @@ class _LiveWorkspaceState extends State<LiveWorkspace> {
     const wd = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
     final dark = uiPalette.dark;
     return SizedBox(
-      height: 72,
+      height: 80,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         itemCount: 7,
@@ -3656,11 +3660,11 @@ class _LiveWorkspaceState extends State<LiveWorkspace> {
                 children: [
                   Text(
                     'Hello, $first! 🍲',
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontFamily: 'PlusJakartaSans',
                       fontSize: 22,
                       fontWeight: FontWeight.w700,
-                      color: Color(0xFF012D1D),
+                      color: uiPalette.green,
                     ),
                   ),
                   const SizedBox(height: 6),
@@ -4608,6 +4612,39 @@ class PlanReview extends StatelessWidget {
           child: ListView(
             padding: const EdgeInsets.all(20),
             children: [
+              Container(
+                margin: const EdgeInsets.only(bottom: 16),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
+                ),
+                decoration: BoxDecoration(
+                  color: dark
+                      ? const Color(0xFF2C3D30)
+                      : const Color(0xFFEDEEF0),
+                  borderRadius: BorderRadius.circular(24),
+                ),
+                child: const Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 13,
+                      backgroundColor: Color(0xFF012D1D),
+                      child: Text(
+                        '1',
+                        style: TextStyle(fontSize: 12, color: Colors.white),
+                      ),
+                    ),
+                    SizedBox(width: 10),
+                    Text(
+                      'Review & Address',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
               card(
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
