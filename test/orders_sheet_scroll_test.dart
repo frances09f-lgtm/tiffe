@@ -6,7 +6,6 @@ void main() {
   testWidgets('pick sheet scrolls and keeps Save visible on a small phone', (
     t,
   ) async {
-    final old = FlutterError.onError; FlutterError.onError = (d) => debugPrint(d.toString()); addTearDown(() => FlutterError.onError = old);
     t.view.physicalSize = const Size(320, 520);
     t.view.devicePixelRatio = 1;
     addTearDown(t.view.resetPhysicalSize);
