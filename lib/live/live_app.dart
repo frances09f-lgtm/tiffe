@@ -38,6 +38,12 @@ bool isCompleteProfile(Map<String, dynamic>? profile) =>
       'area',
     ].every((key) => (profile[key] as String? ?? '').trim().isNotEmpty);
 
+/// Pune time. Tests replace it to pin the clock.
+class LiveClock {
+  static DateTime Function() now = () =>
+      DateTime.now().toUtc().add(const Duration(hours: 5, minutes: 30));
+}
+
 class LiveGate extends StatefulWidget {
   final TiffeBackend? backend;
   final TiffeStore store;
@@ -4148,10 +4154,7 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
   }
 
   static String _istDay([int plusDays = 0]) {
-    final d = DateTime.now()
-        .toUtc()
-        .add(const Duration(hours: 5, minutes: 30, days: 0))
-        .add(Duration(days: plusDays));
+    final d = LiveClock.now().add(Duration(days: plusDays));
     return '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
   }
 
@@ -4568,6 +4571,147 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
     );
   }
 
+  /// Plan orders the kitchen creates for each day (meal is lunch or dinner)
+  /// that are not out for delivery yet. They show as daily cards.
+  bool _isSlotOrder(Map<String, dynamic> o) =>
+      o['subscription_id'] != null &&
+      (o['meal'] == 'lunch' || o['meal'] == 'dinner') &&
+      const ['Confirmed', 'Preparing', 'Packed'].contains(o['status']);
+
+  static const _lunchCutoffHour = 12;
+  static const _dinnerCutoffHour = 20;
+
+  List<GSlot> _planSlots() {
+    final now = LiveClock.now();
+    String key(DateTime d) =>
+        '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+    final today = key(now);
+    final tomorrow = key(now.add(const Duration(days: 1)));
+    const wd = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    const mo = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+    final defaults = _lastPick();
+    final images = {
+      for (final m in menuRows)
+        m['name'] as String: foodImage(m['name'] as String),
+    };
+    final out = <GSlot>[];
+    final rows =
+        [
+          for (final o in orderRows)
+            if (_isSlotOrder(o) &&
+                (o['delivery_date'] as String).compareTo(tomorrow) <= 0)
+              o,
+        ]..sort((a, b) {
+          final c = (a['delivery_date'] as String).compareTo(
+            b['delivery_date'] as String,
+          );
+          return c != 0
+              ? c
+              : (a['meal'] == 'lunch' ? -1 : 1).compareTo(
+                  b['meal'] == 'lunch' ? -1 : 1,
+                );
+        });
+    for (final o in rows) {
+      final iso = o['delivery_date'] as String;
+      final d = DateTime.parse(iso);
+      final lunch = o['meal'] == 'lunch';
+      final cutHour = lunch ? _lunchCutoffHour : _dinnerCutoffHour;
+      final locked =
+          iso.compareTo(today) < 0 || (iso == today && now.hour >= cutHour);
+      final short = '${wd[d.weekday - 1]} ${d.day} ${mo[d.month - 1]}';
+      final dayLabel = iso == today
+          ? 'Today, $short'
+          : iso == tomorrow
+          ? 'Tomorrow, $short'
+          : short;
+      final t = itemsByOrder[o['id']];
+      final names = (t != null && t.isNotEmpty)
+          ? t.first.take(2).toList()
+          : <String>[];
+      final when = iso == today
+          ? 'today'
+          : iso == tomorrow
+          ? 'tomorrow'
+          : 'on $short';
+      out.add(
+        GSlot(
+          o['id'] as String,
+          lunch ? 'Lunch' : 'Dinner',
+          dayLabel,
+          lunch ? 'around 1:00 PM' : 'around 8:00 PM',
+          'Change until ${lunch ? '12:00 PM' : '8:00 PM'} $when',
+          names,
+          defaultBhajis: defaults,
+          custom:
+              names.isNotEmpty &&
+              defaults.isNotEmpty &&
+              !_sameSet(names, defaults),
+          locked: locked,
+          images: images,
+        ),
+      );
+    }
+    return out;
+  }
+
+  bool _sameSet(List<String> a, List<String> b) =>
+      a.length == b.length && a.every(b.contains);
+
+  /// The bhajis the user picked most recently (two names), from the newest
+  /// order that has items. Empty when there is none.
+  List<String> _lastPick() {
+    final rows = [...orderRows]
+      ..sort(
+        (a, b) => ((b['bhajis_changed_at'] ?? b['created_at'] ?? '') as String)
+            .compareTo(
+              (a['bhajis_changed_at'] ?? a['created_at'] ?? '') as String,
+            ),
+      );
+    for (final o in rows) {
+      final t = itemsByOrder[o['id']];
+      if (t != null && t.isNotEmpty && t.first.length >= 2) {
+        return t.first.take(2).toList();
+      }
+    }
+    return const [];
+  }
+
+  Future<String?> _changeSlot(GSlot slot, List<String> names) async {
+    final ids = <String>[
+      for (final n in names)
+        for (final m in menuRows)
+          if (m['name'] == n && m['available'] == true) m['id'] as String,
+    ];
+    if (ids.length != 2) return 'Those bhajis are not available right now.';
+    try {
+      await widget.backend.setOrderBhajis(slot.id, ids);
+    } catch (e) {
+      final msg = e.toString();
+      if (msg.contains('set_order_bhajis') && msg.contains('not')) {
+        return 'Changing bhajis is not switched on yet.';
+      }
+      if (msg.contains('cutoff') || msg.contains('out for delivery')) {
+        return 'This tiffin is already being prepared, so bhajis cannot change now.';
+      }
+      return 'Could not change the bhajis. Please try again.';
+    }
+    await loadItems();
+    return null;
+  }
+
   Future<void> _orderBhajis(List<String> names) async {
     if (cfg == null) return;
     final ids = <String>[
@@ -4629,22 +4773,30 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
         body = _plansBody(onTab: go);
       case 3:
         body = GOrders(
+          slots: _planSlots(),
+          bhajiOptions: [
+            for (final m in avail)
+              GBhajiOption(m['name'] as String, foodImage(m['name'] as String)),
+          ],
+          onChangeSlot: _changeSlot,
           orders: [
             for (final o in orderRows)
-              GOrder(
-                '#${_shortId(o['id'] as String)}',
-                o['subscription_id'] == null ? 'One-time' : 'Subscription',
-                o['status'] as String,
-                _orderTitle(o),
-                _niceDay(o['delivery_date'] as String),
-                '₹${((o['total_paise'] as num) / 100).toStringAsFixed(0)} · ${o['payment_status']}',
-                live: o['status'] == 'Out for Delivery',
-                demoStatus: _simOne(o)['demo'] == true
-                    ? _simOne(o)['status'] as String
-                    : null,
-                placed: _clock(o['created_at'], day: true),
-                due: _dueText(o),
-              ),
+              if (!_isSlotOrder(o) ||
+                  (o['delivery_date'] as String).compareTo(_istDay(1)) > 0)
+                GOrder(
+                  '#${_shortId(o['id'] as String)}',
+                  o['subscription_id'] == null ? 'One-time' : 'Subscription',
+                  o['status'] as String,
+                  _orderTitle(o),
+                  _niceDay(o['delivery_date'] as String),
+                  '₹${((o['total_paise'] as num) / 100).toStringAsFixed(0)} · ${o['payment_status']}',
+                  live: o['status'] == 'Out for Delivery',
+                  demoStatus: _simOne(o)['demo'] == true
+                      ? _simOne(o)['status'] as String
+                      : null,
+                  placed: _clock(o['created_at'], day: true),
+                  due: _dueText(o),
+                ),
           ],
           emptyText: 'No orders yet. Order a tiffin from the Menu and it will show up here.',
           onTab: go,
@@ -4670,8 +4822,13 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
       default:
         final eff = _effectivePlan;
         Map<String, dynamic>? today;
+        var todayQty = 0;
         for (final o in orderRows) {
-          if (o['delivery_date'] == _istDay()) today = _simOne(o);
+          if (o['delivery_date'] != _istDay()) continue;
+          final one = _simOne(o);
+          todayQty += (one['quantity'] as num?)?.toInt() ?? 0;
+          // Show the first meal that is not delivered yet, else the last one.
+          if (today == null || today['status'] == 'Delivered') today = one;
         }
         final monthlyFrom = cfg == null
             ? ''
@@ -4694,7 +4851,7 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
           todayLabel: 'Today: ',
           todayMeal: today == null
               ? 'No order yet'
-              : '${today['quantity']} Tiffin${today['quantity'] == 1 ? '' : 's'}',
+              : '$todayQty Tiffin${todayQty == 1 ? '' : 's'}',
           todayStatus: today == null ? '' : '${today['status']}',
           showPause: false,
           hasPlan: eff != null,

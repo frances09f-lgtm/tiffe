@@ -67,9 +67,14 @@ void main() {
         await File('/tmp/gshots/orders_${w.toInt()}.png')
             .writeAsBytes(d!.buffer.asUint8List());
       });
-      expect(find.text('Order history'), findsOneWidget);
-      expect(find.text('Order Details'), findsOneWidget);
+      // Delivered orders are tucked into a collapsed Completed row.
+      expect(find.text('Order history'), findsNothing);
+      expect(find.text('Completed'), findsOneWidget);
+      expect(find.text('Order Details'), findsNothing);
       expect(find.text('Track Details'), findsOneWidget);
+      await t.tap(find.text('Completed'));
+      await t.pumpAndSettle();
+      expect(find.text('Order Details'), findsOneWidget);
       expect(t.takeException(), isNull);
       expect(find.textContaining('emo'), findsNothing);
     });

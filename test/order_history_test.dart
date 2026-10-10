@@ -45,6 +45,12 @@ void main() {
     await t.pumpAndSettle();
     await t.tap(find.text('Orders').last);
     await t.pumpAndSettle();
+    // The active order is listed; the delivered one is inside Completed.
+    expect(find.text('Preparing'), findsWidgets);
+    expect(find.text('Delivered'), findsNothing);
+    expect(find.text('Completed'), findsOneWidget);
+    await t.tap(find.text('Completed'));
+    await t.pumpAndSettle();
     expect(find.text('Delivered'), findsWidgets);
     expect(find.textContaining('Delivery '), findsWidgets);
     expect(find.text('2 Tiffins'), findsWidgets);

@@ -228,6 +228,15 @@ class TiffeBackend {
         .toList();
   }
 
+  /// Changes the two bhajis of a plan order before its cutoff (lunch 12:00,
+  /// dinner 20:00, Pune time). The server checks the owner, the status and
+  /// the time, so a refusal comes back as an exception.
+  Future<void> setOrderBhajis(String orderId, List<String> menuItemIds) async =>
+      client.rpc(
+        'set_order_bhajis',
+        params: {'p_order': orderId, 'p_items': menuItemIds},
+      );
+
   Future<void> advance(String id, String status, {DateTime? eta}) async =>
       client.rpc(
         'advance_order',

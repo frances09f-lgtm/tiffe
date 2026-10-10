@@ -7,7 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 /// Keep in step with pubspec.yaml (a test checks this).
-const appVersion = '1.0.40+40';
+const appVersion = '1.0.41+41';
 
 /// Removes emails and phone numbers from text before it leaves the phone.
 String scrub(String s) => s
