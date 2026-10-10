@@ -30,13 +30,13 @@ jobs:
           printf '%s' "$TIFFE_KEYSTORE_BASE64" | base64 -d > "$TIFFE_KEYSTORE_FILE"
           flutter clean
           flutter pub get
-          flutter build appbundle --release -t lib/connected_main.dart --build-name=1.0.32 --build-number=32 \
+          flutter build appbundle --release -t lib/connected_main.dart --build-name=1.0.33 --build-number=33 \
             --dart-define=TIFFE_SUPABASE_URL=https://obbtxyjglgivcpusjpcx.supabase.co \
             --dart-define=TIFFE_SUPABASE_KEY=sb_publishable__5qR0bvVmwqKykgbQpAtRw_H0eIgl3_ \
             --dart-define=TIFFE_OWNER_EMAIL=frances09f@gmail.com
           mv build/app/outputs/bundle/release/app-release.aab build/app/outputs/bundle/release/Tiffe.aab
           flutter build apk --release --target-platform android-arm64 \
-            -t lib/connected_main.dart --build-name=1.0.32 --build-number=32 \
+            -t lib/connected_main.dart --build-name=1.0.33 --build-number=33 \
             --dart-define=TIFFE_SUPABASE_URL=https://obbtxyjglgivcpusjpcx.supabase.co \
             --dart-define=TIFFE_SUPABASE_KEY=sb_publishable__5qR0bvVmwqKykgbQpAtRw_H0eIgl3_ \
             --dart-define=TIFFE_OWNER_EMAIL=frances09f@gmail.com
