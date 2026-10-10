@@ -355,16 +355,19 @@ class GLive extends StatelessWidget {
                   color: GColors.green,
                   borderRadius: BorderRadius.circular(28),
                 ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(Icons.call, color: GColors.saffron, size: 22),
-                    const SizedBox(width: 10),
-                    Text(
-                      'Call Delivery Partner',
-                      style: gText(15, w: FontWeight.w700, c: Colors.white),
-                    ),
-                  ],
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.call, color: GColors.saffron, size: 22),
+                      const SizedBox(width: 10),
+                      Text(
+                        'Call Delivery Partner',
+                        style: gText(15, w: FontWeight.w700, c: Colors.white),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
