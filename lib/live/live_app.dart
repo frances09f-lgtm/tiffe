@@ -5018,7 +5018,7 @@ class _OrderSheetState extends State<OrderSheet> {
                       ? 'Placing...'
                       : pricePaise == 0
                       ? 'Place Order'
-                      : 'Place Order · $total',
+                      : 'Pay $total & Place Order',
                   onPressed: busy ? null : place,
                 ),
               ),
