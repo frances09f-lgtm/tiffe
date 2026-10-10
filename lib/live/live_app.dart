@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 
 import '../ui/tracking_map.dart';
 import 'bug_report.dart';
+import 'update_check.dart';
 
 import '../data/store.dart';
 import '../domain/tiffin.dart' as food;
@@ -598,6 +599,9 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
     WidgetsBinding.instance.addObserver(this);
     retryReports();
     if (TrackingMap.animateDemo) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) UpdateCheck.run(context, widget.store.prefs);
+      });
       flushTimer = Timer.periodic(
         const Duration(minutes: 5),
         (_) => retryReports(),
