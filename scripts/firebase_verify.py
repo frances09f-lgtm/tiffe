@@ -84,7 +84,10 @@ def main():
     with zipfile.ZipFile(apk) as z:
         require(z.testzip() is None, 'Bad ZIP CRC')
         binary=z.read('lib/arm64-v8a/libapp.so')
-        for marker in policy.get('required_binary_markers', []):
+        markers=policy.get('required_binary_markers', [])
+        for floor,version_markers in sorted(policy.get('required_binary_markers_by_min_version', {}).items(),key=lambda item:int(item[0])):
+            if manifest['version_code']>=int(floor): markers=version_markers
+        for marker in markers:
             require(marker.encode() in binary, 'Missing feature marker')
     notes = directory / 'release-notes.txt'
     notes.write_text((release.get('body') or f'{tag}\n') + '\nAUDIT-SHA256:' + expected, encoding='utf-8')

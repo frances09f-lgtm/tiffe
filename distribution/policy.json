@@ -11,5 +11,15 @@
     "obbtxyjglgivcpusjpcx",
     "Demo delivery preview",
     "bug_reports"
-  ]
+  ],
+  "required_binary_markers_by_min_version": {
+    "27": [
+      "obbtxyjglgivcpusjpcx",
+      "Delivery preview",
+      "bug_reports",
+      "simulated preview",
+      "releases/latest",
+      "Check for updates"
+    ]
+  }
 }
