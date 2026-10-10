@@ -134,7 +134,7 @@ class _TrackingMapState extends State<TrackingMap>
                         TileLayer(
                           urlTemplate:
                               'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                          userAgentPackageName: 'com.example.tiffe',
+                          userAgentPackageName: 'com.ambi.tiffe',
                           maxNativeZoom: 19,
                           tileProvider: TrackingMap.animateDemo
                               ? null
@@ -194,17 +194,24 @@ class _TrackingMapState extends State<TrackingMap>
                             ),
                           ],
                         ),
-                        const RichAttributionWidget(
-                          alignment: AttributionAlignment.bottomRight,
-                          attributions: [
-                            TextSourceAttribution(
-                              '© OpenStreetMap contributors',
-                            ),
-                          ],
-                        ),
                       ],
                     );
                   },
+                ),
+                Positioned(
+                  right: 0,
+                  bottom: 0,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 2,
+                    ),
+                    color: const Color(0xCCFFFFFF),
+                    child: const Text(
+                      '© OpenStreetMap contributors',
+                      style: TextStyle(fontSize: 10, color: Color(0xFF1A1C1E)),
+                    ),
+                  ),
                 ),
                 Positioned(
                   left: 12,
@@ -224,7 +231,7 @@ class _TrackingMapState extends State<TrackingMap>
                         Icon(Icons.circle, size: 8, color: Color(0xFFFF8843)),
                         SizedBox(width: 6),
                         Text(
-                          'Demo live tracking',
+                          'Demo delivery preview',
                           style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w700,
