@@ -135,7 +135,7 @@ class GProfile extends StatelessWidget {
             ],
           ),
         ),
-        GBottomNav(tab: 3, onTab: onTab),
+        GBottomNav(tab: 4, onTab: onTab),
       ],
     ),
   );

@@ -137,7 +137,7 @@ void main() {
     await t.tap(find.text('Order'));
     await t.pumpAndSettle();
     expect(find.text('₹180'), findsWidgets);
-    expect(find.text('Total Amount'), findsOneWidget);
+    expect(find.text('Total Payable'), findsOneWidget);
     expect(find.text('Delivery Charge'), findsOneWidget);
     expect(find.text('₹20'), findsOneWidget);
     expect(t.takeException(), isNull);

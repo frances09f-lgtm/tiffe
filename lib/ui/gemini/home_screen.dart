@@ -655,6 +655,7 @@ class GBottomNav extends StatelessWidget {
     const items = [
       [Icons.home_outlined, Icons.home, 'Home'],
       [Icons.restaurant_menu_outlined, Icons.restaurant_menu, 'Menu'],
+      [Icons.repeat, Icons.repeat, 'Plans'],
       [Icons.receipt_long_outlined, Icons.receipt_long, 'Orders'],
       [Icons.person_outline, Icons.person, 'Profile'],
     ];

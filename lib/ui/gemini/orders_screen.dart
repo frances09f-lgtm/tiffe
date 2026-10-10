@@ -106,7 +106,7 @@ class GOrders extends StatelessWidget {
                   ],
                 ),
         ),
-        GBottomNav(tab: 2, onTab: onTab),
+        GBottomNav(tab: 3, onTab: onTab),
       ],
     ),
   );

@@ -181,9 +181,15 @@ void main() {
         await capture(t, admin ? 'stitch-admin-home' : 'stitch-customer-home');
         for (final entry in <String, int>{
           'Menu': 1,
-          'Orders': 2,
-          if (admin) 'Plans': 3 else 'Profile': 3,
-          if (admin) 'Profile': 4,
+          if (admin) ...{
+            'Orders': 2,
+            'Plans': 3,
+            'Profile': 4,
+          } else ...{
+            'Plans': 2,
+            'Orders': 3,
+            'Profile': 4,
+          },
         }.entries) {
           await t.tap(
             admin
@@ -221,7 +227,7 @@ void main() {
               expect(find.text('Aloo Matar'), findsNothing);
             }
           }
-          if (entry.value == 2) {
+          if (entry.key == 'Orders') {
             if (admin) {
               await t.scrollUntilVisible(
                 find.text('No orders to prepare'),
@@ -237,11 +243,13 @@ void main() {
             );
             expect(find.text('Delivered'), findsNothing);
           }
-          if (!admin && entry.value == 3) {
-            await t.tap(find.text('My Tiffin Subscription'));
-            await t.pumpAndSettle();
+          if (!admin && entry.key == 'Plans') {
+            expect(find.text('Monthly Homestyle Thali'), findsOneWidget);
+            expect(find.text('Monthly Lunch Plan'), findsOneWidget);
+            expect(find.text('₹3,000'), findsOneWidget);
+            expect(find.text('₹1,500'), findsOneWidget);
           }
-          if (entry.value == 3 && (admin || true)) {
+          if (admin && entry.value == 3) {
             expect(find.text('Daily Tiffe'), findsOneWidget);
             expect(find.text('Double Tiffe'), findsOneWidget);
             expect(

@@ -103,11 +103,6 @@ void main() {
     await t.pumpAndSettle();
     await t.tap(find.text('My Tiffin Subscription'));
     await t.pumpAndSettle();
-    await t.scrollUntilVisible(
-      find.text('No active subscription'),
-      500,
-      scrollable: find.byType(Scrollable).first,
-    );
     await t.pumpAndSettle();
     expect(find.text('No active subscription'), findsOneWidget);
     expect(find.text('Subscribe'), findsNothing);

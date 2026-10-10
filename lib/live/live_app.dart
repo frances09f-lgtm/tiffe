@@ -5,6 +5,9 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'package:flutter/material.dart';
 
+import '../ui/gemini/plan_flow.dart';
+import '../ui/gemini/plans_screen.dart';
+
 import '../ui/gemini/edit_profile_screen.dart';
 import '../ui/gemini/toast.dart';
 
@@ -991,7 +994,7 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
               child: const Text('Order a tiffin'),
             ),
             OutlinedButton(
-              onPressed: () => setState(() => tab = 3),
+              onPressed: () => setState(() => tab = 2),
               child: const Text('Explore plans'),
             ),
           ],
@@ -1942,7 +1945,7 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
       ),
       serviceAreas(),
       OutlinedButton(
-        onPressed: () => setState(() => tab = admin ? 1 : 3),
+        onPressed: () => setState(() => tab = admin ? 1 : 2),
         child: Text(admin ? 'Manage menu' : 'Browse plans'),
       ),
     ],
@@ -3023,7 +3026,7 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
       ),
     );
     if (placed == true && mounted) {
-      setState(() => tab = 2);
+      setState(() => tab = 3);
       gToast(context, 'Order placed - the kitchen has it.');
     }
   }
@@ -3616,7 +3619,7 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
                 const SizedBox(width: 8),
                 TextButton(
                   style: TextButton.styleFrom(foregroundColor: Colors.white),
-                  onPressed: () => setState(() => tab = 3),
+                  onPressed: () => setState(() => tab = 2),
                   child: const Text(
                     'My Plan',
                     style: TextStyle(
@@ -4087,14 +4090,97 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
     );
   }
 
-  void _subscriptionPage() => _push(
+  GPlans _plansBody({ValueChanged<int>? onTab}) {
+    final c = cfg;
+    final plans = c == null
+        ? const <GPlan>[]
+        : tiffinPlans(
+            doublePaise: (c['double_price_paise'] as num?) ?? 0,
+            dailyPaise: (c['daily_price_paise'] as num?) ?? 0,
+            deliveryPaise: (c['monthly_delivery_paise'] as num?) ?? 0,
+          );
+    return GPlans(
+      subtitle:
+          'Save up to 20% with monthly plans. Pause or skip any meal anytime.',
+      plans: plans,
+      onTab: onTab,
+      onBack: onTab == null ? null : () => onTab(0),
+      onSelect: (p) => _planCheckout(p == plans.first),
+    );
+  }
+
+  /// Design flow: Checkout, Payment Method, Confirmed. It does not take
+  /// payment or create a subscription request.
+  void _planCheckout(bool dbl) {
+    final c = cfg;
+    if (c == null) return;
+    String rs(num paise) => '₹${(paise / 100).round()}';
+    String money(num paise) {
+      final v = (paise / 100).round().toString();
+      return v.length > 3
+          ? '₹${v.substring(0, v.length - 3)},${v.substring(v.length - 3)}'
+          : '₹$v';
+    }
+
+    final plan = (c[dbl ? 'double_price_paise' : 'daily_price_paise'] as num);
+    final del = (c['monthly_delivery_paise'] as num);
+    final total = money(plan + del);
+    final nav = Navigator.of(routeContext);
+    final who = name.text.trim();
+    final lines = [
+      address.text.trim(),
+      area.text.trim(),
+    ].where((e) => e.isNotEmpty).join(', ');
+    nav.push(
+      MaterialPageRoute<void>(
+        builder: (_) => GPlanCheckout(
+          planName: dbl
+              ? 'Monthly Homestyle Thali (Lunch & Dinner)'
+              : 'Monthly Lunch Plan (Lunch Only)',
+          planPrice: money(plan),
+          deliveryPrice: rs(del),
+          total: total,
+          addressTitle: who.isEmpty ? 'Home' : 'Home ($who)',
+          addressLines: lines,
+          onProceed: () => nav.push(
+            MaterialPageRoute<void>(
+              builder: (_) => GPlanPay(
+                total: total,
+                onPay: () => nav.pushReplacement(
+                  MaterialPageRoute<void>(
+                    builder: (_) => GPlanConfirmed(
+                      onDone: () => nav.popUntil((r) => r.isFirst),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _subscriptionPage() =>
+      Navigator.of(routeContext)
+          .push(MaterialPageRoute<void>(builder: (_) => _plansBody()));
+
+  void _mySubscriptionPage() => _push(
     'My Tiffin Subscription',
     () => Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         subscriptionSummary(),
         const SizedBox(height: 20),
-        planScreen(),
+        plan(),
+        const SizedBox(height: 12),
+        OutlinedButton(
+          onPressed: () {
+            Navigator.of(routeContext).maybePop();
+            setState(() => tab = 2);
+          },
+          child: const Text('View monthly plans'),
+        ),
       ],
     ),
   );
@@ -4298,13 +4384,13 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
       ),
     );
     if (placed == true && mounted) {
-      setState(() => tab = 2);
+      setState(() => tab = 3);
       gToast(context, 'Order placed - the kitchen has it.');
     }
   }
 
   Widget customerShell() {
-    final t = tab.clamp(0, 3);
+    final t = tab.clamp(0, 4);
     void go(int i) => setState(() => tab = i);
     final avail = menuRows.where((m) => m['available'] == true).toList();
     var email = '';
@@ -4336,6 +4422,8 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
           onOrder: (sel) => _orderBhajis([for (final i in sel) i.title]),
         );
       case 2:
+        body = _plansBody(onTab: go);
+      case 3:
         body = GOrders(
           orders: [
             for (final o in orderRows)
@@ -4355,14 +4443,14 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
           onTab: go,
           onTrack: (o) => _trackPage(o.id),
         );
-      case 3:
+      case 4:
         body = GProfile(
           name: name.text.trim().isEmpty ? 'Your profile' : name.text.trim(),
           contact: email,
           showAddresses: false,
           showNotifications: false,
           onEdit: _editProfilePage,
-          onSubscription: _subscriptionPage,
+          onSubscription: _mySubscriptionPage,
           onHelp: _helpPage,
           version: 'v$currentBuild',
           onUpdate: () =>
@@ -5023,7 +5111,7 @@ class _OrderSheetState extends State<OrderSheet> {
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          h('Order Summary'),
+                          h('Price Breakdown'),
                           for (var i = 0; i < tiffins.length; i++) ...[
                             line(
                               tiffins[i].isEmpty
@@ -5084,7 +5172,7 @@ class _OrderSheetState extends State<OrderSheet> {
                           ),
                           const Divider(height: 24, color: GColors.line),
                           line(
-                            sub ? 'Extras to pay' : 'Total Amount',
+                            sub ? 'Extras to pay' : 'Total Payable',
                             total,
                             bold: true,
                           ),

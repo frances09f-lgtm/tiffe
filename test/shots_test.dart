@@ -114,15 +114,19 @@ void main() {
       await t.pumpAndSettle();
       await capture(t, e.value);
     }
-    await t.tap(find.text('My Tiffin Subscription'));
+    await t.tap(find.text('Plans').last);
     await t.pumpAndSettle();
     await capture(t, 'plan');
-    await t.tap(find.text('Subscribe to this plan').first);
+    await t.tap(find.text('Select This Plan').first);
     await t.pumpAndSettle();
-    await capture(t, 'review');
-    await t.pageBack();
+    await capture(t, 'plan_checkout');
+    await t.tap(find.textContaining('Proceed to Payment'));
     await t.pumpAndSettle();
-    await t.pageBack();
+    await capture(t, 'plan_pay');
+    await t.tap(find.textContaining('Securely'));
+    await t.pumpAndSettle();
+    await capture(t, 'plan_confirmed');
+    await t.tap(find.text('Go to Home Dashboard'));
     await t.pumpAndSettle();
     await t.tap(find.text('Menu').last);
     await t.pumpAndSettle();
