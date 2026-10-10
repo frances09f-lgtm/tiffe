@@ -1742,29 +1742,33 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
               color: bg,
               borderRadius: BorderRadius.circular(4),
             ),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  '${d.day}',
-                  style: TextStyle(
-                    fontFamily: 'PlusJakartaSans',
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                    color: fg,
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    '${d.day}',
+                    style: TextStyle(
+                      fontFamily: 'PlusJakartaSans',
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                      color: fg,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 3),
-                Icon(
-                  Icons.circle,
-                  size: 5,
-                  color: os.isEmpty
-                      ? Colors.transparent
-                      : delivered
-                      ? const Color(0xFF012D1D)
-                      : const Color(0xFF9E4300),
-                ),
-              ],
+                  const SizedBox(height: 3),
+                  Icon(
+                    Icons.circle,
+                    size: 5,
+                    color: os.isEmpty
+                        ? Colors.transparent
+                        : delivered
+                        ? const Color(0xFF012D1D)
+                        : const Color(0xFF9E4300),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -1844,6 +1848,7 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
                   const Expanded(
                     child: Text(
                       'Meal Schedule',
+                      overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         fontFamily: 'PlusJakartaSans',
                         fontSize: 18,
@@ -1851,20 +1856,28 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
                       ),
                     ),
                   ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 5,
+                  ConstrainedBox(
+                    constraints: BoxConstraints(
+                      maxWidth: MediaQuery.of(context).size.width * 0.34,
                     ),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFEDEEF0),
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: const Text(
-                      'Tap date to inspect',
-                      style: TextStyle(
-                        fontSize: 10.5,
-                        color: Color(0xFF414844),
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 5,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFEDEEF0),
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: const Text(
+                          'Tap date to inspect',
+                          style: TextStyle(
+                            fontSize: 10.5,
+                            color: Color(0xFF414844),
+                          ),
+                        ),
                       ),
                     ),
                   ),
@@ -1888,13 +1901,16 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
                 ],
               ),
               const SizedBox(height: 6),
-              GridView.count(
-                crossAxisCount: 7,
+              GridView(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
-                mainAxisSpacing: 6,
-                crossAxisSpacing: 6,
-                childAspectRatio: 1.15,
+                // Fixed height so narrow phones cannot squash the day cells.
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 7,
+                  mainAxisSpacing: 6,
+                  crossAxisSpacing: 6,
+                  mainAxisExtent: 44,
+                ),
                 children: cells,
               ),
               const SizedBox(height: 12),
