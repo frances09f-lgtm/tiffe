@@ -525,54 +525,60 @@ class GSlotCard extends StatelessWidget {
         const SizedBox(height: 12),
         Divider(height: 1, color: GColors.line),
         const SizedBox(height: 10),
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                slot.locked ? 'Locked, kitchen is preparing' : slot.cutoff,
-                style: gText(11, c: GColors.grey, height: 1.35),
+        LayoutBuilder(
+          builder: (context, box) => Row(
+            children: [
+              Expanded(
+                child: Text(
+                  slot.locked ? 'Locked, kitchen is preparing' : slot.cutoff,
+                  style: gText(11, c: GColors.grey, height: 1.35),
+                ),
               ),
-            ),
-            const SizedBox(width: 8),
-            if (slot.locked)
-              Icon(Icons.lock_outline, size: 18, color: GColors.grey)
-            else
-              Flexible(
-                flex: 2,
-                child: GestureDetector(
-                  onTap: onChange,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 8,
-                    ),
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: GColors.ink, width: 1.2),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.edit_outlined, size: 15, color: GColors.ink),
-                        const SizedBox(width: 6),
-                        Flexible(
-                          child: Text(
-                            'Change bhajis',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: gText(
-                              12,
-                              w: FontWeight.w700,
-                              c: GColors.ink,
+              const SizedBox(width: 8),
+              if (slot.locked)
+                Icon(Icons.lock_outline, size: 18, color: GColors.grey)
+              else
+                ConstrainedBox(
+                  constraints: BoxConstraints(maxWidth: box.maxWidth * 0.72),
+                  child: GestureDetector(
+                    onTap: onChange,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: GColors.ink, width: 1.2),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.edit_outlined,
+                            size: 15,
+                            color: GColors.ink,
+                          ),
+                          const SizedBox(width: 6),
+                          Flexible(
+                            child: Text(
+                              'Change bhajis',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: gText(
+                                12,
+                                w: FontWeight.w700,
+                                c: GColors.ink,
+                              ),
                             ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
                 ),
-              ),
-          ],
+            ],
+          ),
         ),
       ],
     ),
