@@ -1654,10 +1654,11 @@ class _LiveWorkspaceState extends State<LiveWorkspace> {
                 const SizedBox(height: 6),
                 Text(
                   n.padLeft(2, '0'),
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontFamily: 'PlusJakartaSans',
                     fontSize: 19,
                     fontWeight: FontWeight.w500,
+                    color: hi ? const Color(0xFF341100) : null,
                   ),
                 ),
                 Text(
