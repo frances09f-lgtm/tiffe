@@ -4141,11 +4141,14 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
     return 'Delivery ${day == today ? 'today' : _niceDay(day)} around $h:${mm.toString().padLeft(2, '0')} ${hh >= 12 ? 'PM' : 'AM'}';
   }
 
-  /// Real rider details only: optional rider_name / rider_phone columns on
-  /// the order. Nothing is invented when they are absent.
+  /// rider_name / rider_phone columns on the order win; the name falls back
+  /// to Mukesh (owner decision) while out for delivery. Phone is never invented.
   static String? _riderName(Map<String, dynamic> o) {
     final n = o['rider_name'];
-    return n is String && n.trim().isNotEmpty ? n.trim() : null;
+    if (n is String && n.trim().isNotEmpty) return n.trim();
+    // Owner decision: until real rider data exists, Mukesh is the delivery
+    // partner for orders that are out for delivery.
+    return o['status'] == 'Out for Delivery' ? 'Mukesh' : null;
   }
 
   static String? _riderPhone(Map<String, dynamic> o) {
