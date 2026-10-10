@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:tiffe/data/store.dart';
 import 'package:tiffe/live/live_app.dart';
 import 'package:tiffe/ui/app.dart';
+import 'package:tiffe/ui/gemini/orders_screen.dart';
 
 import 'live_content_test.dart';
 
@@ -270,4 +271,46 @@ void main() {
       expect(find.textContaining('unpaid'), findsNothing);
     },
   );
+
+  testWidgets('order the demo walk shows as Delivered goes to Completed', (
+    t,
+  ) async {
+    t.view.physicalSize = const Size(390, 900);
+    t.view.devicePixelRatio = 1;
+    addTearDown(t.view.resetPhysicalSize);
+    addTearDown(t.view.resetDevicePixelRatio);
+    await t.pumpWidget(
+      const MaterialApp(
+        home: GOrders(
+          orders: [
+            GOrder(
+              '#A',
+              'One-time',
+              'Confirmed',
+              'x, y',
+              'Today',
+              '₹100 · Payment pending',
+              demoStatus: 'Delivered',
+            ),
+            GOrder(
+              '#B',
+              'One-time',
+              'Confirmed',
+              'x, y',
+              'Today',
+              '₹100 · Payment pending',
+              demoStatus: 'Packed',
+            ),
+          ],
+        ),
+      ),
+    );
+    await t.pumpAndSettle();
+    expect(find.text('Completed'), findsOneWidget);
+    expect(find.text('Packed'), findsOneWidget);
+    expect(find.text('Delivered'), findsNothing);
+    await t.tap(find.text('Completed'));
+    await t.pumpAndSettle();
+    expect(find.text('Delivered'), findsOneWidget);
+  });
 }

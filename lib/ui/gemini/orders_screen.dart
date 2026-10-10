@@ -12,6 +12,9 @@ class GOrder {
   /// Simulated status for a demo order. `status` stays the true one.
   final String? demoStatus;
   bool get demo => demoStatus != null;
+
+  /// The status the card shows (the demo walk when there is one).
+  String get shown => demoStatus ?? status;
   const GOrder(
     this.id,
     this.kind,
@@ -27,7 +30,7 @@ class GOrder {
 }
 
 bool isHistoryOrder(GOrder o) =>
-    const ['Delivered', 'Cancelled', 'Failed', 'Refunded'].contains(o.status);
+    const ['Delivered', 'Cancelled', 'Failed', 'Refunded'].contains(o.shown);
 
 /// One order card (status, title, total, Track/Order Details).
 class GOrderCard extends StatelessWidget {
@@ -246,11 +249,11 @@ class _GOrdersState extends State<GOrders> {
     ];
     final done = [
       for (final o in widget.orders)
-        if (o.status == 'Delivered') o,
+        if (o.shown == 'Delivered') o,
     ];
     final closed = [
       for (final o in widget.orders)
-        if (isHistoryOrder(o) && o.status != 'Delivered') o,
+        if (isHistoryOrder(o) && o.shown != 'Delivered') o,
     ];
     final days = <String>[];
     for (final s in widget.slots) {
