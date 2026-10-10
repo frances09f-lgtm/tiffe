@@ -464,6 +464,10 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
         (_) => retryReports(),
       );
     }
+    // Returning customer: skip the profile form while the profile loads.
+    profileComplete =
+        widget.role == null &&
+        (widget.store.prefs.getBool(_completeKey) ?? false);
     UpdateCheck.restore(widget.store.prefs);
     UpdateCheck.available.addListener(_onUpdate);
     loadSettings();
@@ -548,6 +552,8 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
   List<String> get areas =>
       ((cfg?['areas'] as List?) ?? const []).cast<String>();
 
+  String get _completeKey => 'profile_complete_${widget.backend.userId}';
+
   Future<void> loadProfile() async {
     if (mounted) {
       setState(() {
@@ -570,6 +576,7 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
           loaded = true;
           profileComplete = isCompleteProfile(p);
         });
+        widget.store.prefs.setBool(_completeKey, profileComplete);
       }
     } catch (_) {
       if (mounted) {
@@ -4386,6 +4393,13 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
   Widget workspaceBuild(BuildContext c) {
     final admin = widget.role != null;
     if (!admin && profileComplete) return customerShell();
+    if (!admin && !profileComplete && !loaded && profileError == null) {
+      // Profile still loading: neutral screen, not the profile form.
+      return const Scaffold(
+        backgroundColor: Color(0xFFFBF9F5),
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
     if (!admin && !profileComplete) {
       return Scaffold(
         appBar: AppBar(title: const Text('Welcome to Tiffe')),

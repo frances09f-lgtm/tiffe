@@ -377,6 +377,43 @@ void main() {
       expect(t.takeException(), isNull);
     });
   }
+
+  for (final cached in [false, true]) {
+    testWidgets('cold start never flashes the profile form (cached=$cached)', (
+      t,
+    ) async {
+      SharedPreferences.setMockInitialValues({});
+      final store = TiffeStore(await SharedPreferences.getInstance());
+      final b = SlowProfileBackend();
+      if (cached) {
+        await store.prefs.setBool('profile_complete_${b.userId}', true);
+      }
+      await t.pumpWidget(
+        TiffeApp(
+          store: store,
+          startScreen: LiveWorkspace(backend: b, store: store),
+        ),
+      );
+      for (var i = 0; i < 5; i++) {
+        await t.pump(const Duration(milliseconds: 60));
+        expect(find.text('Complete your profile'), findsNothing);
+        expect(find.text('Welcome to Tiffe'), findsNothing);
+      }
+      await t.pump(const Duration(seconds: 1));
+      await t.pumpAndSettle();
+      expect(find.text('Complete your profile'), findsNothing);
+      expect(find.byType(GBottomNav), findsWidgets);
+      expect(t.takeException(), isNull);
+    });
+  }
+}
+
+class SlowProfileBackend extends DataBackend {
+  @override
+  Future<Map<String, dynamic>?> profile() async {
+    await Future<void>.delayed(const Duration(milliseconds: 400));
+    return super.profile();
+  }
 }
 
 class DataBackend extends ContentBackend {
