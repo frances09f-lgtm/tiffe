@@ -7,7 +7,8 @@ import 'home_screen.dart';
 class GProfile extends StatelessWidget {
   final String name, contact;
   final VoidCallback? onEdit, onAddresses, onSubscription, onNotifications;
-  final VoidCallback? onHelp, onLogout;
+  final VoidCallback? onHelp, onLogout, onUpdate;
+  final String? version;
   final bool showAddresses, showNotifications;
   final ValueChanged<int>? onTab;
   const GProfile({
@@ -19,6 +20,8 @@ class GProfile extends StatelessWidget {
     this.onSubscription,
     this.onNotifications,
     this.onHelp,
+    this.onUpdate,
+    this.version,
     this.showAddresses = true,
     this.showNotifications = true,
     this.onLogout,
@@ -119,6 +122,14 @@ class GProfile extends StatelessWidget {
                   'Notifications',
                   onNotifications,
                 ),
+              if (onUpdate != null)
+                _row(
+                  Icons.system_update_alt,
+                  GColors.saffron,
+                  'Check for updates',
+                  onUpdate,
+                  note: version,
+                ),
               _row(Icons.help_outline, GColors.green, 'Help & Support', onHelp),
               _logout(),
             ],
@@ -129,43 +140,52 @@ class GProfile extends StatelessWidget {
     ),
   );
 
-  Widget _row(IconData icon, Color c, String label, VoidCallback? onTap) =>
-      Padding(
-        padding: const EdgeInsets.only(bottom: 12),
-        child: GestureDetector(
-          onTap: onTap,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: GColors.line),
-              boxShadow: const [
-                BoxShadow(
-                  color: Color(0x0A000000),
-                  blurRadius: 6,
-                  offset: Offset(0, 2),
-                ),
-              ],
+  Widget _row(
+    IconData icon,
+    Color c,
+    String label,
+    VoidCallback? onTap, {
+    String? note,
+  }) => Padding(
+    padding: const EdgeInsets.only(bottom: 12),
+    child: GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: GColors.line),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x0A000000),
+              blurRadius: 6,
+              offset: Offset(0, 2),
             ),
-            child: Row(
-              children: [
-                Icon(icon, size: 20, color: c),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    label,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: gText(12.5, w: FontWeight.w700, c: GColors.green),
-                  ),
-                ),
-                const Icon(Icons.chevron_right, size: 20, color: GColors.grey),
-              ],
-            ),
-          ),
+          ],
         ),
-      );
+        child: Row(
+          children: [
+            Icon(icon, size: 20, color: c),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: gText(12.5, w: FontWeight.w700, c: GColors.green),
+              ),
+            ),
+            if (note != null) ...[
+              Text(note, style: gText(11, c: GColors.grey)),
+              const SizedBox(width: 6),
+            ],
+            const Icon(Icons.chevron_right, size: 20, color: GColors.grey),
+          ],
+        ),
+      ),
+    ),
+  );
 
   Widget _logout() => GestureDetector(
     onTap: onLogout,

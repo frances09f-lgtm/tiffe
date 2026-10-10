@@ -4320,6 +4320,9 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
           onEdit: _editProfilePage,
           onSubscription: _subscriptionPage,
           onHelp: _helpPage,
+          version: 'v$currentBuild',
+          onUpdate: () =>
+              UpdateCheck.run(routeContext, widget.store.prefs, manual: true),
           onLogout: widget.backend.signOut,
           onTab: go,
         );

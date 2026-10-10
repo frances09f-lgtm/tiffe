@@ -242,6 +242,18 @@ void main() {
     await t.tap(find.text('Track Details').first);
     await t.pumpAndSettle();
     await shot(t, 'track_data');
+    await t.tap(find.byIcon(Icons.arrow_back).first);
+    await t.pumpAndSettle();
+    await t.tap(
+      find.descendant(
+        of: find.byType(GBottomNav),
+        matching: find.text('Profile'),
+      ),
+    );
+    await t.pumpAndSettle();
+    expect(find.text('Check for updates'), findsOneWidget);
+    expect(find.text('v$currentBuild'), findsOneWidget);
+    await shot(t, 'profile_update_row');
     expect(t.takeException(), isNull);
   });
 
