@@ -3597,6 +3597,17 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
       navigationBarTheme: NavigationBarThemeData(
         backgroundColor: dark ? const Color(0xFF202D24) : Colors.white,
         indicatorColor: const Color(0xFFC1ECD4),
+        // The selected pill is light green in both modes, so its icon must
+        // be dark green (the default turned near-white in dark mode).
+        iconTheme: WidgetStateProperty.resolveWith(
+          (states) => IconThemeData(
+            color: states.contains(WidgetState.selected)
+                ? const Color(0xFF012D1D)
+                : dark
+                ? const Color(0xFFCBD6CC)
+                : const Color(0xFF414844),
+          ),
+        ),
         height: 76,
       ),
       filledButtonTheme: FilledButtonThemeData(
