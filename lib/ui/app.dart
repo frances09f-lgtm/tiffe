@@ -133,7 +133,8 @@ class TiffeApp extends StatelessWidget {
   Widget build(BuildContext context) => ListenableBuilder(
     listenable: store,
     builder: (context, _) => MaterialApp(
-      themeMode: store.darkMode ? ThemeMode.dark : ThemeMode.light,
+      // Dark mode is not designed yet: always light.
+      themeMode: ThemeMode.light,
       darkTheme: tiffeDarkTheme(),
       debugShowCheckedModeBanner: false,
       title: 'Tiffe',

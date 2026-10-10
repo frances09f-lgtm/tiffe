@@ -542,21 +542,183 @@ void main() {
     await t.runAsync(() => Future<void>.delayed(const Duration(seconds: 6)));
     await t.pump(const Duration(seconds: 6));
     await t.pump(const Duration(milliseconds: 400));
-    expect(find.textContaining('Demo • One-time'), findsWidgets);
     expect(find.textContaining('Meal being prepared'), findsWidgets);
     expect(
       find.textContaining('Meal is being prepared in the kitchen'),
       findsOneWidget,
     );
-    expect(find.textContaining('Demo order #EEEEEE: Meal'), findsOneWidget);
+    expect(find.textContaining('Order #EEEEEE: Meal'), findsOneWidget);
     expect(find.textContaining('Order #FFFFFF'), findsNothing);
     await shot(t, 'sim_track');
     t.view.physicalSize = const Size(320, 700);
     await t.tap(find.byIcon(Icons.arrow_back).first);
     await t.pumpAndSettle();
-    expect(find.text('Demo'), findsWidgets);
+    expect(find.text('Demo'), findsNothing);
     await shot(t, 'sim_orders');
     expect(t.takeException(), isNull);
+  });
+
+  testWidgets('v39 shot: map button on at Out for Delivery', (t) async {
+    t.view.physicalSize = const Size(360, 800);
+    t.view.devicePixelRatio = 1;
+    addTearDown(t.view.resetPhysicalSize);
+    addTearDown(t.view.resetDevicePixelRatio);
+    SharedPreferences.setMockInitialValues({});
+    final store = TiffeStore(await SharedPreferences.getInstance());
+    final now = DateTime.now().toUtc();
+    final day =
+        '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+    demoPlacedOrders.add('aaaaaaaa-9');
+    addTearDown(demoPlacedOrders.clear);
+    final b = DataBackend()
+      ..orderRows = [
+        {
+          'id': 'aaaaaaaa-9',
+          'delivery_date': day,
+          'quantity': 1,
+          'status': 'Confirmed',
+          'total_paise': 10000,
+          'payment_status': 'verified',
+          'eta_at': null,
+          'subscription_id': null,
+          'created_at': now
+              .subtract(const Duration(seconds: 470))
+              .toIso8601String(),
+        },
+      ];
+    await t.pumpWidget(
+      RepaintBoundary(
+        child: TiffeApp(
+          store: store,
+          startScreen: LiveWorkspace(backend: b, store: store),
+        ),
+      ),
+    );
+    await t.pumpAndSettle();
+    await t.tap(
+      find.descendant(
+        of: find.byType(GBottomNav),
+        matching: find.text('Orders'),
+      ),
+    );
+    await t.pumpAndSettle();
+    await t.tap(find.text('Track Details').first);
+    await t.pumpAndSettle();
+    await shot(t, 'v39_map');
+  });
+
+  testWidgets('v39 shot: active plan home and plans', (t) async {
+    t.view.physicalSize = const Size(360, 800);
+    t.view.devicePixelRatio = 1;
+    addTearDown(t.view.resetPhysicalSize);
+    addTearDown(t.view.resetDevicePixelRatio);
+    SharedPreferences.setMockInitialValues({
+      'active_plan': 'double',
+      'active_plan_ends': '2026-11-09',
+    });
+    final store = TiffeStore(await SharedPreferences.getInstance());
+    await t.pumpWidget(
+      RepaintBoundary(
+        child: TiffeApp(
+          store: store,
+          startScreen: LiveWorkspace(backend: DataBackend(), store: store),
+        ),
+      ),
+    );
+    await t.pumpAndSettle();
+    await shot(t, 'v39_home_plan');
+    await t.tap(
+      find.descendant(
+        of: find.byType(GBottomNav),
+        matching: find.text('Plans'),
+      ),
+    );
+    await t.pumpAndSettle();
+    expect(find.text('Active Plan'), findsOneWidget);
+    await shot(t, 'v39_plans_active');
+  });
+
+  testWidgets('v39 shot: old dark flag no longer darkens pages', (t) async {
+    t.view.physicalSize = const Size(360, 800);
+    t.view.devicePixelRatio = 1;
+    addTearDown(t.view.resetPhysicalSize);
+    addTearDown(t.view.resetDevicePixelRatio);
+    SharedPreferences.setMockInitialValues({
+      'tiffe.v1': '{"darkMode":true,"onboarded":true}',
+    });
+    final store = TiffeStore(await SharedPreferences.getInstance());
+    expect(store.darkMode, isFalse);
+    await t.pumpWidget(
+      RepaintBoundary(
+        child: TiffeApp(
+          store: store,
+          startScreen: LiveWorkspace(backend: DataBackend(), store: store),
+        ),
+      ),
+    );
+    await t.pumpAndSettle();
+    await t.tap(find.text('View Schedule'));
+    await t.pumpAndSettle();
+    await shot(t, 'v39_schedule_light');
+  });
+
+  Future<void> plansTab(
+    WidgetTester t,
+    ContentBackend b,
+    Map<String, Object> prefs,
+  ) async {
+    t.view.physicalSize = const Size(360, 800);
+    t.view.devicePixelRatio = 1;
+    addTearDown(t.view.resetPhysicalSize);
+    addTearDown(t.view.resetDevicePixelRatio);
+    SharedPreferences.setMockInitialValues(prefs);
+    final store = TiffeStore(await SharedPreferences.getInstance());
+    await t.pumpWidget(
+      RepaintBoundary(
+        child: TiffeApp(
+          store: store,
+          startScreen: LiveWorkspace(backend: b, store: store),
+        ),
+      ),
+    );
+    await t.pumpAndSettle();
+  }
+
+  testWidgets('real subscription wins over the phone-local plan', (t) async {
+    await plansTab(t, DataBackend(), {
+      'active_plan': 'daily',
+      'active_plan_ends': '2099-01-01',
+    });
+    expect(find.text('Double Tiffe'), findsOneWidget);
+    await t.tap(
+      find.descendant(
+        of: find.byType(GBottomNav),
+        matching: find.text('Plans'),
+      ),
+    );
+    await t.pumpAndSettle();
+    expect(find.text('Active Plan'), findsOneWidget);
+    // The real plan (Double, first card) carries the tick, not the local one.
+    expect(
+      t.getTopLeft(find.text('Active Plan')).dy,
+      lessThan(t.getTopLeft(find.text('Select This Plan')).dy),
+    );
+  });
+
+  testWidgets('phone-local plan expires after its end date', (t) async {
+    await plansTab(t, ContentBackend(), {
+      'active_plan': 'daily',
+      'active_plan_ends': '2020-01-01',
+    });
+    expect(find.text('Daily Tiffe'), findsNothing);
+    await t.tap(
+      find.descendant(
+        of: find.byType(GBottomNav),
+        matching: find.text('Plans'),
+      ),
+    );
+    await t.pumpAndSettle();
+    expect(find.text('Active Plan'), findsNothing);
   });
 }
 

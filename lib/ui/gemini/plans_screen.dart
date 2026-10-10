@@ -29,6 +29,9 @@ class GPlans extends StatelessWidget {
   final void Function(GPlan plan)? onSelect;
   final VoidCallback? onBack;
 
+  /// Index of the plan the customer has chosen; its button reads Active Plan.
+  final int? activeIndex;
+
   /// When set, the bottom nav shows with Plans selected (tab 2).
   final ValueChanged<int>? onTab;
   const GPlans({
@@ -38,6 +41,7 @@ class GPlans extends StatelessWidget {
     this.onSelect,
     this.onBack,
     this.onTab,
+    this.activeIndex,
   });
 
   @override
@@ -106,7 +110,10 @@ class GPlans extends StatelessWidget {
         Expanded(
           child: ListView(
             padding: const EdgeInsets.fromLTRB(24, 24, 24, 24),
-            children: [for (final p in plans) _card(p)],
+            children: [
+              for (var i = 0; i < plans.length; i++)
+                _card(plans[i], active: i == activeIndex),
+            ],
           ),
         ),
         if (onTab != null) GBottomNav(tab: 2, onTab: onTab),
@@ -114,7 +121,7 @@ class GPlans extends StatelessWidget {
     ),
   );
 
-  Widget _card(GPlan p) => Padding(
+  Widget _card(GPlan p, {bool active = false}) => Padding(
     padding: const EdgeInsets.only(bottom: 18),
     child: Container(
       decoration: BoxDecoration(
@@ -215,24 +222,41 @@ class GPlans extends StatelessWidget {
                   ),
                 const SizedBox(height: 12),
                 GestureDetector(
-                  onTap: onSelect == null ? null : () => onSelect!(p),
+                  onTap: onSelect == null || active ? null : () => onSelect!(p),
                   child: Container(
                     width: double.infinity,
                     height: 52,
                     alignment: Alignment.center,
                     decoration: BoxDecoration(
-                      color: p.popular
+                      color: active
+                          ? const Color(0xFFE3EDE7)
+                          : p.popular
                           ? GColors.green
                           : const Color(0xFFF0EBE0),
                       borderRadius: BorderRadius.circular(18),
                     ),
-                    child: Text(
-                      'Select This Plan',
-                      style: gText(
-                        15,
-                        w: FontWeight.w700,
-                        c: p.popular ? Colors.white : GColors.green,
-                      ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        if (active) ...[
+                          const Icon(
+                            Icons.check_circle,
+                            size: 20,
+                            color: GColors.green,
+                          ),
+                          const SizedBox(width: 8),
+                        ],
+                        Text(
+                          active ? 'Active Plan' : 'Select This Plan',
+                          style: gText(
+                            15,
+                            w: FontWeight.w700,
+                            c: active || !p.popular
+                                ? GColors.green
+                                : Colors.white,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),

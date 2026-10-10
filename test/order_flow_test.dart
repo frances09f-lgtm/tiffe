@@ -12,6 +12,7 @@ import 'package:tiffe/live/live_app.dart';
 import 'live_ui_test.dart' show capture;
 
 class OrderBackend extends TiffeBackend {
+  String? failWith;
   OrderBackend()
     : super(
         SupabaseClient(
@@ -81,6 +82,7 @@ class OrderBackend extends TiffeBackend {
     String instructions = '',
     String? subscriptionId,
   }) async {
+    if (failWith != null) throw Exception(failWith);
     placedDate = date;
     placedTiffins = tiffins;
     placedKey = idempotencyKey;
@@ -144,10 +146,26 @@ void main() {
     await t.ensureVisible(find.textContaining('Place Order'));
     await t.tap(find.textContaining('Place Order'));
     await t.pumpAndSettle();
+    // Same payment flow as the plans: method screen first, nothing placed yet.
+    expect(find.text('Select Payment Method'), findsOneWidget);
+    expect(b.placedKey, isNull);
+    await t.tap(find.textContaining('Securely'));
+    await t.pump();
+    await t.pump(const Duration(milliseconds: 600));
+    await t.pump(const Duration(milliseconds: 600));
+    expect(find.text('Processing payment...'), findsOneWidget);
+    // Android back must not drop the spinner while the order is in flight.
+    await t.binding.handlePopRoute();
+    await t.pump(const Duration(milliseconds: 400));
+    expect(find.text('Processing payment...'), findsOneWidget);
+    await t.pumpAndSettle();
     expect(b.placedKey, isNotNull);
     expect(b.placedTiffins!.single, hasLength(2));
     expect(b.placedDate, matches(RegExp(r'^\d{4}-\d{2}-\d{2}$')));
-    expect(find.text('Order placed - the kitchen has it.'), findsOneWidget);
+    expect(find.text('Order Placed!'), findsOneWidget);
+    expect(find.text('Track Order'), findsOneWidget);
+    await t.tap(find.text('Go to Home Dashboard'));
+    await t.pumpAndSettle();
     // Three bhajis would price the third at +₹10: reopen and check preview.
     await openMenuAndOrder(t, ['Batata Bhaji', 'Matki Usal', 'Vatana']);
     expect(find.textContaining('Total: ₹110'), findsOneWidget);
@@ -199,6 +217,34 @@ void main() {
       expect(find.text('Order placed - the kitchen has it.'), findsOneWidget);
     },
   );
+
+  testWidgets('failed order returns to checkout with the error, no confirm', (
+    t,
+  ) async {
+    SharedPreferences.setMockInitialValues({});
+    final s = TiffeStore(await SharedPreferences.getInstance());
+    t.view.physicalSize = const Size(430, 1400);
+    t.view.devicePixelRatio = 1;
+    final b = OrderBackend()..failWith = 'Kitchen is closed';
+    await t.pumpWidget(
+      RepaintBoundary(
+        child: TiffeApp(
+          store: s,
+          startScreen: LiveWorkspace(backend: b, store: s),
+        ),
+      ),
+    );
+    await t.pumpAndSettle();
+    await openMenuAndOrder(t, ['Batata Bhaji', 'Matki Usal']);
+    await t.ensureVisible(find.textContaining('Place Order'));
+    await t.tap(find.textContaining('Place Order'));
+    await t.pumpAndSettle();
+    await t.tap(find.textContaining('Securely'));
+    await t.pumpAndSettle();
+    expect(find.text('Order Placed!'), findsNothing);
+    expect(find.text('Kitchen is closed'), findsOneWidget);
+    expect(find.textContaining('Place Order'), findsOneWidget);
+  });
 
   testWidgets('checkout without a full selection opens the Menu first', (
     t,

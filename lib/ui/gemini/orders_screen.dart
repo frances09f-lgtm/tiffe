@@ -146,20 +146,6 @@ class GOrders extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 8),
-            if (o.demo) ...[
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: GColors.saffron.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Text(
-                  'Demo',
-                  style: gText(9.5, w: FontWeight.w700, c: GColors.saffron),
-                ),
-              ),
-              const SizedBox(width: 6),
-            ],
             Text(
               o.demoStatus ?? o.status,
               style: gText(

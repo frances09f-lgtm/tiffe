@@ -23,7 +23,7 @@ class TiffeStore extends ChangeNotifier {
       address = d['address'] ?? '';
       area = d['area'] ?? 'Kothrud';
       onboarded = d['onboarded'] == true;
-      darkMode = d['darkMode'] == true;
+      darkMode = false; // dark mode is not designed yet; clears old saved flag
       plan = Plan.values.firstWhere(
         (p) => p.name == d['plan'],
         orElse: () => Plan.none,

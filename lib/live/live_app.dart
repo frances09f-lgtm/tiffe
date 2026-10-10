@@ -459,6 +459,23 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
     if (state == AppLifecycleState.resumed) retryReports();
   }
 
+  /// Plan chosen in the demo pay flow: 'double' or 'daily', with its end day.
+  /// Phone-local only. No subscription is created.
+  String? _localPlan, _localPlanEnds;
+
+  /// The one active plan Home and Plans both use: a real kitchen subscription
+  /// first, then the phone-local plan until its 30-day end date has passed.
+  ({String plan, String ends})? get _effectivePlan {
+    final sub = activeSubscription;
+    if (sub != null) {
+      return (plan: sub['plan'] as String, ends: sub['ends_on'] as String);
+    }
+    final lp = _localPlan, le = _localPlanEnds;
+    if (lp == null || le == null) return null;
+    if (le.compareTo(_istDay()) < 0) return null;
+    return (plan: lp, ends: le);
+  }
+
   bool _lastDark = false;
   TiffePalette get uiPalette {
     // A pushed page can rebuild while this state is being torn down; keep the
@@ -522,6 +539,8 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
     UpdateCheck.available.addListener(_onUpdate);
     loadSettings();
     if (widget.role == null) {
+      _localPlan = widget.store.prefs.getString('active_plan');
+      _localPlanEnds = widget.store.prefs.getString('active_plan_ends');
       demoPlacedOrders.addAll(
         widget.store.prefs.getStringList('demo_orders') ?? const <String>[],
       );
@@ -602,7 +621,7 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
           before != st &&
           o['demo'] == true &&
           _alertText[st] != null) {
-        alerts.add('Demo order #${_shortId(id)}: ${_alertText[st]}');
+        alerts.add('Order #${_shortId(id)}: ${_alertText[st]}');
       }
       if (before != st) changed = true;
       _lastStatus[id] = st;
@@ -3140,9 +3159,22 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
     ),
   );
 
+  /// Where to land after the order sheet closes.
+  void _afterOrder(String r) {
+    if (r == 'home') {
+      setState(() => tab = 0);
+    } else if (r.startsWith('track:')) {
+      setState(() => tab = 3);
+      _trackPage('#${_shortId(r.substring(6))}');
+    } else {
+      setState(() => tab = 3);
+      gToast(context, 'Order placed - the kitchen has it.');
+    }
+  }
+
   Future<void> openOrder({String? date}) async {
-    final placed = await Navigator.of(routeContext).push<bool>(
-      MaterialPageRoute<bool>(
+    final placed = await Navigator.of(routeContext).push<String>(
+      MaterialPageRoute<String>(
         builder: (c) => OrderSheet(
           backend: widget.backend,
           cfg: cfg!,
@@ -3156,10 +3188,7 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
         ),
       ),
     );
-    if (placed == true && mounted) {
-      setState(() => tab = 3);
-      gToast(context, 'Order placed - the kitchen has it.');
-    }
+    if (placed != null && mounted) _afterOrder(placed);
   }
 
   Future<void> saveProfile() async {
@@ -3521,15 +3550,6 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
             color: Colors.transparent,
             child: Column(
               children: [
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: const Text('Dark mode'),
-                  subtitle: const Text('A softer view after sunset'),
-                  value: widget.store.darkMode,
-                  onChanged: widget.store.setDarkMode,
-                  secondary: const Icon(Icons.dark_mode_outlined),
-                ),
-                const Divider(),
                 ListTile(
                   contentPadding: EdgeInsets.zero,
                   leading: const Icon(Icons.lock_outline),
@@ -4236,6 +4256,11 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
       plans: plans,
       onTab: onTab,
       onBack: onTab == null ? null : () => onTab(0),
+      activeIndex: switch (_effectivePlan?.plan) {
+        'double' => 0,
+        'daily' => 1,
+        _ => null,
+      },
       onSelect: (p) => _planCheckout(p == plans.first),
     );
   }
@@ -4277,13 +4302,30 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
             MaterialPageRoute<void>(
               builder: (_) => GPlanPay(
                 total: total,
-                onPay: () => nav.pushReplacement(
-                  MaterialPageRoute<void>(
-                    builder: (_) => GPlanConfirmed(
-                      onDone: () => nav.popUntil((r) => r.isFirst),
+                onPay: () {
+                  final end = DateTime.now().add(const Duration(days: 30));
+                  final ends =
+                      '${end.year}-${end.month.toString().padLeft(2, '0')}-${end.day.toString().padLeft(2, '0')}';
+                  widget.store.prefs.setString(
+                    'active_plan',
+                    dbl ? 'double' : 'daily',
+                  );
+                  widget.store.prefs.setString('active_plan_ends', ends);
+                  setState(() {
+                    _localPlan = dbl ? 'double' : 'daily';
+                    _localPlanEnds = ends;
+                  });
+                  nav.pushReplacement(
+                    MaterialPageRoute<void>(
+                      builder: (_) => GPlanConfirmed(
+                        onDone: () {
+                          nav.popUntil((r) => r.isFirst);
+                          setState(() => tab = 0);
+                        },
+                      ),
                     ),
-                  ),
-                ),
+                  );
+                },
               ),
             ),
           ),
@@ -4461,7 +4503,7 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
             return GTrack(
               orderId: id,
               subtitle:
-                  '${row['demo'] == true ? 'Demo • ' : ''}${row['subscription_id'] == null ? 'One-time' : 'Subscription'} • $status • ${row['quantity']} Tiffin${row['quantity'] == 1 ? '' : 's'}',
+                  '${row['subscription_id'] == null ? 'One-time' : 'Subscription'} • $status • ${row['quantity']} Tiffin${row['quantity'] == 1 ? '' : 's'}',
               steps: at < 0
                   ? [GTrackStep(status, GStepState.pending)]
                   : [
@@ -4501,8 +4543,8 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
         for (final m in menuRows)
           if (m['name'] == n && m['available'] == true) m['id'] as String,
     ];
-    final placed = await Navigator.of(routeContext).push<bool>(
-      MaterialPageRoute<bool>(
+    final placed = await Navigator.of(routeContext).push<String>(
+      MaterialPageRoute<String>(
         builder: (c) => OrderSheet(
           backend: widget.backend,
           cfg: cfg!,
@@ -4516,10 +4558,7 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
         ),
       ),
     );
-    if (placed == true && mounted) {
-      setState(() => tab = 3);
-      gToast(context, 'Order placed - the kitchen has it.');
-    }
+    if (placed != null && mounted) _afterOrder(placed);
   }
 
   Widget customerShell() {
@@ -4595,7 +4634,7 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
           onTab: go,
         );
       default:
-        final sub = activeSubscription;
+        final eff = _effectivePlan;
         Map<String, dynamic>? today;
         for (final o in orderRows) {
           if (o['delivery_date'] == _istDay()) today = _simOne(o);
@@ -4610,23 +4649,21 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
           address: area.text.isEmpty ? 'Your home' : 'Home · ${area.text}',
           name: first.isEmpty ? 'there' : first,
           subtitle: 'Rozcha dabba. Tumchya choice cha.',
-          planTitle: sub == null
+          planTitle: eff == null
               ? 'No active plan'
-              : sub['plan'] == 'double'
+              : eff.plan == 'double'
               ? 'Double Tiffe'
               : 'Daily Tiffe',
-          planSubtitle: sub == null
+          planSubtitle: eff == null
               ? 'Order one tiffin or start a monthly plan'
-              : 'Valid till ${_niceDay(sub['ends_on'] as String)}',
+              : 'Valid till ${_niceDay(eff.ends)}',
           todayLabel: 'Today: ',
           todayMeal: today == null
               ? 'No order yet'
               : '${today['quantity']} Tiffin${today['quantity'] == 1 ? '' : 's'}',
-          todayStatus: today == null
-              ? ''
-              : '${today['demo'] == true ? 'Demo · ' : ''}${today['status']}',
+          todayStatus: today == null ? '' : '${today['status']}',
           showPause: false,
-          hasPlan: sub != null,
+          hasPlan: eff != null,
           showBell: false,
           showFeatured: feat != null,
           featuredHeading: 'On Today’s Menu',
@@ -5003,38 +5040,96 @@ class _OrderSheetState extends State<OrderSheet> {
     super.dispose();
   }
 
-  Future<void> place() async {
+  bool _valid() {
     for (final t in tiffins) {
       if (t.length < 2 || t.length > 8) {
         setState(() => error = 'Pick 2 to 8 bhajis for each tiffin.');
-        return;
+        return false;
       }
     }
+    return true;
+  }
+
+  /// Places the real order. The same idempotency key makes a retry safe.
+  Future<String> _placeCore() async {
+    final newId = await widget.backend.placeOrder(
+      date: deliveryDate(),
+      tiffins: tiffins.map((t) => t.toList()).toList(),
+      idempotencyKey: idempotencyKey,
+      instructions: instructions.text.trim(),
+      subscriptionId: widget.subscription?['id'] as String?,
+    );
+    unawaited(rememberDemoOrder(newId));
+    return newId;
+  }
+
+  static String _clean(Object e) =>
+      e.toString().replaceFirst(RegExp(r'^\w*Exception[: ]*'), '').trim();
+
+  /// Orders with nothing to pay (covered by a plan) are placed directly.
+  Future<void> place() async {
+    if (!_valid()) return;
     setState(() {
       busy = true;
       error = null;
     });
     try {
-      final newId = await widget.backend.placeOrder(
-        date: deliveryDate(),
-        tiffins: tiffins.map((t) => t.toList()).toList(),
-        idempotencyKey: idempotencyKey,
-        instructions: instructions.text.trim(),
-        subscriptionId: widget.subscription?['id'] as String?,
-      );
-      unawaited(rememberDemoOrder(newId));
-      if (mounted) Navigator.pop(context, true);
+      await _placeCore();
+      if (mounted) Navigator.pop(context, 'orders');
     } catch (e) {
       if (mounted) {
         setState(() {
           busy = false;
-          error = e
-              .toString()
-              .replaceFirst(RegExp(r'^\w*Exception[: ]*'), '')
-              .trim();
+          error = _clean(e);
         });
       }
     }
+  }
+
+  String? _placedId;
+
+  /// Same payment flow as the plans: method screen, processing animation,
+  /// then the confirmation. The real order is placed during the animation.
+  /// A failure returns here with the error and never shows a confirmation.
+  void payAndPlace(String total) {
+    if (!_valid()) return;
+    setState(() => error = null);
+    final nav = Navigator.of(context);
+    void finish(String result) {
+      nav.pop();
+      nav.pop(result);
+    }
+
+    nav.push(
+      MaterialPageRoute<void>(
+        builder: (_) => GPlanPay(
+          total: total,
+          onPay: () => nav.pushReplacement(
+            MaterialPageRoute<void>(
+              builder: (_) => GPlanConfirmed(
+                title: 'Order Placed!',
+                body: 'Your tiffin order has been placed. The kitchen has it and will start preparing it.',
+                secondaryLabel: 'Track Order',
+                task: () async {
+                  try {
+                    _placedId = await _placeCore();
+                    return null;
+                  } catch (e) {
+                    return _clean(e);
+                  }
+                },
+                onError: (e) {
+                  nav.pop();
+                  if (mounted) setState(() => error = e);
+                },
+                onSecondary: () => finish('track:$_placedId'),
+                onDone: () => finish('home'),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   String _names(Set<String> ids) => [
@@ -5352,7 +5447,9 @@ class _OrderSheetState extends State<OrderSheet> {
                       ? null
                       : _firstIncomplete >= 0
                       ? () => _pick(_firstIncomplete)
-                      : place,
+                      : pricePaise == 0
+                      ? place
+                      : () => payAndPlace(total),
                 ),
               ),
             ],

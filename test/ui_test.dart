@@ -123,9 +123,13 @@ void main() {
     );
     await t.tap(find.byType(SwitchListTile));
     await t.pumpAndSettle();
-    expect(s.darkMode, isTrue);
-    expect(TiffeStore(s.prefs).darkMode, isTrue);
-    expect(Theme.of(t.element(find.byType(Shell))).brightness, Brightness.dark);
+    // Dark mode is not designed yet: the app stays light and a saved flag is
+    // cleared on load.
+    expect(TiffeStore(s.prefs).darkMode, isFalse);
+    expect(
+      Theme.of(t.element(find.byType(Shell))).brightness,
+      Brightness.light,
+    );
     await capture(t, 'profile-dark-toggle');
     for (final tab in ['Home', 'Menu', 'Orders', 'Plan']) {
       await t.tap(find.text(tab).last);

@@ -344,61 +344,175 @@ class _GPlanPayState extends State<GPlanPay> {
 }
 
 /// Subscription Confirmed, as designed.
-class GPlanConfirmed extends StatelessWidget {
-  final VoidCallback? onDone;
-  const GPlanConfirmed({super.key, this.onDone});
+/// After Pay: a circular processing animation (like GPay), then the tick and
+/// the confirmation. [task] runs during the animation and returns an error
+/// text, or null when it worked. On an error the page closes and [onError]
+/// gets the text, so a failed action never looks confirmed.
+class GPlanConfirmed extends StatefulWidget {
+  final VoidCallback? onDone, onSecondary;
+  final String title, body, doneLabel;
+  final String? secondaryLabel;
+  final Future<String?> Function()? task;
+  final void Function(String error)? onError;
+  final Duration minProcessing;
+  const GPlanConfirmed({
+    super.key,
+    this.onDone,
+    this.onSecondary,
+    this.title = 'Subscription Confirmed!',
+    this.body = 'Your monthly tiffin plan has been activated successfully. Your first meal arrives tomorrow at 1:00 PM.',
+    this.doneLabel = 'Go to Home Dashboard',
+    this.secondaryLabel,
+    this.task,
+    this.onError,
+    this.minProcessing = const Duration(milliseconds: 2200),
+  });
   @override
-  Widget build(BuildContext context) => Scaffold(
-    backgroundColor: GColors.cream,
-    body: Column(
-      children: [
-        Expanded(
-          child: Center(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 32),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    width: 96,
-                    height: 96,
-                    decoration: const BoxDecoration(
-                      color: GColors.green,
-                      shape: BoxShape.circle,
+  State<GPlanConfirmed> createState() => _GPlanConfirmedState();
+}
+
+class _GPlanConfirmedState extends State<GPlanConfirmed>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 700),
+  );
+  bool done = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _run();
+  }
+
+  Future<void> _run() async {
+    final err = widget.task == null ? null : await widget.task!();
+    if (widget.minProcessing > Duration.zero) {
+      await Future<void>.delayed(widget.minProcessing);
+    }
+    if (!mounted) return;
+    if (err != null) {
+      widget.onError?.call(err);
+      return;
+    }
+    setState(() => done = true);
+    _c.forward();
+  }
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => PopScope(
+    // Back is blocked here: while the task runs it must not drop the spinner,
+    // and afterwards the buttons are the way out. Errors close the page in code.
+    canPop: false,
+    child: Scaffold(
+      backgroundColor: GColors.cream,
+      body: Column(
+        children: [
+          Expanded(
+            child: Center(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 32),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    SizedBox(
+                      width: 96,
+                      height: 96,
+                      child: done
+                          ? AnimatedBuilder(
+                              animation: _c,
+                              builder: (_, _) {
+                                final t = Curves.elasticOut.transform(
+                                  _c.value.clamp(0.0, 1.0),
+                                );
+                                return Transform.scale(
+                                  scale: t,
+                                  child: Container(
+                                    decoration: const BoxDecoration(
+                                      color: GColors.green,
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: const Icon(
+                                      Icons.check,
+                                      size: 52,
+                                      color: GColors.saffron,
+                                    ),
+                                  ),
+                                );
+                              },
+                            )
+                          : const Padding(
+                              padding: EdgeInsets.all(8),
+                              child: CircularProgressIndicator(
+                                strokeWidth: 6,
+                                color: GColors.saffron,
+                                backgroundColor: Color(0xFFE8E2D6),
+                              ),
+                            ),
                     ),
-                    child: const Icon(
-                      Icons.check,
-                      size: 52,
-                      color: GColors.saffron,
+                    const SizedBox(height: 28),
+                    Text(
+                      done ? widget.title : 'Processing payment...',
+                      textAlign: TextAlign.center,
+                      style: gText(24, w: FontWeight.w800, c: GColors.green),
                     ),
-                  ),
-                  const SizedBox(height: 28),
-                  Text(
-                    'Subscription Confirmed!',
-                    textAlign: TextAlign.center,
-                    style: gText(24, w: FontWeight.w800, c: GColors.green),
-                  ),
-                  const SizedBox(height: 10),
-                  Text(
-                    'Your monthly tiffin plan has been activated successfully. Your first meal arrives tomorrow at 1:00 PM.',
-                    textAlign: TextAlign.center,
-                    style: gText(14, c: GColors.grey, height: 1.5),
-                  ),
-                ],
+                    const SizedBox(height: 10),
+                    Text(
+                      done ? widget.body : 'Please do not close the app.',
+                      textAlign: TextAlign.center,
+                      style: gText(14, c: GColors.grey, height: 1.5),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
-        ),
-        Padding(
-          padding: EdgeInsets.fromLTRB(
-            32,
-            4,
-            32,
-            24 + MediaQuery.of(context).padding.bottom,
-          ),
-          child: GButton('Go to Home Dashboard', onPressed: onDone ?? () {}),
-        ),
-      ],
+          if (done)
+            Padding(
+              padding: EdgeInsets.fromLTRB(
+                32,
+                4,
+                32,
+                24 + MediaQuery.of(context).padding.bottom,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (widget.secondaryLabel != null) ...[
+                    GestureDetector(
+                      onTap: widget.onSecondary,
+                      child: Container(
+                        width: double.infinity,
+                        height: 52,
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF0EBE0),
+                          borderRadius: BorderRadius.circular(18),
+                        ),
+                        child: Text(
+                          widget.secondaryLabel!,
+                          style: gText(
+                            15,
+                            w: FontWeight.w700,
+                            c: GColors.green,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+                  GButton(widget.doneLabel, onPressed: widget.onDone ?? () {}),
+                ],
+              ),
+            ),
+        ],
+      ),
     ),
   );
 }

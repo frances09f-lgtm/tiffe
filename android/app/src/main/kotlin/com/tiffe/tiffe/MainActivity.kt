@@ -63,7 +63,7 @@ class MainActivity : FlutterActivity() {
         val base = SystemClock.elapsedRealtime()
         bodies.forEachIndexed { i, body ->
             val id = orderBase(code) + i
-            val intent = Intent(this, DeliveryNotificationReceiver::class.java).putExtra("title", "Demo order #" + label).putExtra("body", body).putExtra("id", id)
+            val intent = Intent(this, DeliveryNotificationReceiver::class.java).putExtra("title", "Order #" + label).putExtra("body", body).putExtra("id", id)
             val pending = PendingIntent.getBroadcast(this, id, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
             alarm.cancel(pending)
             val at = base + (i + 1) * 150000L
