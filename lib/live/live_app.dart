@@ -4246,14 +4246,20 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
               steps: at < 0
                   ? [GTrackStep(status, GStepState.pending)]
                   : [
-                      // Finished steps and the current one; later steps are
-                      // not shown, like the prototype.
-                      for (var i = 0; i <= at; i++)
+                      // All steps always: done, current (spinner), upcoming.
+                      for (var i = 0; i < order.length; i++)
                         GTrackStep(
-                          label(order[i], i < at || order[i] == 'Delivered'),
-                          i < at || order[i] == 'Delivered'
+                          label(
+                            order[i],
+                            i != at || i == 0 || order[i] == 'Delivered',
+                          ),
+                          i < at ||
+                                  (i == at &&
+                                      (i == 0 || order[i] == 'Delivered'))
                               ? GStepState.done
-                              : GStepState.current,
+                              : i == at
+                              ? GStepState.current
+                              : GStepState.pending,
                           note: order[i] == 'Out for Delivery' && out
                               ? (row['eta_at'] == null
                                     ? 'The kitchen has not shared an arrival time yet.'

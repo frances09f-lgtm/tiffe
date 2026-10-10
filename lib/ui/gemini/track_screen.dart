@@ -113,13 +113,14 @@ class GTrack extends StatelessWidget {
                     style: gText(16, w: FontWeight.w700, c: GColors.green),
                   ),
                   const SizedBox(height: 18),
-                  for (final s in steps) _step(context, s),
+                  for (var i = 0; i < steps.length; i++)
+                    _step(context, steps[i], i == steps.length - 1),
                 ],
               ),
             ),
           ),
         ),
-        if (onMap != null)
+        if (onMap != null || steps.isNotEmpty)
           Padding(
             padding: EdgeInsets.fromLTRB(
               24,
@@ -133,58 +134,73 @@ class GTrack extends StatelessWidget {
     ),
   );
 
-  Widget _step(BuildContext context, GTrackStep s) => Padding(
-    padding: const EdgeInsets.only(bottom: 16),
-    child: Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SizedBox(
-          width: 28,
-          height: 28,
-          child: switch (s.state) {
-            GStepState.done => const Icon(
-              Icons.check_circle_outline,
-              size: 26,
-              color: GColors.saffron,
-            ),
-            GStepState.current => const _Spinner(),
-            GStepState.pending => const Icon(
-              Icons.radio_button_unchecked,
-              size: 26,
-              color: Color(0xFFC9C4B8),
-            ),
-          },
-        ),
-        const SizedBox(width: 14),
-        Expanded(
-          child: Padding(
-            padding: const EdgeInsets.only(top: 3),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  s.label,
-                  style: gText(
-                    14,
-                    w: s.state == GStepState.pending
-                        ? FontWeight.w500
-                        : FontWeight.w600,
-                    c: s.state == GStepState.pending
-                        ? GColors.grey
-                        : GColors.green,
-                    height: 1.3,
+  Widget _step(BuildContext context, GTrackStep s, bool last) => Padding(
+    padding: EdgeInsets.only(bottom: last ? 4 : 0),
+    child: IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Column(
+            children: [
+              SizedBox(width: 28, height: 28, child: _icon(s)),
+              if (!last)
+                Expanded(
+                  child: Container(
+                    width: 2,
+                    margin: const EdgeInsets.symmetric(vertical: 3),
+                    decoration: BoxDecoration(
+                      color: s.state == GStepState.done
+                          ? GColors.saffron
+                          : const Color(0xFFE3DED3),
+                      borderRadius: BorderRadius.circular(1),
+                    ),
                   ),
                 ),
-                if (s.note != null) ...[
-                  const SizedBox(height: 2),
-                  Text(s.note!, style: gText(12, c: GColors.grey)),
-                ],
-              ],
+            ],
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Padding(
+              padding: EdgeInsets.only(top: 3, bottom: last ? 0 : 26),
+              child: _stepText(s),
             ),
           ),
-        ),
-      ],
+        ],
+      ),
     ),
+  );
+
+  Widget _icon(GTrackStep s) => switch (s.state) {
+    GStepState.done => const Icon(
+      Icons.check_circle_outline,
+      size: 26,
+      color: GColors.saffron,
+    ),
+    GStepState.current => const _Spinner(),
+    GStepState.pending => const Icon(
+      Icons.radio_button_unchecked,
+      size: 26,
+      color: Color(0xFFC9C4B8),
+    ),
+  };
+
+  Widget _stepText(GTrackStep s) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text(
+        s.label,
+        style: gText(
+          14,
+          w: s.state == GStepState.pending ? FontWeight.w500 : FontWeight.w600,
+          c: s.state == GStepState.pending ? GColors.grey : GColors.green,
+          height: 1.3,
+        ),
+      ),
+      if (s.note != null) ...[
+        const SizedBox(height: 2),
+        Text(s.note!, style: gText(12, c: GColors.grey)),
+      ],
+    ],
   );
 }
 

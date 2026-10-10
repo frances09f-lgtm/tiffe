@@ -378,6 +378,62 @@ void main() {
     });
   }
 
+  for (final st in ['Confirmed', 'Packed']) {
+    testWidgets('tracking shows all steps for $st at 320px', (t) async {
+      t.view.physicalSize = const Size(320, 700);
+      t.view.devicePixelRatio = 1;
+      addTearDown(t.view.resetPhysicalSize);
+      addTearDown(t.view.resetDevicePixelRatio);
+      SharedPreferences.setMockInitialValues({});
+      final store = TiffeStore(await SharedPreferences.getInstance());
+      final now = DateTime.now().toUtc().add(
+        const Duration(hours: 5, minutes: 30),
+      );
+      final day =
+          '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+      final b = DataBackend()
+        ..orderRows = [
+          {
+            'id': 'cccccccc-1',
+            'delivery_date': day,
+            'quantity': 1,
+            'status': st,
+            'total_paise': 10000,
+            'payment_status': 'verified',
+            'eta_at': null,
+            'subscription_id': null,
+          },
+        ];
+      await t.pumpWidget(
+        RepaintBoundary(
+          child: TiffeApp(
+            store: store,
+            startScreen: LiveWorkspace(backend: b, store: store),
+          ),
+        ),
+      );
+      await t.pumpAndSettle();
+      await t.tap(
+        find.descendant(
+          of: find.byType(GBottomNav),
+          matching: find.text('Orders'),
+        ),
+      );
+      await t.pumpAndSettle();
+      await t.tap(find.text('Track Details').first);
+      await t.pumpAndSettle();
+      expect(find.text('Order Confirmed'), findsOneWidget);
+      expect(find.textContaining('Hygienic Kitchen'), findsOneWidget);
+      if (st == 'Confirmed') {
+        expect(find.textContaining('Insulated Thermal Bag'), findsOneWidget);
+      }
+      expect(find.textContaining('Out for Delivery'), findsWidgets);
+      expect(find.text('Delivered'), findsOneWidget);
+      await shot(t, 'track_all_$st');
+      expect(t.takeException(), isNull);
+    });
+  }
+
   for (final cached in [false, true]) {
     testWidgets('cold start never flashes the profile form (cached=$cached)', (
       t,
