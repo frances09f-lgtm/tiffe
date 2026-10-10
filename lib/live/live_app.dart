@@ -2705,78 +2705,128 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
                   Icons.receipt_long_outlined,
                 )
         : Column(
-            children: rows
-                .map(
-                  (o) => Padding(
-                    padding: const EdgeInsets.only(bottom: 14),
-                    child: panel(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            o['delivery_date'],
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w700,
-                              fontSize: 18,
-                            ),
-                          ),
-                          Text(
-                            '${o['quantity']} Tiffin${o['quantity'] == 2 ? 's' : ''} · ${o['status']}',
-                          ),
-                          Text(
-                            '₹${(o['total_paise'] as int) / 100} · ${o['payment_status']}',
-                          ),
-                          if (widget.role == null) ...[
-                            const SizedBox(height: 20),
-                            orderProgress(o),
-                          ],
-                          if (o['status'] == 'Out for Delivery' &&
-                              widget.role != null)
+            children: [
+              ...(widget.role == null
+                      ? rows.where((o) => o['status'] != 'Delivered')
+                      : rows)
+                  .map(
+                    (o) => Padding(
+                      padding: const EdgeInsets.only(bottom: 14),
+                      child: panel(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
                             Text(
-                              o['eta_at'] == null
-                                  ? 'Arrival time not available'
-                                  : 'Estimated arrival: ${o['eta_at']}',
-                            ),
-                          if (nextStatus(o) != null)
-                            FilledButton(
-                              onPressed: () => advance(o),
-                              child: Text('Mark ${nextStatus(o)}'),
-                            ),
-                          if (widget.role == 'owner') ...[
-                            if (o['payment_status'] != 'verified')
-                              FilledButton.tonal(
-                                onPressed: () => verifyPayment(o),
-                                child: const Text('Verify payment'),
+                              o['delivery_date'],
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 18,
                               ),
-                            if (o['assigned_to'] == null)
-                              TextButton(
-                                onPressed: () => assignRider(o),
-                                child: const Text('Assign rider'),
-                              )
-                            else
+                            ),
+                            Text(
+                              '${o['quantity']} Tiffin${o['quantity'] == 2 ? 's' : ''} · ${o['status']}',
+                            ),
+                            Text(
+                              '₹${(o['total_paise'] as int) / 100} · ${o['payment_status']}',
+                            ),
+                            if (widget.role == null) ...[
+                              const SizedBox(height: 20),
+                              orderProgress(o),
+                            ],
+                            if (o['status'] == 'Out for Delivery' &&
+                                widget.role != null)
                               Text(
-                                'Rider assigned',
-                                style: TextStyle(color: uiPalette.muted),
+                                o['eta_at'] == null
+                                    ? 'Arrival time not available'
+                                    : 'Estimated arrival: ${o['eta_at']}',
                               ),
-                            if (o['status'] == 'Packed' &&
-                                (o['payment_status'] != 'verified' ||
-                                    o['assigned_to'] == null))
-                              Text(
-                                'Dispatch needs verified payment and a rider.',
-                                style: TextStyle(
-                                  color: uiPalette.muted,
-                                  fontSize: 12,
+                            if (nextStatus(o) != null)
+                              FilledButton(
+                                onPressed: () => advance(o),
+                                child: Text('Mark ${nextStatus(o)}'),
+                              ),
+                            if (widget.role == 'owner') ...[
+                              if (o['payment_status'] != 'verified')
+                                FilledButton.tonal(
+                                  onPressed: () => verifyPayment(o),
+                                  child: const Text('Verify payment'),
                                 ),
-                              ),
+                              if (o['assigned_to'] == null)
+                                TextButton(
+                                  onPressed: () => assignRider(o),
+                                  child: const Text('Assign rider'),
+                                )
+                              else
+                                Text(
+                                  'Rider assigned',
+                                  style: TextStyle(color: uiPalette.muted),
+                                ),
+                              if (o['status'] == 'Packed' &&
+                                  (o['payment_status'] != 'verified' ||
+                                      o['assigned_to'] == null))
+                                Text(
+                                  'Dispatch needs verified payment and a rider.',
+                                  style: TextStyle(
+                                    color: uiPalette.muted,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                            ],
                           ],
-                        ],
+                        ),
                       ),
                     ),
                   ),
-                )
-                .toList(),
+              if (widget.role == null) ..._historySection(rows),
+            ],
           ),
   );
+
+  /// Delivered orders leave the active list and are shown here.
+  List<Widget> _historySection(List<Map<String, dynamic>> rows) {
+    final done = rows.where((o) => o['status'] == 'Delivered').toList();
+    if (done.isEmpty) return [];
+    return [
+      const SizedBox(height: 8),
+      section(
+        'Order history',
+        '${done.length} delivered order${done.length == 1 ? '' : 's'}',
+        icon: Icons.history,
+      ),
+      const SizedBox(height: 12),
+      for (final o in done)
+        Padding(
+          padding: const EdgeInsets.only(bottom: 10),
+          child: panel(
+            child: Row(
+              children: [
+                const Icon(Icons.check_circle, color: Color(0xFF2E7D5B)),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '${o['delivery_date']}',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 16,
+                        ),
+                      ),
+                      Text(
+                        '${o['quantity']} Tiffin${o['quantity'] == 2 ? 's' : ''} · Delivered',
+                      ),
+                    ],
+                  ),
+                ),
+                Text('₹${(o['total_paise'] as int) / 100}'),
+              ],
+            ),
+          ),
+        ),
+    ];
+  }
+
   Widget plan() => data(subscriptionStream!, (rows) {
     final now = DateTime.now().toUtc().add(
       const Duration(hours: 5, minutes: 30),

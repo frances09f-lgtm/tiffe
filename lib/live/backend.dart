@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'dart:convert';
+
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class BackendConfig {
@@ -43,11 +46,46 @@ class TiffeBackend {
       client.from('settings').stream(primaryKey: ['id']);
   Stream<List<Map<String, dynamic>>> orders({bool customer = false}) {
     final stream = client.from('orders').stream(primaryKey: ['id']);
-    return customer
-        ? stream
-              .eq('customer_id', userId ?? '')
-              .order('created_at', ascending: false)
-        : stream.order('created_at', ascending: false);
+    if (!customer) return stream.order('created_at', ascending: false);
+    final live = stream
+        .eq('customer_id', userId ?? '')
+        .order('created_at', ascending: false);
+    // Realtime can stall (sleeping phone, dropped socket), so the customer
+    // list is also re-read every 15 seconds. Only changes are emitted.
+    late StreamController<List<Map<String, dynamic>>> out;
+    StreamSubscription<List<Map<String, dynamic>>>? sub;
+    Timer? timer;
+    String? last;
+    void emit(List<Map<String, dynamic>> rows) {
+      final key = jsonEncode(rows);
+      if (key == last || out.isClosed) return;
+      last = key;
+      out.add(rows);
+    }
+
+    Future<void> poll() async {
+      try {
+        final rows = await client
+            .from('orders')
+            .select()
+            .eq('customer_id', userId ?? '')
+            .order('created_at', ascending: false)
+            .timeout(const Duration(seconds: 10));
+        emit(List<Map<String, dynamic>>.from(rows));
+      } catch (_) {}
+    }
+
+    out = StreamController<List<Map<String, dynamic>>>(
+      onListen: () {
+        sub = live.listen(emit, onError: (_) {});
+        timer = Timer.periodic(const Duration(seconds: 15), (_) => poll());
+      },
+      onCancel: () async {
+        timer?.cancel();
+        await sub?.cancel();
+      },
+    );
+    return out.stream;
   }
 
   Stream<List<Map<String, dynamic>>> subscriptions() => client
