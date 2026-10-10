@@ -4,6 +4,8 @@ import 'dart:async';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../ui/gemini/plan_flow.dart';
 import '../ui/gemini/plans_screen.dart';
@@ -388,10 +390,55 @@ class LiveWorkspace extends StatefulWidget {
   State<LiveWorkspace> createState() => _LiveWorkspaceState();
 }
 
+/// Ids of orders placed in this app session. Only these are simulated.
+/// Memory only: nothing is stored, so a restart shows true statuses.
+final Set<String> demoPlacedOrders = {};
+const _notifyChannel = MethodChannel('tiffe/delivery_notifications');
+
+/// Remembers a just-placed order as a demo order (last 20 kept on the phone)
+/// and schedules its four phone notifications, which also fire when the app
+/// is closed. Asks for the notification permission the first time.
+Future<void> rememberDemoOrder(String id) async {
+  demoPlacedOrders.add(id);
+  try {
+    final p = await SharedPreferences.getInstance();
+    final all = [...?p.getStringList('demo_orders'), id];
+    await p.setStringList(
+      'demo_orders',
+      all.sublist(all.length > 20 ? all.length - 20 : 0),
+    );
+  } catch (_) {}
+  try {
+    await _notifyChannel.invokeMethod<bool>('scheduleOrder', {
+      'code': id,
+      'label': id.replaceAll('-', '').substring(0, 6).toUpperCase(),
+    });
+  } catch (_) {
+    /* Phone notifications are unavailable here; in-app alerts still work. */
+  }
+}
+
+Future<void> _cancelDemoOrder(String id) async {
+  demoPlacedOrders.remove(id);
+  try {
+    final p = await SharedPreferences.getInstance();
+    await p.setStringList('demo_orders', [
+      for (final x in p.getStringList('demo_orders') ?? const <String>[])
+        if (x != id) x,
+    ]);
+  } catch (_) {}
+  try {
+    await _notifyChannel.invokeMethod<bool>('cancelOrder', {'code': id});
+  } catch (_) {}
+}
+
 class _LiveWorkspaceState extends State<LiveWorkspace>
     with WidgetsBindingObserver {
   DateTime? lastFlush;
   Timer? flushTimer;
+  Timer? _simTimer;
+  List<Map<String, dynamic>> _rawOrders = [];
+  final Map<String, String> _lastStatus = {};
 
   /// Retries reports saved on the phone. At most once a minute.
   void retryReports() {
@@ -474,16 +521,99 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
     UpdateCheck.restore(widget.store.prefs);
     UpdateCheck.available.addListener(_onUpdate);
     loadSettings();
+    if (widget.role == null) {
+      demoPlacedOrders.addAll(
+        widget.store.prefs.getStringList('demo_orders') ?? const <String>[],
+      );
+      _simTimer = Timer.periodic(const Duration(seconds: 5), (_) => _simTick());
+    }
     menuListener = menuStream.listen((rows) {
       if (mounted) setState(() => menuRows = rows);
     }, onError: (Object _) {});
     orderListener = orderStream.listen((rows) {
+      _rawOrders = rows;
+      // The kitchen moved a demo order for real: its true status wins and the
+      // pending phone notifications are cancelled.
+      for (final o in rows) {
+        if (o['status'] != 'Confirmed' && demoPlacedOrders.contains(o['id'])) {
+          _cancelDemoOrder(o['id'] as String);
+        }
+      }
+      for (final o in _simulate(rows)) {
+        _lastStatus.putIfAbsent(o['id'] as String, () => o['status'] as String);
+      }
       if (mounted) setState(() => orderRows = rows);
       if (widget.role == null && mounted) loadItems();
     }, onError: (Object _) {});
     planListener = subscriptionStream?.listen((rows) {
       if (mounted) setState(() => subRows = rows);
     }, onError: (Object _) {});
+  }
+
+  /// Demo simulation: an order the kitchen has not moved past Confirmed
+  /// walks through the five steps on its own, one every 2.5 minutes (about
+  /// 10 minutes in all). Any real status change from the kitchen wins.
+  static const _simSteps = [
+    'Confirmed',
+    'Preparing',
+    'Packed',
+    'Out for Delivery',
+    'Delivered',
+  ];
+
+  /// orderRows always keeps the true data. The demo view is computed only
+  /// where the customer screens draw it, and only in the customer role.
+  List<Map<String, dynamic>> _simulate(List<Map<String, dynamic>> rows) =>
+      widget.role == null ? [for (final o in rows) _simOne(o)] : rows;
+
+  Map<String, dynamic> _simOne(Map<String, dynamic> o) {
+    if (o['status'] != 'Confirmed') return o;
+    // Only orders placed from this phone in this app session. Every other
+    // order always shows its true status.
+    if (!demoPlacedOrders.contains(o['id'])) return o;
+    final c = o['created_at'] is String
+        ? DateTime.tryParse(o['created_at'] as String)
+        : null;
+    if (c == null) return o;
+    final secs = DateTime.now().difference(c).inSeconds;
+    if (secs < 0 || secs > 24 * 3600) return o;
+    final i = (secs ~/ 150).clamp(0, 4);
+    return i == 0 ? o : {...o, 'status': _simSteps[i], 'demo': true};
+  }
+
+  static const _alertText = {
+    'Preparing': 'Meal is being prepared in the kitchen',
+    'Packed': 'Packed and ready for dispatch',
+    'Out for Delivery': 'Out for delivery',
+    'Delivered': 'Delivered',
+  };
+
+  void _simTick() {
+    if (!mounted) return;
+    if (widget.role != null) return;
+    final next = _simulate(_rawOrders);
+    final alerts = <String>[];
+    var changed = false;
+    for (final o in next) {
+      final id = o['id'] as String;
+      final st = o['status'] as String;
+      final before = _lastStatus[id];
+      if (before != null &&
+          before != st &&
+          o['demo'] == true &&
+          _alertText[st] != null) {
+        alerts.add('Demo order #${_shortId(id)}: ${_alertText[st]}');
+      }
+      if (before != st) changed = true;
+      _lastStatus[id] = st;
+    }
+    if (!changed) return;
+    setState(() {});
+    if (alerts.isNotEmpty) {
+      SystemSound.play(SystemSoundType.alert);
+      HapticFeedback.mediumImpact();
+      gToast(routeContext, alerts.join('\n'));
+    }
   }
 
   void _onUpdate() {
@@ -594,6 +724,7 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     flushTimer?.cancel();
+    _simTimer?.cancel();
     menuListener?.cancel();
     UpdateCheck.available.removeListener(_onUpdate);
     orderListener?.cancel();
@@ -4281,7 +4412,9 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
   void _trackPage(String id) {
     Map<String, dynamic>? find() {
       for (final o in orderRows) {
-        if ('#${_shortId(o['id'] as String)}' == id) return o;
+        if ('#${_shortId(o['id'] as String)}' == id) {
+          return widget.role == null ? _simOne(o) : o;
+        }
       }
       return null;
     }
@@ -4328,7 +4461,7 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
             return GTrack(
               orderId: id,
               subtitle:
-                  '${row['subscription_id'] == null ? 'One-time' : 'Subscription'} • $status • ${row['quantity']} Tiffin${row['quantity'] == 1 ? '' : 's'}',
+                  '${row['demo'] == true ? 'Demo • ' : ''}${row['subscription_id'] == null ? 'One-time' : 'Subscription'} • $status • ${row['quantity']} Tiffin${row['quantity'] == 1 ? '' : 's'}',
               steps: at < 0
                   ? [GTrackStep(status, GStepState.pending)]
                   : [
@@ -4435,6 +4568,9 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
                 _niceDay(o['delivery_date'] as String),
                 '₹${((o['total_paise'] as num) / 100).toStringAsFixed(0)} · ${o['payment_status']}',
                 live: o['status'] == 'Out for Delivery',
+                demoStatus: _simOne(o)['demo'] == true
+                    ? _simOne(o)['status'] as String
+                    : null,
                 placed: _clock(o['created_at'], day: true),
                 due: _dueText(o),
               ),
@@ -4462,7 +4598,7 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
         final sub = activeSubscription;
         Map<String, dynamic>? today;
         for (final o in orderRows) {
-          if (o['delivery_date'] == _istDay()) today = o;
+          if (o['delivery_date'] == _istDay()) today = _simOne(o);
         }
         final monthlyFrom = cfg == null
             ? ''
@@ -4486,7 +4622,9 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
           todayMeal: today == null
               ? 'No order yet'
               : '${today['quantity']} Tiffin${today['quantity'] == 1 ? '' : 's'}',
-          todayStatus: today == null ? '' : today['status'] as String,
+          todayStatus: today == null
+              ? ''
+              : '${today['demo'] == true ? 'Demo · ' : ''}${today['status']}',
           showPause: false,
           hasPlan: sub != null,
           showBell: false,
@@ -4877,13 +5015,14 @@ class _OrderSheetState extends State<OrderSheet> {
       error = null;
     });
     try {
-      await widget.backend.placeOrder(
+      final newId = await widget.backend.placeOrder(
         date: deliveryDate(),
         tiffins: tiffins.map((t) => t.toList()).toList(),
         idempotencyKey: idempotencyKey,
         instructions: instructions.text.trim(),
         subscriptionId: widget.subscription?['id'] as String?,
       );
+      unawaited(rememberDemoOrder(newId));
       if (mounted) Navigator.pop(context, true);
     } catch (e) {
       if (mounted) {

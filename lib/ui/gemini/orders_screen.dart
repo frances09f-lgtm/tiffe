@@ -7,6 +7,10 @@ class GOrder {
   final String id, kind, status, title, when, total;
   final bool live;
   final String? placed, due;
+
+  /// Simulated status for a demo order. `status` stays the true one.
+  final String? demoStatus;
+  bool get demo => demoStatus != null;
   const GOrder(
     this.id,
     this.kind,
@@ -15,6 +19,7 @@ class GOrder {
     this.when,
     this.total, {
     this.live = false,
+    this.demoStatus,
     this.placed,
     this.due,
   });
@@ -141,8 +146,22 @@ class GOrders extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 8),
+            if (o.demo) ...[
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: GColors.saffron.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  'Demo',
+                  style: gText(9.5, w: FontWeight.w700, c: GColors.saffron),
+                ),
+              ),
+              const SizedBox(width: 6),
+            ],
             Text(
-              o.status,
+              o.demoStatus ?? o.status,
               style: gText(
                 11.5,
                 w: FontWeight.w700,

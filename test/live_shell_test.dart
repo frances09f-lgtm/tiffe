@@ -462,6 +462,102 @@ void main() {
       expect(t.takeException(), isNull);
     });
   }
+
+  testWidgets('demo: Confirmed order advances on its own and alerts', (
+    t,
+  ) async {
+    t.view.physicalSize = const Size(360, 800);
+    t.view.devicePixelRatio = 1;
+    addTearDown(t.view.resetPhysicalSize);
+    addTearDown(t.view.resetDevicePixelRatio);
+    SharedPreferences.setMockInitialValues({});
+    final store = TiffeStore(await SharedPreferences.getInstance());
+    final now = DateTime.now().toUtc();
+    final day =
+        '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+    demoPlacedOrders.add('dddddddd-1');
+    demoPlacedOrders.add('eeeeeeee-2');
+    addTearDown(demoPlacedOrders.clear);
+    final b = DataBackend()
+      ..orderRows = [
+        {
+          'id': 'eeeeeeee-2',
+          'delivery_date': day,
+          'quantity': 1,
+          'status': 'Confirmed',
+          'total_paise': 10000,
+          'payment_status': 'verified',
+          'eta_at': null,
+          'subscription_id': null,
+          'created_at': now
+              .subtract(const Duration(seconds: 146))
+              .toIso8601String(),
+        },
+        {
+          'id': 'ffffffff-3',
+          'delivery_date': day,
+          'quantity': 1,
+          'status': 'Confirmed',
+          'total_paise': 10000,
+          'payment_status': 'verified',
+          'eta_at': null,
+          'subscription_id': null,
+          'created_at': now
+              .subtract(const Duration(seconds: 146))
+              .toIso8601String(),
+        },
+        {
+          'id': 'dddddddd-1',
+          'delivery_date': day,
+          'quantity': 1,
+          'status': 'Confirmed',
+          'total_paise': 10000,
+          'payment_status': 'verified',
+          'eta_at': null,
+          'subscription_id': null,
+          'created_at': now
+              .subtract(const Duration(seconds: 146))
+              .toIso8601String(),
+        },
+      ];
+    await t.pumpWidget(
+      RepaintBoundary(
+        child: TiffeApp(
+          store: store,
+          startScreen: LiveWorkspace(backend: b, store: store),
+        ),
+      ),
+    );
+    await t.pumpAndSettle();
+    await t.tap(
+      find.descendant(
+        of: find.byType(GBottomNav),
+        matching: find.text('Orders'),
+      ),
+    );
+    await t.pumpAndSettle();
+    await t.tap(find.text('Track Details').first);
+    await t.pumpAndSettle();
+    expect(find.textContaining('Meal being prepared'), findsNothing);
+    await t.runAsync(() => Future<void>.delayed(const Duration(seconds: 6)));
+    await t.pump(const Duration(seconds: 6));
+    await t.pump(const Duration(milliseconds: 400));
+    expect(find.textContaining('Demo • One-time'), findsWidgets);
+    expect(find.textContaining('Meal being prepared'), findsWidgets);
+    expect(
+      find.textContaining('Meal is being prepared in the kitchen'),
+      findsOneWidget,
+    );
+    expect(find.textContaining('Demo order #EEEEEE: Meal'), findsOneWidget);
+    expect(find.textContaining('Order #FFFFFF'), findsNothing);
+    await shot(t, 'sim_track');
+    t.view.physicalSize = const Size(320, 700);
+    await t.tap(find.byIcon(Icons.arrow_back).first);
+    await t.pumpAndSettle();
+    expect(find.text('Demo'), findsWidgets);
+    await shot(t, 'sim_orders');
+    expect(t.takeException(), isNull);
+  });
 }
 
 class SlowProfileBackend extends DataBackend {
