@@ -224,6 +224,58 @@ void main() {
     await shot(t, 'track_data');
     expect(t.takeException(), isNull);
   });
+
+  testWidgets('sub pages and order sheet render', (t) async {
+    t.view.physicalSize = const Size(360, 1100);
+    t.view.devicePixelRatio = 1;
+    addTearDown(t.view.resetPhysicalSize);
+    addTearDown(t.view.resetDevicePixelRatio);
+    SharedPreferences.setMockInitialValues({});
+    final store = TiffeStore(await SharedPreferences.getInstance());
+    await t.pumpWidget(
+      RepaintBoundary(
+        child: TiffeApp(
+          store: store,
+          startScreen: LiveWorkspace(backend: DataBackend(), store: store),
+        ),
+      ),
+    );
+    await t.runAsync(() async {
+      final ctx = t.element(find.byType(LiveWorkspace));
+      for (final f in Directory('assets/food').listSync().whereType<File>()) {
+        await precacheImage(AssetImage(f.path), ctx);
+      }
+    });
+    await t.pumpAndSettle();
+    await t.tap(
+      find.descendant(
+        of: find.byType(GBottomNav),
+        matching: find.text('Profile'),
+      ),
+    );
+    await t.pumpAndSettle();
+    await t.tap(find.text('Edit Profile'));
+    await t.pumpAndSettle();
+    await shot(t, 'edit_profile');
+    await t.pageBack();
+    await t.pumpAndSettle();
+    await t.tap(find.text('My Tiffin Subscription'));
+    await t.pumpAndSettle();
+    await shot(t, 'sub_page');
+    await t.pageBack();
+    await t.pumpAndSettle();
+    await t.tap(
+      find.descendant(of: find.byType(GBottomNav), matching: find.text('Menu')),
+    );
+    await t.pumpAndSettle();
+    await t.tap(find.text('Batata Bhaji'));
+    await t.tap(find.text('Matki Usal'));
+    await t.pumpAndSettle();
+    await t.tap(find.text('Order'));
+    await t.pumpAndSettle();
+    await shot(t, 'order_sheet');
+    expect(t.takeException(), isNull);
+  });
 }
 
 class DataBackend extends ContentBackend {
