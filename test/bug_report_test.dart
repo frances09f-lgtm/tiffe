@@ -43,6 +43,39 @@ void main() {
     expect(BugLog.lines.join(), isNot(contains('a@b.com')));
   });
 
+  test('error logs carry only a type name, never the message', () {
+    expect(
+      errorKind(const FormatException('token=abc secret@x.com')),
+      'FormatException',
+    );
+    expect(errorKind(_Custom('https://x/?k=1')), 'Other');
+  });
+
+  testWidgets('full queue says so and keeps old reports', (t) async {
+    SharedPreferences.setMockInitialValues({
+      BugReports.queueKey: [
+        for (var i = 0; i < 20; i++)
+          '{"t":${DateTime.now().millisecondsSinceEpoch},"r":{"n":$i}}',
+      ],
+    });
+    final prefs = await SharedPreferences.getInstance();
+    final r = await t.runAsync(
+      () => BugReports.send(ContentBackend().client, prefs, {'n': 99}),
+    );
+    expect(r, ReportResult.full);
+    expect(prefs.getStringList(BugReports.queueKey), hasLength(20));
+    expect(prefs.getStringList(BugReports.queueKey)!.first, contains('"n":0'));
+  });
+
+  test('expired queued reports are dropped', () async {
+    SharedPreferences.setMockInitialValues({
+      BugReports.queueKey: ['{"t":1,"r":{"n":1}}'],
+    });
+    final prefs = await SharedPreferences.getInstance();
+    await BugReports.flush(ContentBackend().client, prefs);
+    expect(prefs.getStringList(BugReports.queueKey), isEmpty);
+  });
+
   testWidgets('one tap report is queued on the phone when offline', (t) async {
     t.view.physicalSize = const Size(390, 844);
     t.view.devicePixelRatio = 1;
@@ -65,8 +98,17 @@ void main() {
     await t.pumpAndSettle();
     expect(store.prefs.getStringList(BugReports.queueKey), hasLength(1));
     expect(
+      store.prefs.getStringList(BugReports.queueKey)!.first,
+      contains('"r"'),
+    );
+    expect(
       find.text('Saved on this phone. It will be sent later.'),
       findsOneWidget,
     );
   });
+}
+
+class _Custom {
+  final String m;
+  _Custom(this.m);
 }

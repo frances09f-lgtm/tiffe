@@ -536,7 +536,30 @@ class LiveWorkspace extends StatefulWidget {
   State<LiveWorkspace> createState() => _LiveWorkspaceState();
 }
 
-class _LiveWorkspaceState extends State<LiveWorkspace> {
+class _LiveWorkspaceState extends State<LiveWorkspace>
+    with WidgetsBindingObserver {
+  DateTime? lastFlush;
+  Timer? flushTimer;
+
+  /// Retries reports saved on the phone. At most once a minute.
+  void retryReports() {
+    final now = DateTime.now();
+    if (lastFlush != null &&
+        now.difference(lastFlush!) < const Duration(minutes: 1)) {
+      return;
+    }
+    lastFlush = now;
+    BugReports.flush(
+      widget.backend.client,
+      widget.store.prefs,
+    ).catchError((_) {});
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) retryReports();
+  }
+
   TiffePalette get uiPalette => TiffePalette(
     Theme.of(context).brightness == Brightness.dark,
     stitch: widget.role == null,
@@ -572,6 +595,14 @@ class _LiveWorkspaceState extends State<LiveWorkspace> {
   void initState() {
     super.initState();
     loadProfile();
+    WidgetsBinding.instance.addObserver(this);
+    retryReports();
+    if (TrackingMap.animateDemo) {
+      flushTimer = Timer.periodic(
+        const Duration(minutes: 5),
+        (_) => retryReports(),
+      );
+    }
     loadSettings();
     menuListener = menuStream.listen((rows) {
       if (mounted) setState(() => menuRows = rows);
@@ -646,6 +677,8 @@ class _LiveWorkspaceState extends State<LiveWorkspace> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    flushTimer?.cancel();
     menuListener?.cancel();
     orderListener?.cancel();
     planListener?.cancel();
@@ -3252,7 +3285,7 @@ class _LiveWorkspaceState extends State<LiveWorkspace> {
     );
     if (send != true) return;
     BugLog.screen = tabNames[tab.clamp(0, 4)];
-    final ok = await BugReports.send(
+    final result = await BugReports.send(
       widget.backend.client,
       widget.store.prefs,
       BugReports.build(
@@ -3264,11 +3297,11 @@ class _LiveWorkspaceState extends State<LiveWorkspace> {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(
-          ok
-              ? 'Report sent. Thank you.'
-              : 'Saved on this phone. It will be sent later.',
-        ),
+        content: Text(switch (result) {
+          ReportResult.sent => 'Report sent. Thank you.',
+          ReportResult.queued => 'Saved on this phone. It will be sent later.',
+          ReportResult.full => 'Could not send, and the saved list on this phone is full. Please try again later.',
+        }),
       ),
     );
   }

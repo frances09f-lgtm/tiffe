@@ -19,6 +19,37 @@ String scrub(String s) => s
 
 String _cut(String s, int n) => s.length <= n ? s : s.substring(0, n);
 
+/// Only the type name of an error is logged, never its message, so tokens,
+/// URLs, addresses and order content cannot leak. Unknown types become 'Other'.
+const _knownErrors = {
+  'FormatException',
+  'StateError',
+  'ArgumentError',
+  'RangeError',
+  'TypeError',
+  'NoSuchMethodError',
+  'AssertionError',
+  'TimeoutException',
+  'SocketException',
+  'HttpException',
+  'HandshakeException',
+  'PostgrestException',
+  'AuthException',
+  'AuthApiException',
+  'ClientException',
+  'FileSystemException',
+  'PlatformException',
+  'MissingPluginException',
+  'UnsupportedError',
+  'UnimplementedError',
+  'ConcurrentModificationError',
+  'OutOfMemoryError',
+};
+String errorKind(Object e) {
+  final t = e.runtimeType.toString();
+  return _knownErrors.contains(t) ? t : 'Other';
+}
+
 /// Small in-memory ring buffer of recent app events and errors.
 class BugLog {
   static final List<String> _lines = [];
@@ -39,12 +70,12 @@ class BugLog {
   static void install() {
     final old = FlutterError.onError;
     FlutterError.onError = (d) {
-      add('FlutterError: ${d.exceptionAsString()}');
+      add('FlutterError: ${errorKind(d.exception)}');
       old?.call(d);
     };
     final oldPlatform = PlatformDispatcher.instance.onError;
     PlatformDispatcher.instance.onError = (e, s) {
-      add('Error: $e');
+      add('Error: ${errorKind(e)}');
       return oldPlatform?.call(e, s) ?? false;
     };
   }
@@ -84,55 +115,82 @@ class BugReports {
     'logs': BugLog.lines.join('\n'),
   };
 
-  /// Sends the report. If it cannot be delivered it is kept on the phone and
-  /// retried later. Returns true when delivered now.
-  static Future<bool> send(
+  static const maxQueue = 20;
+  static const maxAge = Duration(days: 7);
+  static const timeout = Duration(seconds: 10);
+
+  static Future<void> _insert(
+    SupabaseClient client,
+    Map<String, dynamic> report,
+  ) async {
+    try {
+      await client.from('bug_reports').insert(report).timeout(timeout);
+    } catch (e) {
+      if (!_isDuplicate(e)) rethrow;
+    }
+  }
+
+  static List<Map<String, dynamic>> _load(SharedPreferences prefs) {
+    final out = <Map<String, dynamic>>[];
+    final cutoff = DateTime.now().subtract(maxAge).millisecondsSinceEpoch;
+    for (final raw in prefs.getStringList(queueKey) ?? <String>[]) {
+      try {
+        final m = jsonDecode(raw) as Map<String, dynamic>;
+        if ((m['t'] as int) >= cutoff) out.add(m); // expired items are dropped
+      } catch (_) {}
+    }
+    return out;
+  }
+
+  static Future<void> _save(
+    SharedPreferences prefs,
+    List<Map<String, dynamic>> q,
+  ) => prefs.setStringList(queueKey, q.map(jsonEncode).toList());
+
+  /// Delivers the report. If offline it is kept on the phone for up to 7 days
+  /// (max 20). When that list is full the new report is NOT stored and the
+  /// result says so; older reports are never silently dropped.
+  static Future<ReportResult> send(
     SupabaseClient client,
     SharedPreferences prefs,
     Map<String, dynamic> report,
   ) async {
     try {
-      try {
-        await client.from('bug_reports').insert(report);
-      } catch (e) {
-        if (!_isDuplicate(e)) rethrow;
-      }
+      await _insert(client, report);
       await flush(client, prefs);
-      return true;
+      return ReportResult.sent;
     } catch (e) {
-      BugLog.add('Report not sent: ${e.runtimeType}');
-      final q = prefs.getStringList(queueKey) ?? [];
-      q.add(jsonEncode(report));
-      await prefs.setStringList(
-        queueKey,
-        q.length > 20 ? q.sublist(q.length - 20) : q,
-      );
-      return false;
+      BugLog.add('Report not sent: ${errorKind(e)}');
+      final q = _load(prefs);
+      if (q.length >= maxQueue) return ReportResult.full;
+      q.add({'t': DateTime.now().millisecondsSinceEpoch, 'r': report});
+      await _save(prefs, q);
+      return ReportResult.queued;
     }
   }
 
-  /// Retries reports saved on the phone. Stops at the first failure.
+  /// Retries reports saved on the phone, oldest first. Stops at the first
+  /// failure. Called when the app opens and before each new report.
   static Future<void> flush(
     SupabaseClient client,
     SharedPreferences prefs,
   ) async {
-    final q = prefs.getStringList(queueKey) ?? [];
-    if (q.isEmpty) return;
-    final left = List<String>.from(q);
+    final q = _load(prefs);
+    if (q.isEmpty) {
+      await _save(prefs, q);
+      return;
+    }
+    final left = List<Map<String, dynamic>>.from(q);
     for (final item in q) {
       try {
-        try {
-          await client
-              .from('bug_reports')
-              .insert(jsonDecode(item) as Map<String, dynamic>);
-        } catch (e) {
-          if (!_isDuplicate(e)) rethrow;
-        }
+        await _insert(client, Map<String, dynamic>.from(item['r'] as Map));
         left.remove(item);
       } catch (_) {
         break;
       }
     }
-    await prefs.setStringList(queueKey, left);
+    await _save(prefs, left);
   }
 }
+
+enum ReportResult { sent, queued, full }
