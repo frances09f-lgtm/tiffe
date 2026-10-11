@@ -2,7 +2,7 @@ name: Deploy Tiffe Review alongside Demo
 on:
   workflow_dispatch:
   push:
-    branches: [backend-review]
+    branches: [admin-v43-redeploy]
 permissions:
   contents: read
   pages: write
@@ -18,6 +18,30 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          ref: 966aaa0347bebdeaa576e8ce58f6e9239bdfbd7d
+          path: web-source
+      - name: Restore web scaffolding
+        run: cp -a web web-source/web
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: '3.47.6'
+      - name: Build connected v43 staff site
+        working-directory: web-source
+        run: |
+          flutter pub get
+          flutter build web --release -t lib/review_main.dart --base-href /tiffe/review/admin/ \
+            --dart-define=TIFFE_SUPABASE_URL=https://obbtxyjglgivcpusjpcx.supabase.co \
+            --dart-define=TIFFE_SUPABASE_KEY=sb_publishable__5qR0bvVmwqKykgbQpAtRw_H0eIgl3_ \
+            --dart-define=TIFFE_OWNER_EMAIL=frances09f@gmail.com
+      - name: Replace admin site only
+        run: |
+          rm -rf admin-site/review/admin
+          mkdir -p admin-site/review/admin
+          cp -a web-source/build/web/. admin-site/review/admin/
+          printf '%s\n' '{"app_version":"1.0.43+43","source_commit":"966aaa0347bebdeaa576e8ce58f6e9239bdfbd7d","entrypoint":"lib/review_main.dart","backend":"connected"}' > admin-site/review/admin/version.json
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
