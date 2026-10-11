@@ -1,5 +1,5 @@
 import uiautomator2 as u,requests,secrets,time,json,subprocess,os
-D=u.connect();O='device-results';base='https://child-safety-api-t76a.onrender.com';key=os.environ['CHILD_PUBLIC_CONFIG'];report=[];token='';device='';observedDevice=''
+D=u.connect();O='device-results';base='https://child-safety-api-t76a.onrender.com';key=os.environ['CHILD_PUBLIC_CONFIG'];report=[];token='';device='';observedDevice='';refreshToken=''
 def sh(*a):return subprocess.check_output(['adb','shell',*a],text=True)
 def snap(n):D.screenshot(O+'/'+n+'.png');open(O+'/'+n+'.xml','w').write(D.dump_hierarchy())
 def click(text):
@@ -15,7 +15,7 @@ def observe(name,action,seconds=95):
  before=history();action();time.sleep(seconds);after=history();report.append({'scenario':name,'seconds':seconds,'beforeRows':len(before),'afterRows':len(after),'newUpdates':len(after)-len(before),'last':{k:after[0].get(k) for k in ['timestamp','latitude','longitude']} if after else None});snap(name)
 email='child-device-test-'+secrets.token_hex(8)+'@example.invalid';password=secrets.token_urlsafe(24)
 try:
- r=requests.post('https://identitytoolkit.googleapis.com/v1/accounts:signUp',params={'key':key},json={'email':email,'password':password,'returnSecureToken':True},timeout=30);r.raise_for_status();token=r.json()['idToken']
+ r=requests.post('https://identitytoolkit.googleapis.com/v1/accounts:signUp',params={'key':key},json={'email':email,'password':password,'returnSecureToken':True},timeout=30);r.raise_for_status();token=r.json()['idToken'];refreshToken=r.json()['refreshToken']
  requests.get(base+'/',timeout=120).raise_for_status()
  D.app_start('com.childsafety.child_safety_tracker',stop=True);time.sleep(6)
  snap('child-initial')
@@ -48,7 +48,9 @@ try:
  D.app_start('com.childsafety.child_safety_tracker');time.sleep(5);observe('relaunched-no-start',lambda:None)
 finally:
  if token:
+  refreshed=requests.post('https://securetoken.googleapis.com/v1/token',params={'key':key},data={'grant_type':'refresh_token','refresh_token':refreshToken},timeout=30)
+  if refreshed.status_code==200:token=refreshed.json()['id_token']
   if device or observedDevice:
    r=requests.delete(base+'/api/devices/'+(device or observedDevice),headers={'Authorization':'Bearer '+token},timeout=120);report.append({'cleanupDeviceStatus':r.status_code})
-  r=requests.post('https://identitytoolkit.googleapis.com/v1/accounts:delete',params={'key':key},json={'idToken':token},timeout=30);report.append({'cleanupAccountStatus':r.status_code})
+  r=requests.post('https://identitytoolkit.googleapis.com/v1/accounts:delete',params={'key':key},json={'idToken':token},timeout=30);report.append({'cleanupAccountStatus':r.status_code,'error':r.json().get('error',{}).get('message') if r.status_code!=200 else None})
  json.dump(report,open(O+'/child-tracking-result.json','w'),indent=2)
