@@ -20,7 +20,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/checkout@v4
         with:
-          ref: 2273fe2d7f3dfdf52c965bed8761e4a3b0f2b380
+          ref: afa5cbb28b160cc940616d9e251277fb443a6f7c
           path: web-source
       - name: Restore web scaffolding
         run: cp -a web web-source/web
@@ -41,7 +41,7 @@ jobs:
           rm -rf admin-site/review/admin
           mkdir -p admin-site/review/admin
           cp -a web-source/build/web/. admin-site/review/admin/
-          printf '%s\n' '{"app_version":"1.0.43+43","source_commit":"2273fe2d7f3dfdf52c965bed8761e4a3b0f2b380","entrypoint":"lib/web_admin_main.dart","backend":"connected"}' > admin-site/review/admin/version.json
+          printf '%s\n' '{"app_version":"1.0.44+44","source_commit":"afa5cbb28b160cc940616d9e251277fb443a6f7c","entrypoint":"lib/web_admin_main.dart","backend":"connected"}' > admin-site/review/admin/version.json
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
