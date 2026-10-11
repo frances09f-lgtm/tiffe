@@ -1,5 +1,5 @@
 import uiautomator2 as u,requests,secrets,time,json,subprocess,os
-D=u.connect();O='device-results';base='https://child-safety-api-t76a.onrender.com';key=os.environ['CHILD_PUBLIC_CONFIG'];report=[];token='';device=''
+D=u.connect();O='device-results';base='https://child-safety-api-t76a.onrender.com';key=os.environ['CHILD_PUBLIC_CONFIG'];report=[];token='';device='';observedDevice=''
 def sh(*a):return subprocess.check_output(['adb','shell',*a],text=True)
 def snap(n):D.screenshot(O+'/'+n+'.png');open(O+'/'+n+'.xml','w').write(D.dump_hierarchy())
 def click(text):
@@ -16,8 +16,11 @@ def observe(name,action,seconds=95):
 email='child-device-test-'+secrets.token_hex(8)+'@example.invalid';password=secrets.token_urlsafe(24)
 try:
  r=requests.post('https://identitytoolkit.googleapis.com/v1/accounts:signUp',params={'key':key},json={'email':email,'password':password,'returnSecureToken':True},timeout=30);r.raise_for_status();token=r.json()['idToken']
+ requests.get(base+'/',timeout=120).raise_for_status()
  D.app_start('com.childsafety.child_safety_tracker',stop=True);time.sleep(6)
  snap('child-initial')
+ import re
+ m=re.search(r'[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}',D.dump_hierarchy(compressed=False));observedDevice=m.group(0) if m else ''
  # Native Flutter blank input nodes can be omitted until focused. Use coordinates
  # from the inspected exact API35 v3 pairing screen, scaled to actual display.
  w,h=D.window_size()
@@ -30,8 +33,8 @@ try:
  root=ET.fromstring(D.dump_hierarchy(compressed=False));nodes=[n for n in root.iter('node') if n.get('class')=='android.widget.EditText' and n.get('enabled')=='true' and n.get('text','')=='']
  if not nodes:raise RuntimeError('Child name field not observed')
  import re
- bb=list(map(int,re.findall(r'\d+',nodes[0].get('bounds'))));D.click((bb[0]+bb[2])//2,(bb[1]+bb[3])//2);D(className='android.widget.EditText',focused=True).set_text('Isolated Android test');D.press('back');click('Sign in and pair device');time.sleep(15)
- devices=requests.get(base+'/api/devices',headers={'Authorization':'Bearer '+token},timeout=30).json();assert len(devices)==1;device=devices[0]['deviceId']
+ bb=list(map(int,re.findall(r'\d+',nodes[0].get('bounds'))));D.click((bb[0]+bb[2])//2,(bb[1]+bb[3])//2);D(className='android.widget.EditText',focused=True).set_text('Isolated Android test');D.press('back');snap('child-filled');click('Sign in and pair device');time.sleep(50);snap('child-after-pair')
+ devices=requests.get(base+'/api/devices',headers={'Authorization':'Bearer '+token},timeout=120).json();assert len(devices)==1;device=devices[0]['deviceId']
  snap('child-paired');subprocess.run(['adb','emu','geo','fix','73.85','18.52'],check=True);click('Start Tracking')
  for _ in range(3):
   if D(text='While using the app').exists:D(text='While using the app').click();time.sleep(3)
@@ -45,7 +48,7 @@ try:
  D.app_start('com.childsafety.child_safety_tracker');time.sleep(5);observe('relaunched-no-start',lambda:None)
 finally:
  if token:
-  if device:
-   r=requests.delete(base+'/api/devices/'+device,headers={'Authorization':'Bearer '+token},timeout=30);report.append({'cleanupDeviceStatus':r.status_code})
+  if device or observedDevice:
+   r=requests.delete(base+'/api/devices/'+(device or observedDevice),headers={'Authorization':'Bearer '+token},timeout=120);report.append({'cleanupDeviceStatus':r.status_code})
   r=requests.post('https://identitytoolkit.googleapis.com/v1/accounts:delete',params={'key':key},json={'idToken':token},timeout=30);report.append({'cleanupAccountStatus':r.status_code})
  json.dump(report,open(O+'/child-tracking-result.json','w'),indent=2)
