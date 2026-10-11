@@ -286,7 +286,9 @@ class _GPlanPayState extends State<GPlanPay> {
               ),
               Icon(
                 sel == i ? Icons.radio_button_checked : Icons.radio_button_off,
-                color: sel == i ? GColors.green : GColors.alt(const Color(0xFFD9D3C5), GColors.line),
+                color: sel == i
+                    ? GColors.green
+                    : GColors.alt(const Color(0xFFD9D3C5), GColors.line),
               ),
             ],
           ),
@@ -307,7 +309,7 @@ class _GPlanPayState extends State<GPlanPay> {
                 0,
                 Icons.smartphone,
                 'UPI (Google Pay / PhonePe / Paytm)',
-                'Instant secure payment',
+                'Choose UPI',
                 ic: GColors.saffron,
               ),
               _opt(
@@ -333,7 +335,7 @@ class _GPlanPayState extends State<GPlanPay> {
             16 + MediaQuery.of(context).padding.bottom,
           ),
           child: GButton(
-            'Pay ${widget.total} Securely',
+            'Continue · ${widget.total} due',
             color: GColors.green,
             onPressed: widget.onPay,
           ),
@@ -458,7 +460,7 @@ class _GPlanConfirmedState extends State<GPlanConfirmed>
                     ),
                     const SizedBox(height: 28),
                     Text(
-                      done ? widget.title : 'Processing payment...',
+                      done ? widget.title : 'Sending your request...',
                       textAlign: TextAlign.center,
                       style: gText(24, w: FontWeight.w800, c: GColors.ink),
                     ),
@@ -492,16 +494,15 @@ class _GPlanConfirmedState extends State<GPlanConfirmed>
                         height: 52,
                         alignment: Alignment.center,
                         decoration: BoxDecoration(
-                          color: GColors.alt(const Color(0xFFF0EBE0), GColors.chip),
+                          color: GColors.alt(
+                            const Color(0xFFF0EBE0),
+                            GColors.chip,
+                          ),
                           borderRadius: BorderRadius.circular(18),
                         ),
                         child: Text(
                           widget.secondaryLabel!,
-                          style: gText(
-                            15,
-                            w: FontWeight.w700,
-                            c: GColors.ink,
-                          ),
+                          style: gText(15, w: FontWeight.w700, c: GColors.ink),
                         ),
                       ),
                     ),

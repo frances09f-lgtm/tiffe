@@ -143,7 +143,7 @@ void main() {
     expect(find.text('Tiffin 1 (Batata Bhaji, Matki Usal)'), findsOneWidget);
     // Two bhajis: total ₹100, one call, one idempotency key.
     expect(find.textContaining('Total: ₹100'), findsOneWidget);
-    expect(find.text('Pay ₹100 & Place Order'), findsOneWidget);
+    expect(find.text('Place Order · ₹100 due'), findsOneWidget);
     await capture(t, 'order-sheet-two-bhajis');
     await t.ensureVisible(find.textContaining('Place Order'));
     await t.tap(find.textContaining('Place Order'));
@@ -151,15 +151,15 @@ void main() {
     // Same payment flow as the plans: method screen first, nothing placed yet.
     expect(find.text('Select Payment Method'), findsOneWidget);
     expect(b.placedKey, isNull);
-    await t.tap(find.textContaining('Securely'));
+    await t.tap(find.textContaining('Continue ·'));
     await t.pump();
     await t.pump(const Duration(milliseconds: 600));
     await t.pump(const Duration(milliseconds: 600));
-    expect(find.text('Processing payment...'), findsOneWidget);
+    expect(find.text('Sending your request...'), findsOneWidget);
     // Android back must not drop the spinner while the order is in flight.
     await t.binding.handlePopRoute();
     await t.pump(const Duration(milliseconds: 400));
-    expect(find.text('Processing payment...'), findsOneWidget);
+    expect(find.text('Sending your request...'), findsOneWidget);
     await t.pumpAndSettle();
     expect(b.placedKey, isNotNull);
     expect(b.placedTiffins!.single, hasLength(2));
@@ -173,52 +173,45 @@ void main() {
     expect(find.textContaining('Total: ₹110'), findsOneWidget);
   });
 
-  testWidgets(
-    'subscriber order: plan fixes tiffins, extras only, sub id passed',
-    (t) async {
-      SharedPreferences.setMockInitialValues({});
-      final s = TiffeStore(await SharedPreferences.getInstance());
-      t.view.physicalSize = const Size(430, 2400);
-      t.view.devicePixelRatio = 1;
-      final b = OrderBackend();
-      b.subs = [
-        {
-          'id': 'sub-1',
-          'customer_id': '00000000-0000-0000-0000-000000000001',
-          'plan': 'double',
-          'starts_on': '2020-01-01',
-          'ends_on': '2099-01-01',
-          'verified': true,
-        },
-      ];
-      await t.pumpWidget(
-        TiffeApp(
-          store: s,
-          startScreen: LiveWorkspace(backend: b, store: s),
-        ),
-      );
-      await t.pumpAndSettle();
-      await openMenuAndOrder(t, ['Batata Bhaji', 'Matki Usal']);
-      // double plan: tiffin 2 still needs bhajis; the button points to Menu.
-      expect(find.text('Tiffin 2: no bhajis picked yet'), findsOneWidget);
-      expect(find.text('Add a second tiffin'), findsNothing);
-      expect(find.text('Pick bhajis from the Menu'), findsNWidgets(2));
-      await t.tap(find.text('Pick bhajis from the Menu').first);
-      await t.pumpAndSettle();
-      for (final p in ['Vatana', 'Batata Bhaji']) {
-        await t.tap(find.text(p));
-        await t.pumpAndSettle();
-      }
-      await t.tap(find.text('Order'));
-      await t.pumpAndSettle();
-      expect(find.text('Covered by your Tiffe plan.'), findsOneWidget);
-      await t.tap(find.text('Place Order'));
-      await t.pumpAndSettle();
-      expect(b.placedSubscription, 'sub-1');
-      expect(b.placedTiffins, hasLength(2));
-      expect(find.text('Order placed - the kitchen has it.'), findsOneWidget);
-    },
-  );
+  testWidgets('subscriber one-time order: real price and no subscription id', (
+    t,
+  ) async {
+    SharedPreferences.setMockInitialValues({});
+    final s = TiffeStore(await SharedPreferences.getInstance());
+    t.view.physicalSize = const Size(430, 2400);
+    t.view.devicePixelRatio = 1;
+    final b = OrderBackend();
+    b.subs = [
+      {
+        'id': 'sub-1',
+        'customer_id': '00000000-0000-0000-0000-000000000001',
+        'plan': 'double',
+        'starts_on': '2020-01-01',
+        'ends_on': '2099-01-01',
+        'verified': true,
+      },
+    ];
+    await t.pumpWidget(
+      TiffeApp(
+        store: s,
+        startScreen: LiveWorkspace(backend: b, store: s),
+      ),
+    );
+    await t.pumpAndSettle();
+    await openMenuAndOrder(t, ['Batata Bhaji', 'Matki Usal']);
+    // Explicit one-time entry must not consume the activeDouble plan.
+    expect(find.text('Tiffin 2: no bhajis picked yet'), findsNothing);
+    expect(find.text('Add a second tiffin'), findsOneWidget);
+    expect(find.textContaining('Total: ₹100'), findsOneWidget);
+    await t.tap(find.text('Place Order · ₹100 due'));
+    await t.pumpAndSettle();
+    expect(find.text('UPI (Google Pay / PhonePe / Paytm)'), findsOneWidget);
+    expect(find.text('Credit / Debit Card'), findsOneWidget);
+    await t.tap(find.textContaining('Continue ·'));
+    await t.pumpAndSettle();
+    expect(b.placedSubscription, isNull);
+    expect(b.placedTiffins, hasLength(1));
+  });
 
   testWidgets('failed order returns to checkout with the error, no confirm', (
     t,
@@ -241,12 +234,49 @@ void main() {
     await t.ensureVisible(find.textContaining('Place Order'));
     await t.tap(find.textContaining('Place Order'));
     await t.pumpAndSettle();
-    await t.tap(find.textContaining('Securely'));
+    await t.tap(find.textContaining('Continue ·'));
     await t.pumpAndSettle();
     expect(find.text('Order Placed!'), findsNothing);
     expect(find.text('Kitchen is closed'), findsOneWidget);
     expect(find.textContaining('Place Order'), findsOneWidget);
   });
+
+  for (final tabName in ['Home', 'Menu', 'Plans', 'Orders', 'Profile']) {
+    testWidgets('picker bottom tab $tabName navigates out of checkout', (
+      t,
+    ) async {
+      SharedPreferences.setMockInitialValues({});
+      final s = TiffeStore(await SharedPreferences.getInstance());
+      final b = OrderBackend();
+      t.view.physicalSize = const Size(430, 1400);
+      t.view.devicePixelRatio = 1;
+      await t.pumpWidget(
+        TiffeApp(
+          store: s,
+          startScreen: LiveWorkspace(backend: b, store: s),
+        ),
+      );
+      await t.pumpAndSettle();
+      // Home's order shortcut opens checkout, then the picker automatically.
+      await t.tap(find.text('Order Now').first);
+      await t.pumpAndSettle();
+      expect(find.text('Pick 2 bhajis to order'), findsOneWidget);
+      await t.tap(
+        find.descendant(
+          of: find.byType(GBottomNav).last,
+          matching: find.text(tabName),
+        ),
+      );
+      await t.pumpAndSettle();
+      expect(find.text('Order Checkout'), findsNothing);
+      expect(b.placedKey, isNull);
+      final nav = t.widget<GBottomNav>(find.byType(GBottomNav).last);
+      expect(
+        nav.tab,
+        ['Home', 'Menu', 'Plans', 'Orders', 'Profile'].indexOf(tabName),
+      );
+    });
+  }
 
   testWidgets('checkout without a full selection opens the Menu first', (
     t,
@@ -278,6 +308,6 @@ void main() {
     await t.tap(find.text('Order'));
     await t.pumpAndSettle();
     expect(find.text('Order Checkout'), findsOneWidget);
-    expect(find.text('Pay ₹100 & Place Order'), findsOneWidget);
+    expect(find.text('Place Order · ₹100 due'), findsOneWidget);
   });
 }

@@ -125,7 +125,7 @@ void main() {
     await t.tap(find.textContaining('Proceed to Payment'));
     await t.pumpAndSettle();
     await capture(t, 'plan_pay');
-    await t.tap(find.textContaining('Securely'));
+    await t.tap(find.textContaining('Continue ·'));
     await t.pumpAndSettle();
     await capture(t, 'plan_confirmed');
     await t.tap(find.text('Go to Home Dashboard'));

@@ -31,7 +31,10 @@ Future<void> openPlans(WidgetTester t, BuyBackend b) async {
   addTearDown(t.view.resetPhysicalSize);
   addTearDown(t.view.resetDevicePixelRatio);
   await t.pumpWidget(
-    TiffeApp(store: s, startScreen: LiveWorkspace(backend: b, store: s)),
+    TiffeApp(
+      store: s,
+      startScreen: LiveWorkspace(backend: b, store: s),
+    ),
   );
   await t.pumpAndSettle();
   b.subs.add([]);
@@ -45,7 +48,7 @@ Future<void> payFlow(WidgetTester t) async {
   await t.pumpAndSettle();
   await t.tap(find.textContaining('Proceed to Payment'));
   await t.pumpAndSettle();
-  await t.tap(find.textContaining('Securely'));
+  await t.tap(find.textContaining('Continue ·'));
   await t.pump(const Duration(seconds: 4));
   await t.pumpAndSettle();
 }
@@ -56,7 +59,7 @@ void main() {
     await openPlans(t, b);
     await payFlow(t);
     expect(b.bought, 'double');
-    expect(find.text('Subscription Confirmed!'), findsOneWidget);
+    expect(find.text('Plan request sent'), findsOneWidget);
     expect(find.textContaining('waiting'), findsNothing);
     b.subs.add([
       {
@@ -100,7 +103,7 @@ void main() {
     final b = BuyBackend()..fail = true;
     await openPlans(t, b);
     await payFlow(t);
-    expect(find.text('Subscription Confirmed!'), findsNothing);
+    expect(find.text('Plan request sent'), findsNothing);
     expect(find.textContaining('You already have a plan'), findsWidgets);
     expect(find.text('Select This Plan'), findsWidgets);
   });

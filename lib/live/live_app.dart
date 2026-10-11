@@ -87,11 +87,7 @@ class _LiveGateState extends State<LiveGate> {
       stream: b.authChanges,
       builder: (c, s) {
         if (b.userId == null) {
-          return SignIn(
-            backend: b,
-            admin: widget.admin,
-            showIntro: false,
-          );
+          return SignIn(backend: b, admin: widget.admin, showIntro: false);
         }
         if (widget.admin) {
           return FutureBuilder<String?>(
@@ -1813,9 +1809,9 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
       Color bg = dark ? const Color(0xFF2C3D30) : const Color(0xFFF3F3F6);
       Color fg = uiPalette.ink;
       if (delivered) {
-        bg = const Color(0xFFE5F4EB);
+        bg = dark ? const Color(0xFF244332) : const Color(0xFFE5F4EB);
       } else if (os.isNotEmpty || inPlan(key)) {
-        bg = const Color(0xFFE5F4EB);
+        bg = dark ? const Color(0xFF244332) : const Color(0xFFE5F4EB);
       }
       if (isToday) {
         bg = const Color(0xFFFF8843);
@@ -3206,6 +3202,8 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
   void _afterOrder(String r) {
     if (r == 'home') {
       setState(() => tab = 0);
+    } else if (r.startsWith('nav:')) {
+      setState(() => tab = int.parse(r.substring(4)));
     } else if (r.startsWith('track:')) {
       setState(() => tab = 3);
       _trackPage('#${_shortId(r.substring(6))}');
@@ -4351,6 +4349,8 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
                   nav.pushReplacement(
                     MaterialPageRoute<void>(
                       builder: (_) => GPlanConfirmed(
+                        title: 'Plan request sent',
+                        body: 'Your plan request was saved. The kitchen confirms your payment separately.',
                         task: () async {
                           try {
                             await widget.backend.buySubscription(
@@ -4760,6 +4760,7 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
           area: area.text.trim(),
           address: address.text.trim(),
           initialBhajis: ids,
+          oneTime: true,
         ),
       ),
     );
@@ -5126,6 +5127,7 @@ class OrderSheet extends StatefulWidget {
   final String? date;
   final String customerName, phone, area, address;
   final List<String> initialBhajis;
+  final bool oneTime;
   const OrderSheet({
     super.key,
     required this.backend,
@@ -5138,6 +5140,7 @@ class OrderSheet extends StatefulWidget {
     this.area = '',
     this.address = '',
     this.initialBhajis = const [],
+    this.oneTime = false,
   });
   @override
   State<OrderSheet> createState() => _OrderSheetState();
@@ -5147,7 +5150,7 @@ class _OrderSheetState extends State<OrderSheet> {
   final instructions = TextEditingController();
   late final List<Set<String>> tiffins = [
     {...widget.initialBhajis},
-    if (widget.subscription?['plan'] == 'double') {},
+    if (!widget.oneTime && widget.subscription?['plan'] == 'double') {},
   ];
   bool busy = false;
   String? error;
@@ -5201,7 +5204,10 @@ class _OrderSheetState extends State<OrderSheet> {
             for (var k = 0; k < avail.length; k++)
               if (tiffins[i].contains(avail[k]['id'])) k,
           ],
-          onTab: (_) => Navigator.of(c).maybePop(),
+          onTab: (tab) {
+            Navigator.of(c).pop();
+            Navigator.of(context).pop('nav:$tab');
+          },
           onOrder: (sel) =>
               Navigator.of(c).pop([for (final it in sel) names[it.title]!]),
         ),
@@ -5242,7 +5248,7 @@ class _OrderSheetState extends State<OrderSheet> {
 
   int get pricePaise {
     final extra = widget.cfg['extra_bhaji_paise'] as int? ?? 0;
-    if (widget.subscription != null) {
+    if (!widget.oneTime && widget.subscription != null) {
       var total = 0;
       for (final t in tiffins) {
         if (t.length > 2) total += (t.length - 2) * extra;
@@ -5281,7 +5287,9 @@ class _OrderSheetState extends State<OrderSheet> {
       tiffins: tiffins.map((t) => t.toList()).toList(),
       idempotencyKey: idempotencyKey,
       instructions: instructions.text.trim(),
-      subscriptionId: widget.subscription?['id'] as String?,
+      subscriptionId: widget.oneTime
+          ? null
+          : widget.subscription?['id'] as String?,
     );
     unawaited(rememberDemoOrder(newId));
     return newId;
@@ -5332,7 +5340,7 @@ class _OrderSheetState extends State<OrderSheet> {
             MaterialPageRoute<void>(
               builder: (_) => GPlanConfirmed(
                 title: 'Order Placed!',
-                body: 'Your tiffin order has been placed. The kitchen has it and will start preparing it.',
+                body: 'Your tiffin order has been placed. The kitchen will verify your payment.',
                 secondaryLabel: 'Track Order',
                 task: () async {
                   try {
@@ -5373,7 +5381,7 @@ class _OrderSheetState extends State<OrderSheet> {
     final oneTime = (widget.cfg['one_time_price_paise'] as int? ?? 0) ~/ 100;
     final delivery =
         (widget.cfg['one_time_delivery_paise'] as int? ?? 0) ~/ 100;
-    final sub = widget.subscription != null;
+    final sub = !widget.oneTime && widget.subscription != null;
     Widget card(Widget child) => Container(
       width: double.infinity,
       margin: const EdgeInsets.only(bottom: 16),
@@ -5650,7 +5658,7 @@ class _OrderSheetState extends State<OrderSheet> {
                       ? 'Pick bhajis from the Menu'
                       : pricePaise == 0
                       ? 'Place Order'
-                      : 'Pay $total & Place Order',
+                      : 'Place Order · $total due',
                   onPressed: busy
                       ? null
                       : _firstIncomplete >= 0
