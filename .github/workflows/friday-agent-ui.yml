@@ -1,0 +1,42 @@
+name: Friday v56 Agent Mode UI test
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Fetch audited released APKs
+        run: |
+          mkdir -p device-results
+          curl -fL https://github.com/frances09f-lgtm/friday-fo/releases/download/v56/Friday.apk -o /tmp/Friday.apk
+          echo '19e76775822f85420d75b941206e3e2938f6173bf839bdb3189be4b11f43afc7 /tmp/Friday.apk' | sha256sum -c
+          curl -fL https://github.com/frances09f-lgtm/child-safety-client/releases/download/v3/app-release.apk -o /tmp/Child.apk
+          echo '536554951b60125ff2caaea456fbdedf0096d94e495054924e681dd3158a92e0 /tmp/Child.apk' | sha256sum -c
+      - run: pip install uiautomator2
+      - uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: pixel_5
+          emulator-boot-timeout: 600
+          disable-animations: true
+          script: bash device-tests/friday.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: friday-agent-ui
+          path: device-results
