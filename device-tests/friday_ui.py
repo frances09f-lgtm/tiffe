@@ -5,6 +5,7 @@ def snap(name):
 def click(text):
  for _ in range(7):
   x=D(textContains=text)
+  if not x.exists:x=D(descriptionContains=text)
   if x.exists:x.click();time.sleep(2);return True
   D.swipe_ext('up',scale=.65);time.sleep(1)
  snap('missing-'+text.replace(' ','-'));return False
@@ -14,8 +15,7 @@ for _ in range(5):
  elif D(text='While using the app').exists:D(text='While using the app').click();time.sleep(2)
  else:break
 snap('friday-home')
-click('Settings');snap('friday-settings')
-if not click('Accessibility Service'):raise RuntimeError('Agent entry missing')
+if not click('Agent Mode'):raise RuntimeError('Agent entry missing')
 snap('friday-agent-before')
 click('Set up local model');snap('friday-model-before')
 if not click('Download and test local model'):raise RuntimeError('Download control missing')

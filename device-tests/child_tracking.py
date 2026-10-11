@@ -4,7 +4,9 @@ def sh(*a):return subprocess.check_output(['adb','shell',*a],text=True)
 def snap(n):D.screenshot(O+'/'+n+'.png');open(O+'/'+n+'.xml','w').write(D.dump_hierarchy())
 def click(text):
  for _ in range(6):
-  if D(textContains=text).exists:D(textContains=text).click();time.sleep(2);return
+  x=D(textContains=text)
+  if not x.exists:x=D(descriptionContains=text)
+  if x.exists:x.click();time.sleep(2);return
   D.swipe_ext('up',scale=.6);time.sleep(1)
  raise RuntimeError('UI control unavailable: '+text)
 def history():
@@ -15,7 +17,7 @@ email='child-device-test-'+secrets.token_hex(8)+'@example.invalid';password=secr
 try:
  r=requests.post('https://identitytoolkit.googleapis.com/v1/accounts:signUp',params={'key':key},json={'email':email,'password':password,'returnSecureToken':True},timeout=30);r.raise_for_status();token=r.json()['idToken']
  D.app_start('com.childsafety.child_safety_tracker',stop=True);time.sleep(6)
- fields=D(className='android.widget.EditText');fields[1].set_text(key);fields[2].set_text(email);fields[3].set_text(password);D.press('back');click('Child Name');D(className='android.widget.EditText',focused=True).set_text('Isolated Android test');D.press('back');click('Sign in and pair device');time.sleep(15)
+ fields=D(className='android.widget.EditText');fields[1].set_text(key);fields[2].set_text(email);fields[3].set_text(password);D.press('back');D.swipe_ext('up',scale=.55);time.sleep(1);snap('child-before-name');D(className='android.widget.EditText')[-2].set_text('Isolated Android test');D.press('back');click('Sign in and pair device');time.sleep(15)
  devices=requests.get(base+'/api/devices',headers={'Authorization':'Bearer '+token},timeout=30).json();assert len(devices)==1;device=devices[0]['deviceId']
  snap('child-paired');subprocess.run(['adb','emu','geo','fix','73.85','18.52'],check=True);click('Start Tracking')
  for _ in range(3):
