@@ -1,0 +1,33 @@
+name: Distribute audited Child2
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  distribute:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.16.0'
+      - run: npm ci --prefix distribution/tooling --ignore-scripts --no-audit --no-fund
+      - name: Download and verify reviewed public-source APK
+        run: |
+          curl -fL https://github.com/frances09f-lgtm/child-safety-client/releases/download/v2/app-release.apk -o "$RUNNER_TEMP/Child.apk"
+          echo '1a45784871429c4a5f7c11b78a0f9ad98bb9a0a27f08090dbca2c9074ef23ad0 '"$RUNNER_TEMP/Child.apk" | sha256sum -c
+      - name: Upload and verify live version
+        env:
+          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+        run: |
+          set -euo pipefail
+          umask 077
+          export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/firebase-distribution.json"
+          trap 'rm -f "$GOOGLE_APPLICATION_CREDENTIALS"' EXIT
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT_JSON" > "$GOOGLE_APPLICATION_CREDENTIALS"
+          unset FIREBASE_SERVICE_ACCOUNT_JSON
+          node scripts/firebase_child2.cjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: firebase-child2-result
+          path: ${{ runner.temp }}/firebase-child2-result.json
