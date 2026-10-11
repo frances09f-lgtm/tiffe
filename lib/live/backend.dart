@@ -177,8 +177,16 @@ class TiffeBackend {
     )) as String;
   }
 
-  Future<List<Map<String, dynamic>>> customers() async =>
-      client.from('profiles').select('id, name, phone, area');
+  Future<List<Map<String, dynamic>>> customers() async {
+    try {
+      return await client
+          .from('profiles')
+          .select('id, name, phone, area, created_at');
+    } catch (_) {
+      // Older databases have no created_at on profiles: keep the list working.
+      return client.from('profiles').select('id, name, phone, area');
+    }
+  }
 
   Future<List<Map<String, dynamic>>> allSubscriptions() async => client
       .from('subscriptions')

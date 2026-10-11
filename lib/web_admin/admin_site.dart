@@ -1,0 +1,995 @@
+import 'dart:async';
+
+import 'package:flutter/material.dart';
+
+import '../live/backend.dart';
+
+const _forest = Color(0xFF1B3B2B);
+const _forestLight = Color(0xFF2C5E45);
+const _cream = Color(0xFFFBF9F5);
+const _creamMuted = Color(0xFFE6E0D3);
+const _saffron = Color(0xFFE86324);
+const _muted = Color(0xFF666666);
+const _font = 'PlusJakartaSans';
+
+/// Snapshot of everything the admin website shows. Built from the same
+/// Supabase tables as the phone app.
+class AdminData {
+  final List<Map<String, dynamic>> orders, subs, customers, menu, riders;
+  final String today;
+  const AdminData({
+    required this.orders,
+    required this.subs,
+    required this.customers,
+    required this.menu,
+    required this.riders,
+    required this.today,
+  });
+
+  Map<String, String> get names => {
+    for (final c in customers) c['id'] as String: (c['name'] as String?) ?? '',
+  };
+  String nameOf(Map o) {
+    final n = names[o['customer_id']] ?? '';
+    return n.trim().isEmpty ? 'Customer' : n;
+  }
+
+  String riderName(Object? id) {
+    if (id == null) return 'Unassigned';
+    for (final r in riders) {
+      if (r['user_id'] == id) {
+        final n = (r['name'] as String?) ?? '';
+        return n.trim().isEmpty ? 'Rider' : n;
+      }
+    }
+    return 'Rider';
+  }
+
+  List<Map<String, dynamic>> get todayOrders => [
+    for (final o in orders)
+      if (o['delivery_date'] == today) o,
+  ];
+  bool isActive(Map s) =>
+      s['verified'] == true &&
+      (s['starts_on'] as String).compareTo(today) <= 0 &&
+      (s['ends_on'] as String).compareTo(today) >= 0;
+  int get activeSubscribers =>
+      {for (final s in subs.where(isActive)) s['customer_id']}.length;
+  int get revenueTodayPaise => todayOrders
+      .where((o) => o['payment_status'] == 'verified')
+      .fold(0, (a, o) => a + ((o['total_paise'] as num?)?.toInt() ?? 0));
+  int get ridersOut => {
+    for (final o in orders)
+      if (o['status'] == 'Out for Delivery' && o['assigned_to'] != null)
+        o['assigned_to'],
+  }.length;
+}
+
+String rupees(num paise) => '₹${(paise / 100).toStringAsFixed(0)}';
+
+class AdminSite extends StatefulWidget {
+  final TiffeBackend backend;
+  const AdminSite({super.key, required this.backend});
+  @override
+  State<AdminSite> createState() => _AdminSiteState();
+}
+
+class _AdminSiteState extends State<AdminSite> {
+  int screen = 0;
+  List<Map<String, dynamic>> orders = [], menu = [];
+  List<Map<String, dynamic>> subs = [], customers = [], riders = [];
+  StreamSubscription? os, ms;
+  String query = '';
+
+  @override
+  void initState() {
+    super.initState();
+    os = widget.backend.orders().listen((r) => setState(() => orders = r));
+    ms = widget.backend.menu().listen((r) => setState(() => menu = r));
+    reload();
+  }
+
+  Future<void> reload() async {
+    try {
+      final r = await Future.wait([
+        widget.backend.allSubscriptions(),
+        widget.backend.customers(),
+        widget.backend.deliveryStaff(),
+      ]);
+      if (mounted) {
+        setState(() {
+          subs = r[0];
+          customers = r[1];
+          riders = r[2];
+        });
+      }
+    } catch (_) {}
+  }
+
+  @override
+  void dispose() {
+    os?.cancel();
+    ms?.cancel();
+    super.dispose();
+  }
+
+  AdminData get data {
+    final n = DateTime.now().toUtc().add(const Duration(hours: 5, minutes: 30));
+    return AdminData(
+      orders: orders,
+      subs: subs,
+      customers: customers,
+      menu: menu,
+      riders: riders,
+      today: n.toIso8601String().substring(0, 10),
+    );
+  }
+
+  static const nav = [
+    (Icons.dashboard_outlined, 'Dashboard & Overview'),
+    (Icons.local_shipping_outlined, 'Live Orders & Dispatch'),
+    (Icons.event_repeat_outlined, 'Active Subscriptions'),
+    (Icons.restaurant_menu_outlined, 'Menu & Bhaji Manager'),
+    (Icons.people_outline, 'Customers'),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final d = data;
+    final wide = MediaQuery.sizeOf(context).width >= 900;
+    final body = switch (screen) {
+      0 => _Dashboard(d, onAll: () => setState(() => screen = 1)),
+      1 => _LiveOrders(d, widget.backend),
+      2 => _Subscriptions(d),
+      3 => _MenuManager(d),
+      _ => _Customers(d, query, (q) => setState(() => query = q)),
+    };
+    return Theme(
+      data: ThemeData(
+        fontFamily: _font,
+        scaffoldBackgroundColor: _cream,
+        colorScheme: ColorScheme.fromSeed(seedColor: _forest),
+        useMaterial3: true,
+      ),
+      child: Scaffold(
+        body: Column(
+          children: [
+            _Header(compact: !wide),
+            Expanded(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (wide) _Sidebar(screen, (i) => setState(() => screen = i)),
+                  Expanded(
+                    child: SingleChildScrollView(
+                      padding: EdgeInsets.all(wide ? 32 : 16),
+                      child: Align(
+                        alignment: Alignment.topCenter,
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 1180),
+                          child: body,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        bottomNavigationBar: wide
+            ? null
+            : NavigationBar(
+                selectedIndex: screen,
+                onDestinationSelected: (i) => setState(() => screen = i),
+                destinations: [
+                  for (final n in nav)
+                    NavigationDestination(
+                      icon: Icon(n.$1),
+                      label: n.$2.split(' ').first,
+                    ),
+                ],
+              ),
+      ),
+    );
+  }
+}
+
+class _Header extends StatelessWidget {
+  final bool compact;
+  const _Header({this.compact = false});
+  @override
+  Widget build(BuildContext context) => Container(
+    color: _forest,
+    padding: EdgeInsets.symmetric(horizontal: compact ? 16 : 28, vertical: 14),
+    child: Row(
+      children: [
+        Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            color: _saffron,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: const Icon(Icons.restaurant, color: Colors.white),
+        ),
+        const SizedBox(width: 12),
+        const Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Tiffe Admin',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 18,
+                ),
+              ),
+              Text(
+                'Kitchen operations and subscriptions',
+                style: TextStyle(color: Color(0xB3FBF9F5), fontSize: 11),
+              ),
+            ],
+          ),
+        ),
+        if (!compact)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+            decoration: BoxDecoration(
+              color: _forestLight.withValues(alpha: .5),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.white12),
+            ),
+            child: const Row(
+              children: [
+                Icon(Icons.circle, size: 9, color: Color(0xFF34D399)),
+                SizedBox(width: 8),
+                Text(
+                  'Connected to live data',
+                  style: TextStyle(
+                    color: _cream,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+      ],
+    ),
+  );
+}
+
+class _Sidebar extends StatelessWidget {
+  final int selected;
+  final ValueChanged<int> onTap;
+  const _Sidebar(this.selected, this.onTap);
+  @override
+  Widget build(BuildContext context) => Container(
+    width: 250,
+    padding: const EdgeInsets.all(20),
+    decoration: const BoxDecoration(
+      color: Colors.white,
+      border: Border(right: BorderSide(color: _creamMuted)),
+    ),
+    child: Column(
+      children: [
+        for (var i = 0; i < _AdminSiteState.nav.length; i++)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 6),
+            child: Material(
+              color: i == selected ? _forest : Colors.transparent,
+              borderRadius: BorderRadius.circular(16),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(16),
+                onTap: () => onTap(i),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 13,
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        _AdminSiteState.nav[i].$1,
+                        size: 18,
+                        color: i == selected ? Colors.white : _muted,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          _AdminSiteState.nav[i].$2,
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: i == selected
+                                ? FontWeight.w800
+                                : FontWeight.w600,
+                            color: i == selected ? Colors.white : _muted,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+      ],
+    ),
+  );
+}
+
+double _cw(BuildContext c) {
+  final sw = MediaQuery.sizeOf(c).width;
+  final wide = sw >= 900;
+  final w = (sw - (wide ? 250 + 64 : 32)).clamp(0, 1180).toDouble();
+  final cols = w >= 900 ? 3 : (w >= 600 ? 2 : 1);
+  return (w - 16 * (cols - 1)) / cols;
+}
+
+Widget _title(String t, String sub, [Widget? trailing]) => Padding(
+  padding: const EdgeInsets.only(bottom: 22),
+  child: Row(
+    children: [
+      Expanded(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              t,
+              style: const TextStyle(
+                fontSize: 26,
+                fontWeight: FontWeight.w800,
+                color: _forest,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(sub, style: const TextStyle(color: _muted, fontSize: 13)),
+          ],
+        ),
+      ),
+      ?trailing,
+    ],
+  ),
+);
+
+Widget _card({required Widget child, EdgeInsets? pad}) => Container(
+  width: double.infinity,
+  padding: pad ?? const EdgeInsets.all(20),
+  decoration: BoxDecoration(
+    color: Colors.white,
+    borderRadius: BorderRadius.circular(24),
+    border: Border.all(color: _creamMuted),
+  ),
+  child: child,
+);
+
+Widget _chip(String t, Color fg, Color bg) => Container(
+  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+  decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(99)),
+  child: Text(
+    t,
+    style: TextStyle(color: fg, fontSize: 11, fontWeight: FontWeight.w800),
+  ),
+);
+
+Widget statusChip(String s) => switch (s) {
+  'Delivered' => _chip(s, _forest, const Color(0x1A1B3B2B)),
+  'Out for Delivery' => _chip(s, _saffron, const Color(0x1AE86324)),
+  'Cancelled' ||
+  'Failed' ||
+  'Refunded' => _chip(s, const Color(0xFFB3261E), const Color(0x1AB3261E)),
+  _ => _chip(s, _muted, const Color(0xFFF0EBDD)),
+};
+
+class _Metric extends StatelessWidget {
+  final IconData icon;
+  final String label, value, note;
+  const _Metric(this.icon, this.label, this.value, this.note);
+  @override
+  Widget build(BuildContext context) => _card(
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(9),
+              decoration: BoxDecoration(
+                color: _forest.withValues(alpha: .08),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(icon, size: 20, color: _forest),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                label,
+                style: const TextStyle(
+                  color: _muted,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 14),
+        Text(
+          value,
+          style: const TextStyle(
+            fontSize: 30,
+            fontWeight: FontWeight.w800,
+            color: _forest,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(note, style: const TextStyle(color: _muted, fontSize: 12)),
+      ],
+    ),
+  );
+}
+
+String _slot(Map o) {
+  final m = o['meal'] == 'dinner' ? 'Dinner' : 'Lunch';
+  return o['meal'] == null ? 'One-time' : m;
+}
+
+class _Dashboard extends StatelessWidget {
+  final AdminData d;
+  final VoidCallback onAll;
+  const _Dashboard(this.d, {required this.onAll});
+  @override
+  Widget build(BuildContext context) {
+    final t = d.todayOrders;
+    final feed = t.take(8).toList();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _title('Kitchen overview', "Today's tiffin prep and deliveries."),
+        LayoutBuilder(
+          builder: (c, k) {
+            final cols = k.maxWidth >= 900 ? 4 : 2;
+            final w = (k.maxWidth - 16 * (cols - 1)) / cols;
+            final cards = [
+              _Metric(
+                Icons.receipt_long_outlined,
+                'Orders today',
+                '${t.length}',
+                '${t.where((o) => o['status'] == 'Delivered').length} delivered',
+              ),
+              _Metric(
+                Icons.people_outline,
+                'Active subscribers',
+                '${d.activeSubscribers}',
+                'With a verified plan today',
+              ),
+              _Metric(
+                Icons.currency_rupee,
+                "Today's revenue",
+                rupees(d.revenueTodayPaise),
+                'Payments you verified',
+              ),
+              _Metric(
+                Icons.two_wheeler_outlined,
+                'Delivery partners',
+                '${d.ridersOut} out',
+                '${d.riders.length} registered',
+              ),
+            ];
+            return Wrap(
+              spacing: 16,
+              runSpacing: 16,
+              children: [for (final x in cards) SizedBox(width: w, child: x)],
+            );
+          },
+        ),
+        const SizedBox(height: 24),
+        _card(
+          pad: EdgeInsets.zero,
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(20),
+                child: Row(
+                  children: [
+                    const Expanded(
+                      child: Text(
+                        'Live dispatch feed',
+                        style: TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.w800,
+                          color: _forest,
+                        ),
+                      ),
+                    ),
+                    TextButton(onPressed: onAll, child: const Text('View all')),
+                  ],
+                ),
+              ),
+              _orderTable(d, feed),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+Widget _orderTable(AdminData d, List<Map<String, dynamic>> rows) =>
+    LayoutBuilder(
+      builder: (c, k) => k.maxWidth >= 640
+          ? _orderTableBody(d, rows)
+          : SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: SizedBox(width: 640, child: _orderTableBody(d, rows)),
+            ),
+    );
+
+Widget _orderTableBody(AdminData d, List<Map<String, dynamic>> rows) {
+  const head = TextStyle(
+    color: _muted,
+    fontSize: 11,
+    fontWeight: FontWeight.w800,
+  );
+  Widget row(List<Widget> c, {bool h = false}) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+    decoration: BoxDecoration(
+      color: h ? _cream : null,
+      border: const Border(top: BorderSide(color: _creamMuted)),
+    ),
+    child: Row(
+      children: [
+        for (var i = 0; i < c.length; i++)
+          Expanded(flex: const [2, 3, 2, 3, 3][i], child: c[i]),
+      ],
+    ),
+  );
+  if (rows.isEmpty) {
+    return const Padding(
+      padding: EdgeInsets.all(28),
+      child: Text('No orders for today yet.', style: TextStyle(color: _muted)),
+    );
+  }
+  return Column(
+    children: [
+      row([
+        for (final h in ['ORDER', 'CUSTOMER', 'SLOT', 'STATUS', 'DELIVERY'])
+          Text(h, style: head),
+      ], h: true),
+      for (final o in rows)
+        row([
+          Text(
+            '#${(o['id'] as String).substring(0, 6).toUpperCase()}',
+            style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
+          ),
+          Text(d.nameOf(o), style: const TextStyle(fontSize: 13)),
+          Text(_slot(o), style: const TextStyle(fontSize: 13)),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: statusChip('${o['status']}'),
+          ),
+          Text(
+            d.riderName(o['assigned_to']),
+            style: const TextStyle(fontSize: 13, color: _muted),
+          ),
+        ]),
+    ],
+  );
+}
+
+class _LiveOrders extends StatelessWidget {
+  final AdminData d;
+  final TiffeBackend b;
+  const _LiveOrders(this.d, this.b);
+  static const flow = [
+    'Confirmed',
+    'Preparing',
+    'Packed',
+    'Out for Delivery',
+    'Delivered',
+  ];
+  @override
+  Widget build(BuildContext context) {
+    final rows = d.todayOrders.isEmpty
+        ? d.orders.take(12).toList()
+        : d.todayOrders;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _title(
+          'Live orders & dispatch',
+          'Verify payment, move orders through the kitchen, assign a rider.',
+        ),
+        Wrap(
+          spacing: 16,
+          runSpacing: 16,
+          children: [
+            for (final o in rows)
+              SizedBox(width: _cw(context), child: _orderCard(context, o)),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _orderCard(BuildContext context, Map<String, dynamic> o) {
+    final verified = o['payment_status'] == 'verified';
+    final i = flow.indexOf('${o['status']}');
+    final next = i >= 0 && i < flow.length - 1 ? flow[i + 1] : null;
+    return _card(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Wrap(
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            runSpacing: 6,
+            spacing: 8,
+            children: [
+              Text(
+                '#${(o['id'] as String).substring(0, 6).toUpperCase()} · ${_slot(o)}',
+                style: const TextStyle(
+                  color: _muted,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              statusChip('${o['status']}'),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            d.nameOf(o),
+            style: const TextStyle(
+              fontSize: 17,
+              fontWeight: FontWeight.w800,
+              color: _forest,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '${rupees((o['total_paise'] as num?) ?? 0)} · ${verified ? 'Paid' : 'Payment pending'}',
+            style: const TextStyle(color: _muted, fontSize: 13),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Rider: ${d.riderName(o['assigned_to'])}',
+            style: const TextStyle(color: _muted, fontSize: 13),
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              if (!verified)
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => b.verifyPayment(o['id'] as String),
+                    child: const Text('Verify payment'),
+                  ),
+                ),
+              if (verified &&
+                  o['assigned_to'] == null &&
+                  d.riders.isNotEmpty) ...[
+                Expanded(
+                  child: PopupMenuButton<String>(
+                    onSelected: (r) => b.assignRider(o['id'] as String, r),
+                    itemBuilder: (_) => [
+                      for (final r in d.riders)
+                        PopupMenuItem(
+                          value: r['user_id'] as String,
+                          child: Text(d.riderName(r['user_id'])),
+                        ),
+                    ],
+                    child: Container(
+                      height: 40,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(99),
+                        border: Border.all(color: _forest),
+                      ),
+                      child: const Text(
+                        'Assign rider',
+                        style: TextStyle(
+                          color: _forest,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+              ],
+              if (!verified && next != null) const SizedBox(width: 8),
+              if (next != null)
+                Expanded(
+                  child: FilledButton(
+                    style: FilledButton.styleFrom(backgroundColor: _forest),
+                    onPressed: () => b.advance(o['id'] as String, next),
+                    child: Text('Mark $next'),
+                  ),
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _Subscriptions extends StatelessWidget {
+  final AdminData d;
+  const _Subscriptions(this.d);
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      _title(
+        'Active subscriptions',
+        '${d.activeSubscribers} customers with a verified plan today.',
+      ),
+      _card(
+        pad: EdgeInsets.zero,
+        child: Column(
+          children: [
+            for (final s in d.subs)
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 14,
+                ),
+                decoration: const BoxDecoration(
+                  border: Border(bottom: BorderSide(color: _creamMuted)),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      flex: 3,
+                      child: Text(
+                        d.names[s['customer_id']] ?? 'Customer',
+                        style: const TextStyle(fontWeight: FontWeight.w800),
+                      ),
+                    ),
+                    Expanded(
+                      flex: 3,
+                      child: Text(
+                        s['plan'] == 'double' ? 'Double Tiffe' : 'Daily Tiffe',
+                      ),
+                    ),
+                    Expanded(
+                      flex: 4,
+                      child: Text(
+                        '${s['starts_on']} to ${s['ends_on']}',
+                        style: const TextStyle(color: _muted),
+                      ),
+                    ),
+                    Expanded(
+                      flex: 2,
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: s['verified'] == true
+                            ? (d.isActive(s)
+                                  ? _chip(
+                                      'Active',
+                                      _forest,
+                                      const Color(0x1A1B3B2B),
+                                    )
+                                  : _chip(
+                                      'Ended',
+                                      _muted,
+                                      const Color(0xFFF0EBDD),
+                                    ))
+                            : _chip(
+                                'Unverified',
+                                _saffron,
+                                const Color(0x1AE86324),
+                              ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            if (d.subs.isEmpty)
+              const Padding(
+                padding: EdgeInsets.all(28),
+                child: Text(
+                  'No subscriptions yet.',
+                  style: TextStyle(color: _muted),
+                ),
+              ),
+          ],
+        ),
+      ),
+    ],
+  );
+}
+
+class _MenuManager extends StatelessWidget {
+  final AdminData d;
+  const _MenuManager(this.d);
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      _title('Menu & bhaji manager', 'Bhajis customers can pick from.'),
+      Wrap(
+        spacing: 16,
+        runSpacing: 16,
+        children: [
+          for (final m in d.menu)
+            SizedBox(
+              width: _cw(context),
+              child: _card(
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '${m['name']}',
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w800,
+                              color: _forest,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            '${m['description'] ?? ''}',
+                            style: const TextStyle(color: _muted, fontSize: 13),
+                          ),
+                        ],
+                      ),
+                    ),
+                    m['available'] == true
+                        ? _chip('Available', _forest, const Color(0x1A1B3B2B))
+                        : _chip('Hidden', _muted, const Color(0xFFF0EBDD)),
+                  ],
+                ),
+              ),
+            ),
+        ],
+      ),
+    ],
+  );
+}
+
+class _Customers extends StatelessWidget {
+  final AdminData d;
+  final String query;
+  final ValueChanged<String> onQuery;
+  const _Customers(this.d, this.query, this.onQuery);
+
+  (String, Color, Color) plan(Map c) {
+    final mine = d.subs.where((s) => s['customer_id'] == c['id']).toList();
+    final act = mine.where(d.isActive).toList();
+    if (act.isNotEmpty) {
+      return (
+        act.first['plan'] == 'double' ? 'Double Tiffe' : 'Daily Tiffe',
+        _forest,
+        const Color(0x1A1B3B2B),
+      );
+    }
+    if (mine.any((s) => s['verified'] != true)) {
+      return ('Awaiting payment', _saffron, const Color(0x1AE86324));
+    }
+    if (mine.isNotEmpty) return ('Plan ended', _muted, const Color(0xFFF0EBDD));
+    return ('No plan', _muted, const Color(0xFFF0EBDD));
+  }
+
+  String joined(Object? v) {
+    final t = DateTime.tryParse('$v');
+    if (t == null) return '';
+    const m = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+    return 'Joined ${t.day} ${m[t.month - 1]} ${t.year}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final q = query.trim().toLowerCase();
+    final rows = [
+      for (final c in d.customers)
+        if (q.isEmpty ||
+            '${c['name']} ${c['phone']} ${c['area']}'.toLowerCase().contains(q))
+          c,
+    ]..sort((a, b) => '${b['created_at']}'.compareTo('${a['created_at']}'));
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _title('Customers', '${rows.length} customers'),
+        SizedBox(
+          width: 420,
+          child: TextField(
+            onChanged: onQuery,
+            decoration: InputDecoration(
+              hintText: 'Search name, phone or area',
+              prefixIcon: const Icon(Icons.search),
+              filled: true,
+              fillColor: Colors.white,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+                borderSide: const BorderSide(color: _creamMuted),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 18),
+        if (rows.isEmpty)
+          const _EmptyNote('No customers match that search.')
+        else
+          Wrap(
+            spacing: 16,
+            runSpacing: 16,
+            children: [
+              for (final c in rows)
+                SizedBox(
+                  width: _cw(context),
+                  child: _card(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Wrap(
+                          alignment: WrapAlignment.spaceBetween,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          spacing: 8,
+                          runSpacing: 6,
+                          children: [
+                            Text(
+                              (c['name'] as String?)?.trim().isNotEmpty == true
+                                  ? c['name']
+                                  : 'Unnamed',
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w800,
+                                color: _forest,
+                              ),
+                            ),
+                            _chip(plan(c).$1, plan(c).$2, plan(c).$3),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          '${c['phone'] ?? ''}',
+                          style: const TextStyle(fontSize: 13),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          [
+                            if ('${c['area'] ?? ''}'.isNotEmpty) '${c['area']}',
+                            joined(c['created_at']),
+                          ].where((e) => e.isNotEmpty).join(' · '),
+                          style: const TextStyle(color: _muted, fontSize: 12),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+            ],
+          ),
+      ],
+    );
+  }
+}
+
+class _EmptyNote extends StatelessWidget {
+  final String t;
+  const _EmptyNote(this.t);
+  @override
+  Widget build(BuildContext context) => _card(
+    child: Text(t, style: const TextStyle(color: _muted)),
+  );
+}
