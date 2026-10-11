@@ -15,7 +15,7 @@ for _ in range(5):
  else:break
 snap('friday-home')
 click('Settings');snap('friday-settings')
-if not click('Screen control'):raise RuntimeError('Agent entry missing')
+if not click('Accessibility Service'):raise RuntimeError('Agent entry missing')
 snap('friday-agent-before')
 click('Set up local model');snap('friday-model-before')
 if not click('Download and test local model'):raise RuntimeError('Download control missing')
