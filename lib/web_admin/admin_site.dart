@@ -140,7 +140,7 @@ class _AdminSiteState extends State<AdminSite> {
     final body = switch (screen) {
       0 => _Dashboard(d, onAll: () => setState(() => screen = 1)),
       1 => _LiveOrders(d, widget.backend),
-      2 => _Subscriptions(d),
+      2 => _Subscriptions(d, widget.backend, reload),
       3 => _MenuManager(d),
       _ => _Customers(d, query, (q) => setState(() => query = q)),
     };
@@ -330,9 +330,13 @@ double _cw(BuildContext c) {
 
 Widget _title(String t, String sub, [Widget? trailing]) => Padding(
   padding: const EdgeInsets.only(bottom: 22),
-  child: Row(
+  child: Wrap(
+    alignment: WrapAlignment.spaceBetween,
+    crossAxisAlignment: WrapCrossAlignment.center,
+    runSpacing: 12,
     children: [
-      Expanded(
+      ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 700),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -579,10 +583,67 @@ Widget _orderTableBody(AdminData d, List<Map<String, dynamic>> rows) {
   );
 }
 
-class _LiveOrders extends StatelessWidget {
+class _LiveOrders extends StatefulWidget {
   final AdminData d;
   final TiffeBackend b;
   const _LiveOrders(this.d, this.b);
+  @override
+  State<_LiveOrders> createState() => _LiveOrdersState();
+}
+
+class _LiveOrdersState extends State<_LiveOrders> {
+  AdminData get d => widget.d;
+  TiffeBackend get b => widget.b;
+  String dayLabel(Map o) {
+    final day = '${o['delivery_date']}';
+    if (day == d.today) return 'Today';
+    final t = DateTime.tryParse(day);
+    final n = DateTime.tryParse(d.today);
+    if (t == null || n == null) return day;
+    if (t.difference(n).inDays == 1) return 'Tomorrow';
+    const m = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+    return '${t.day} ${m[t.month - 1]}';
+  }
+
+  String filter = 'Open';
+  static const filters = ['Open', 'Today', 'Delivered', 'All'];
+  static const closed = {'Delivered', 'Cancelled', 'Failed', 'Refunded'};
+  List<Map<String, dynamic>> pick() {
+    final all = d.orders;
+    final rows = switch (filter) {
+      'Open' => [
+        for (final o in all)
+          if (!closed.contains(o['status'])) o,
+      ],
+      'Today' => d.todayOrders,
+      'Delivered' => [
+        for (final o in all)
+          if (o['status'] == 'Delivered') o,
+      ],
+      _ => all,
+    };
+    return [...rows]..sort((a, b) {
+      final c = '${a['delivery_date']}'.compareTo('${b['delivery_date']}');
+      if (c != 0) return filter == 'Open' ? c : -c;
+      return (a['meal'] == 'dinner' ? 1 : 0).compareTo(
+        b['meal'] == 'dinner' ? 1 : 0,
+      );
+    });
+  }
+
   static const flow = [
     'Confirmed',
     'Preparing',
@@ -592,9 +653,7 @@ class _LiveOrders extends StatelessWidget {
   ];
   @override
   Widget build(BuildContext context) {
-    final rows = d.todayOrders.isEmpty
-        ? d.orders.take(12).toList()
-        : d.todayOrders;
+    final rows = pick();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -602,6 +661,25 @@ class _LiveOrders extends StatelessWidget {
           'Live orders & dispatch',
           'Verify payment, move orders through the kitchen, assign a rider.',
         ),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final f in filters)
+              ChoiceChip(
+                label: Text(f),
+                selected: filter == f,
+                onSelected: (_) => setState(() => filter = f),
+              ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        if (rows.isEmpty)
+          _EmptyNote(
+            filter == 'Open'
+                ? 'No open orders right now.'
+                : 'No orders in this view.',
+          ),
         Wrap(
           spacing: 16,
           runSpacing: 16,
@@ -629,7 +707,7 @@ class _LiveOrders extends StatelessWidget {
             spacing: 8,
             children: [
               Text(
-                '#${(o['id'] as String).substring(0, 6).toUpperCase()} · ${_slot(o)}',
+                '#${(o['id'] as String).substring(0, 6).toUpperCase()} · ${dayLabel(o)} ${_slot(o)}',
                 style: const TextStyle(
                   color: _muted,
                   fontSize: 12,
@@ -719,7 +797,112 @@ class _LiveOrders extends StatelessWidget {
 
 class _Subscriptions extends StatelessWidget {
   final AdminData d;
-  const _Subscriptions(this.d);
+  final TiffeBackend b;
+  final Future<void> Function() onSaved;
+  const _Subscriptions(this.d, this.b, this.onSaved);
+
+  Future<void> add(BuildContext context) async {
+    String? customer;
+    String plan = 'daily';
+    bool verified = true;
+    final start = TextEditingController(text: d.today);
+    String? error;
+    await showDialog<void>(
+      context: context,
+      builder: (c) => StatefulBuilder(
+        builder: (c, set) => AlertDialog(
+          title: const Text('Add subscription'),
+          content: SizedBox(
+            width: 380,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                DropdownButtonFormField<String>(
+                  isExpanded: true,
+                  decoration: const InputDecoration(labelText: 'Customer'),
+                  items: [
+                    for (final cu in d.customers)
+                      DropdownMenuItem(
+                        value: cu['id'] as String,
+                        child: Text(
+                          '${cu['name'] ?? 'Unnamed'} · ${cu['phone'] ?? ''}',
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                  ],
+                  onChanged: (v) => set(() => customer = v),
+                ),
+                DropdownButtonFormField<String>(
+                  initialValue: plan,
+                  decoration: const InputDecoration(labelText: 'Plan'),
+                  items: const [
+                    DropdownMenuItem(
+                      value: 'daily',
+                      child: Text('Daily Tiffe - ₹1500'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'double',
+                      child: Text('Double Tiffe - ₹3000'),
+                    ),
+                  ],
+                  onChanged: (v) => set(() => plan = v ?? 'daily'),
+                ),
+                TextField(
+                  controller: start,
+                  decoration: const InputDecoration(
+                    labelText: 'Starts on (YYYY-MM-DD)',
+                    helperText: 'Runs for 30 days',
+                  ),
+                ),
+                CheckboxListTile(
+                  contentPadding: EdgeInsets.zero,
+                  value: verified,
+                  onChanged: (v) => set(() => verified = v ?? false),
+                  title: const Text('Payment received and verified'),
+                ),
+                if (error != null)
+                  Text(
+                    error!,
+                    style: const TextStyle(color: Color(0xFFB3261E)),
+                  ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(c),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () async {
+                final st = DateTime.tryParse(start.text.trim());
+                if (customer == null || st == null) {
+                  set(() => error = 'Pick a customer and a valid start date.');
+                  return;
+                }
+                final en = st.add(const Duration(days: 29));
+                try {
+                  await b.saveSubscription(
+                    customerId: customer!,
+                    plan: plan,
+                    startsOn: st.toIso8601String().substring(0, 10),
+                    endsOn: en.toIso8601String().substring(0, 10),
+                    verified: verified,
+                  );
+                  await onSaved();
+                  if (c.mounted) Navigator.pop(c);
+                } catch (_) {
+                  set(() => error = 'Could not save. Nothing was changed.');
+                }
+              },
+              child: const Text('Save'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
@@ -727,6 +910,12 @@ class _Subscriptions extends StatelessWidget {
       _title(
         'Active subscriptions',
         '${d.activeSubscribers} customers with a verified plan today.',
+        FilledButton.icon(
+          style: FilledButton.styleFrom(backgroundColor: _forest),
+          onPressed: () => add(context),
+          icon: const Icon(Icons.add, size: 18),
+          label: const Text('Add subscription'),
+        ),
       ),
       _card(
         pad: EdgeInsets.zero,
@@ -793,7 +982,7 @@ class _Subscriptions extends StatelessWidget {
               const Padding(
                 padding: EdgeInsets.all(28),
                 child: Text(
-                  'No subscriptions yet.',
+                  'No subscriptions yet. A plan picked in the phone app demo is not saved here until you add it.',
                   style: TextStyle(color: _muted),
                 ),
               ),

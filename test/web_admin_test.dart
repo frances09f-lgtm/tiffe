@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:tiffe/live/backend.dart';
 import 'package:tiffe/web_admin/admin_site.dart';
 
 import 'admin_controls_test.dart' show OwnerBackend;
@@ -134,7 +135,37 @@ class WebBackend extends OwnerBackend {
   ];
 }
 
-Future<void> open(WidgetTester t, double w, {double scale = 1}) async {
+class FutureOrdersBackend extends WebBackend {
+  @override
+  Stream<List<Map<String, dynamic>>> orders({bool customer = false}) {
+    final n = DateTime.now().toUtc().add(const Duration(hours: 5, minutes: 30));
+    String day(int add) =>
+        n.add(Duration(days: add)).toIso8601String().substring(0, 10);
+    Map<String, dynamic> o(String id, String c, String d, String st) => {
+      'id': id,
+      'customer_id': c,
+      'delivery_date': d,
+      'meal': 'lunch',
+      'status': st,
+      'payment_status': 'unpaid',
+      'assigned_to': null,
+      'total_paise': 10000,
+      'eta_at': null,
+    };
+    return Stream.value([
+      o('aaaaaa11', 'c1', day(0), 'Delivered'),
+      o('bbbbbb22', 'c2', day(1), 'Confirmed'),
+      o('cccccc33', 'c3', day(-2), 'Delivered'),
+    ]);
+  }
+}
+
+Future<void> open(
+  WidgetTester t,
+  double w, {
+  double scale = 1,
+  TiffeBackend? backend,
+}) async {
   t.view.physicalSize = Size(w, 900);
   t.view.devicePixelRatio = 1;
   addTearDown(t.view.resetPhysicalSize);
@@ -146,7 +177,7 @@ Future<void> open(WidgetTester t, double w, {double scale = 1}) async {
           size: Size(w, 900),
           textScaler: TextScaler.linear(scale),
         ),
-        child: AdminSite(backend: WebBackend()),
+        child: AdminSite(backend: backend ?? WebBackend()),
       ),
     ),
   );
@@ -154,6 +185,73 @@ Future<void> open(WidgetTester t, double w, {double scale = 1}) async {
 }
 
 void main() {
+  testWidgets('live orders lists open orders for any day, not only today', (
+    t,
+  ) async {
+    await open(t, 1440, backend: FutureOrdersBackend());
+    await t.tap(find.text('Live Orders & Dispatch').first);
+    await t.pump(const Duration(milliseconds: 200));
+    expect(find.text('Priya Patel'), findsOneWidget);
+    expect(find.textContaining('Tomorrow'), findsOneWidget);
+    expect(find.text('Aarav Sharma'), findsNothing);
+    await t.tap(find.text('Delivered'));
+    await t.pump(const Duration(milliseconds: 200));
+    expect(find.text('Aarav Sharma'), findsOneWidget);
+    expect(find.text('Priya Patel'), findsNothing);
+    await t.tap(find.text('All'));
+    await t.pump(const Duration(milliseconds: 200));
+    expect(find.text('Priya Patel'), findsOneWidget);
+    expect(find.text('Vikram Malhotra'), findsOneWidget);
+  });
+
+  testWidgets('subscriptions screen can add a plan for a customer', (t) async {
+    final b = WebBackend();
+    await open(t, 1440, backend: b);
+    await t.tap(find.text('Active Subscriptions').first);
+    await t.pump(const Duration(milliseconds: 200));
+    await t.tap(find.text('Add subscription'));
+    await t.pump(const Duration(milliseconds: 300));
+    await t.tap(find.text('Save'));
+    await t.pump();
+    expect(
+      find.text('Pick a customer and a valid start date.'),
+      findsOneWidget,
+    );
+    await t.tap(find.text('Customer'));
+    await t.pump(const Duration(milliseconds: 300));
+    await t.tap(find.textContaining('Anita Desai').last);
+    await t.pump(const Duration(milliseconds: 300));
+    await t.tap(find.text('Save'));
+    await t.pump(const Duration(milliseconds: 300));
+    expect(b.savedSub?['customer_id'], 'c4');
+    expect(b.savedSub?['plan'], 'daily');
+    expect(b.savedSub?['verified'], true);
+  });
+
+  testWidgets('subscriptions screen can add a plan for a customer', (t) async {
+    final b = WebBackend();
+    await open(t, 1440, backend: b);
+    await t.tap(find.text('Active Subscriptions').first);
+    await t.pump(const Duration(milliseconds: 200));
+    await t.tap(find.text('Add subscription'));
+    await t.pump(const Duration(milliseconds: 300));
+    await t.tap(find.text('Save'));
+    await t.pump();
+    expect(
+      find.text('Pick a customer and a valid start date.'),
+      findsOneWidget,
+    );
+    await t.tap(find.text('Customer'));
+    await t.pump(const Duration(milliseconds: 300));
+    await t.tap(find.textContaining('Anita Desai').last);
+    await t.pump(const Duration(milliseconds: 300));
+    await t.tap(find.text('Save'));
+    await t.pump(const Duration(milliseconds: 300));
+    expect(b.savedSub?['customer_id'], 'c4');
+    expect(b.savedSub?['plan'], 'daily');
+    expect(b.savedSub?['verified'], true);
+  });
+
   testWidgets('desktop shows real counts and customers search', (t) async {
     await open(t, 1440);
     expect(find.text('Kitchen overview'), findsOneWidget);
