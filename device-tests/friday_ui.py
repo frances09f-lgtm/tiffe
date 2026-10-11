@@ -32,9 +32,14 @@ if 'Local inference responded' not in xml:
  open(O+'/friday-outcome.json','w').write(json.dumps({'stage':'model-setup','ready':False}));raise RuntimeError('Local inference not ready, inspect model diagnostic')
 D.press('back');time.sleep(2)
 # find task field from observed editables
-field=D(className='android.widget.EditText');field.set_text('Open YouTube and search for GTA 6');D.press('back');click('Start')
+field=D(className='android.widget.EditText');field.set_text('Open YouTube and search for GTA 6');
+# Flutter set_text may not open a keyboard. Back without an IME leaves Agent Mode.
+if 'mInputShown=true' in D.shell('dumpsys input_method').output:D.press('back')
+snap('friday-task-filled')
+if not click('Start'):raise RuntimeError('Start was not dispatched')
 time.sleep(65);snap('youtube-after-agent')
 D.app_start('com.friday.assistant');time.sleep(3)
 snap('friday-after-agent')
+if not D(descriptionContains='Last decision').exists:click('Agent Mode')
 click('Last decision');snap('friday-last-decision')
 open(O+'/friday-outcome.json','w').write(json.dumps({'stage':'agent-trial','modelReady':True,'note':'See actual screenshots and hierarchy for outcome'}))
