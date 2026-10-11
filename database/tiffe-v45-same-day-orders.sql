@@ -57,7 +57,7 @@ begin
       if p_day < (now() at time zone 'Asia/Kolkata')::date then continue; end if;
       if p_day = (now() at time zone 'Asia/Kolkata')::date and
          (now() at time zone 'Asia/Kolkata')::time >=
-         case when m='dinner' then time '20:00' else time '12:00' end then continue; end if;
+         (case when m='dinner' then time '20:00' else time '12:00' end) then continue; end if;
       k := md5(sub.id::text || ':' || p_day::text || ':' || m)::uuid;
       perform pg_advisory_xact_lock(hashtextextended(k::text,0));
       if exists (select 1 from public.orders where customer_id = sub.customer_id and idempotency_key = k) then
@@ -77,7 +77,7 @@ begin
     end loop;
   end loop;
   return made;
-end
+end;
 $body$;
 revoke all on function public.generate_subscription_orders(date,text) from public, anon, authenticated;
 
