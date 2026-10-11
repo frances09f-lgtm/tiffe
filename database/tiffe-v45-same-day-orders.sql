@@ -3,6 +3,19 @@
 -- Uses the established noon lunch / 20:00 dinner IST cutoffs.
 -- Does not charge money or change payment verification rules.
 begin;
+-- Fail closed if the live function differs from the owner's 11Oct original.
+do $guard$
+begin
+ if (select md5(regexp_replace(prosrc,'[[:space:]]','','g')) from pg_proc
+     where oid='public.generate_daily_orders(date)'::regprocedure)
+     is distinct from '121d4c9b5a4af52b0109c1e03ddd90d2' then
+   raise exception 'Generator changed. Stop and review the current definition.';
+ end if;
+ if to_regprocedure('public.generate_subscription_orders(date,text)') is not null
+    or to_regprocedure('public.subscription_same_day_orders()') is not null then
+   raise exception 'Helper names already exist. Stop and review them.';
+ end if;
+end $guard$;
 create or replace function public.generate_subscription_orders(p_day date, p_subscription text)
 returns int language plpgsql security definer set search_path = public, pg_temp as $body$
 declare
