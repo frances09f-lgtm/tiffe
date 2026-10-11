@@ -7,6 +7,7 @@ def click(text):
   x=D(textContains=text)
   if not x.exists:x=D(descriptionContains=text)
   if x.exists:x.click();time.sleep(2);return True
+  if D(text='While using the app').exists:D(text='While using the app').click();time.sleep(2);continue
   D.swipe_ext('up',scale=.65);time.sleep(1)
  snap('missing-'+text.replace(' ','-'));return False
 D.app_start('com.friday.assistant',stop=True);time.sleep(10)

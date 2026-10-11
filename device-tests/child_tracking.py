@@ -17,7 +17,20 @@ email='child-device-test-'+secrets.token_hex(8)+'@example.invalid';password=secr
 try:
  r=requests.post('https://identitytoolkit.googleapis.com/v1/accounts:signUp',params={'key':key},json={'email':email,'password':password,'returnSecureToken':True},timeout=30);r.raise_for_status();token=r.json()['idToken']
  D.app_start('com.childsafety.child_safety_tracker',stop=True);time.sleep(6)
- fields=D(className='android.widget.EditText');fields[1].set_text(key);fields[2].set_text(email);fields[3].set_text(password);D.press('back');D.swipe_ext('up',scale=.55);time.sleep(1);snap('child-before-name');D(className='android.widget.EditText')[-2].set_text('Isolated Android test');D.press('back');click('Sign in and pair device');time.sleep(15)
+ snap('child-initial')
+ # Native Flutter blank input nodes can be omitted until focused. Use coordinates
+ # from the inspected exact API35 v3 pairing screen, scaled to actual display.
+ w,h=D.window_size()
+ def fill_at(y,value):
+  D.click(w*.50,h*y);time.sleep(.4);D(className='android.widget.EditText',focused=True).set_text(value);D.press('back');time.sleep(.5)
+ fill_at(.485,key);fill_at(.57,email);fill_at(.655,password)
+ D.swipe_ext('up',scale=.45);time.sleep(2);snap('child-form-scrolled')
+ # derive empty field from all uncompressed observed hierarchy
+ import xml.etree.ElementTree as ET
+ root=ET.fromstring(D.dump_hierarchy(compressed=False));nodes=[n for n in root.iter('node') if n.get('class')=='android.widget.EditText' and n.get('enabled')=='true' and n.get('text','')=='']
+ if not nodes:raise RuntimeError('Child name field not observed')
+ import re
+ bb=list(map(int,re.findall(r'\d+',nodes[0].get('bounds'))));D.click((bb[0]+bb[2])//2,(bb[1]+bb[3])//2);D(className='android.widget.EditText',focused=True).set_text('Isolated Android test');D.press('back');click('Sign in and pair device');time.sleep(15)
  devices=requests.get(base+'/api/devices',headers={'Authorization':'Bearer '+token},timeout=30).json();assert len(devices)==1;device=devices[0]['deviceId']
  snap('child-paired');subprocess.run(['adb','emu','geo','fix','73.85','18.52'],check=True);click('Start Tracking')
  for _ in range(3):
