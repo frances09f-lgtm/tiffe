@@ -1,19 +1,30 @@
 name: Build APK
 on:
   workflow_dispatch:
+    inputs:
+      publish_release:
+        description: Attach artifacts to an existing reviewed, source-bound release (audit and Firebase follow separately)
+        type: boolean
+        default: false
   push:
     branches: [main]
+    paths-ignore:
+      - 'distribution/audits/**'
 
 permissions:
   contents: write
 
+concurrency:
+  group: tiffe-build-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
@@ -21,44 +32,79 @@ jobs:
         with:
           channel: stable
           flutter-version: '3.47.6'
+      - name: Validate matching app version
+        id: version
+        run: |
+          python3 - <<'PY'
+          import os, pathlib, re
+          version = re.search(r'^version:\s*(1\.0\.(\d+)\+\d+)\s*$', pathlib.Path('pubspec.yaml').read_text(), re.M)
+          assert version, 'Invalid pubspec version'
+          full, code = version.group(1), version.group(2)
+          assert full == f'1.0.{code}+{code}', 'Version name/build number mismatch'
+          assert f"'{full}'" in pathlib.Path('lib/live/bug_report.dart').read_text(), 'Bug report version mismatch'
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as out:
+              out.write(f'tag=v{code}\nname=1.0.{code}\ncode={code}\n')
+          PY
       - run: flutter pub get
       - run: flutter analyze
-      - run: flutter test
-      - name: Build with permanent Tiffe signing identity
+      - run: flutter test --dart-define=TIFFE_OWNER_EMAIL=frances09f@gmail.com
+      - name: Build connected APK and AAB with permanent signing identity
         env:
           TIFFE_KEYSTORE_BASE64: ${{ secrets.TIFFE_KEYSTORE_BASE64 }}
           TIFFE_KEYSTORE_FILE: ${{ runner.temp }}/tiffe-release.jks
           TIFFE_KEYSTORE_PASSWORD: ${{ secrets.TIFFE_KEYSTORE_PASSWORD }}
           TIFFE_KEY_PASSWORD: ${{ secrets.TIFFE_KEY_PASSWORD }}
         run: |
+          set -euo pipefail
+          umask 077
+          : "${TIFFE_KEYSTORE_BASE64:?Missing signing keystore}"
+          : "${TIFFE_KEYSTORE_PASSWORD:?Missing keystore password}"
+          : "${TIFFE_KEY_PASSWORD:?Missing key password}"
+          trap 'rm -f "$TIFFE_KEYSTORE_FILE"' EXIT
           printf '%s' "$TIFFE_KEYSTORE_BASE64" | base64 -d > "$TIFFE_KEYSTORE_FILE"
-          flutter build apk --release --target-platform android-arm64
+          flutter clean
+          flutter pub get
+          args=(--release -t lib/connected_main.dart
+            --build-name='${{ steps.version.outputs.name }}'
+            --build-number='${{ steps.version.outputs.code }}'
+            --dart-define=TIFFE_SUPABASE_URL=https://obbtxyjglgivcpusjpcx.supabase.co
+            --dart-define=TIFFE_SUPABASE_KEY=sb_publishable__5qR0bvVmwqKykgbQpAtRw_H0eIgl3_
+            --dart-define=TIFFE_OWNER_EMAIL=frances09f@gmail.com)
+          flutter build appbundle "${args[@]}"
+          mv build/app/outputs/bundle/release/app-release.aab build/app/outputs/bundle/release/Tiffe.aab
+          flutter build apk "${args[@]}" --target-platform android-arm64
           mv build/app/outputs/flutter-apk/app-release.apk build/app/outputs/flutter-apk/Tiffe.apk
-          rm -f "$TIFFE_KEYSTORE_FILE"
       - uses: actions/upload-artifact@v4
         with:
-          name: tiffe-release-apk
-          path: build/app/outputs/flutter-apk/Tiffe.apk
-      - name: Extract version tag
-        id: version
+          name: tiffe-connected-apk
+          if-no-files-found: error
+          path: |
+            build/app/outputs/flutter-apk/Tiffe.apk
+            build/app/outputs/bundle/release/Tiffe.aab
+      # Do not PATCH release metadata through softprops: the previous run failed
+      # there. Only attach to an existing release bound to this exact source.
+      # Published assets are never silently clobbered; audit them before Firebase.
+      - name: Attach artifacts to reviewed release without editing metadata
+        if: github.event_name == 'workflow_dispatch' && inputs.publish_release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
         run: |
-          BUILD_NUMBER=$(grep -E '^version:' pubspec.yaml | cut -d'+' -f2 | tr -d '[:space:]')
-          echo "tag=v${BUILD_NUMBER:-43}" >> $GITHUB_OUTPUT
-      - name: Attach APK to GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ steps.version.outputs.tag }}
-          files: build/app/outputs/flutter-apk/Tiffe.apk
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - name: Upload to Firebase App Distribution
-        continue-on-error: true
-        env:
-          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
-        if: ${{ env.FIREBASE_SERVICE_ACCOUNT_JSON != '' }}
-        uses: wzieba/Firebase-Distribution-Github-Action@v1
-        with:
-          appId: ${{ vars.FIREBASE_APP_ID || '1:509368336413:android:281dab933ae0c01e0a46f4' }}
-          serviceCredentialsFileContent: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
-          file: build/app/outputs/flutter-apk/Tiffe.apk
-          testers: frances09f@gmail.com
+          set -euo pipefail
+          gh api "repos/$GITHUB_REPOSITORY/releases/tags/$TAG" > "$RUNNER_TEMP/release.json"
+          gh api "repos/$GITHUB_REPOSITORY/commits/$TAG" > "$RUNNER_TEMP/tag.json"
+          python3 - <<'PY'
+          import json, os
+          root = os.environ['RUNNER_TEMP']
+          release = json.load(open(root + '/release.json'))
+          tag = json.load(open(root + '/tag.json'))
+          assert not release.get('immutable'), 'Immutable release: stop'
+          assert tag['sha'] == os.environ['GITHUB_SHA'], 'Release tag is not this build source'
+          assert not any(a['name'] in ('Tiffe.apk', 'Tiffe.aab') for a in release['assets']), 'Assets already exist: reconcile, do not overwrite'
+          PY
+          gh release upload "$TAG" --repo "$GITHUB_REPOSITORY" \
+            build/app/outputs/flutter-apk/Tiffe.apk \
+            build/app/outputs/bundle/release/Tiffe.aab
+      - name: Audit and Firebase next step
+        run: |
+          printf '%s\n' 'Build artifacts are not a completed release. Inspect APK/AAB and pixels, bind the exact CI/source/hash/asset audit, then dispatch firebase-distribute.yml with release_tag and expected_sha256. Promote latest only after Firebase verification.' >> "$GITHUB_STEP_SUMMARY"
