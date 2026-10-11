@@ -12,5 +12,6 @@ const {GoogleAuth}=require('../distribution/tooling/node_modules/google-auth-lib
  if(live.buildVersion!=='3'||live.displayVersion!=='1.0.3')throw new Error('version-mismatch');
  const notes='Child Safety build3: paired device opens Home without another parent login, preserved encrypted pairing, new family shield icon. Dashboard remembers public key and keeps sign-in via protected HttpOnly Secure session cookie; passwords are not stored. Start Tracking remains manual. Free hosting and foreground timer are for testing, not emergency protection.';
  await request(`https://firebaseappdistribution.googleapis.com/v1/${release.name}?updateMask=releaseNotes.text`,'PATCH',{releaseNotes:{text:notes}});
+ await request(`https://firebaseappdistribution.googleapis.com/v1/${release.name}:distribute`,'POST',{testerEmails:['frances09f@gmail.com']});
  fs.writeFileSync(process.env.RUNNER_TEMP+'/firebase-child3-result.json',JSON.stringify({app_id:app,sha256:'536554951b60125ff2caaea456fbdedf0096d94e495054924e681dd3158a92e0',release:live},null,2));
 })().catch(()=>{console.error('Firebase distribution or live verification failed');process.exit(1)});
