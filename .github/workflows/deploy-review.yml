@@ -2,7 +2,7 @@ name: Deploy Tiffe Review alongside Demo
 on:
   workflow_dispatch:
   push:
-    branches: [admin-v43-redeploy]
+    branches: [backend-review]
 permissions:
   contents: read
   pages: write
