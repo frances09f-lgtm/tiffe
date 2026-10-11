@@ -1,4 +1,4 @@
-import uiautomator2 as u,time,os,json
+import uiautomator2 as u,time,os,json,subprocess,re,xml.etree.ElementTree as ET
 D=u.connect();O='device-results';os.makedirs(O,exist_ok=True)
 def snap(name):
  D.screenshot(O+'/'+name+'.png');open(O+'/'+name+'.xml','w').write(D.dump_hierarchy())
@@ -36,10 +36,25 @@ field=D(className='android.widget.EditText');field.set_text('Open YouTube and se
 # Flutter set_text may not open a keyboard. Back without an IME leaves Agent Mode.
 if 'mInputShown=true' in D.shell('dumpsys input_method').output:D.press('back')
 snap('friday-task-filled')
-if not click('Start'):raise RuntimeError('Start was not dispatched')
-time.sleep(65);snap('youtube-after-agent')
-D.app_start('com.friday.assistant');time.sleep(3)
-snap('friday-after-agent')
+# UiAutomation suppresses the app accessibility service. End it before the
+# real trial. Use the exact Start bounds observed in this actual APK XML.
+xml=D.dump_hierarchy(compressed=False)
+nodes=[n for n in ET.fromstring(xml).iter('node') if (n.get('text')=='Start' or n.get('content-desc')=='Start') and n.get('clickable')=='true']
+if len(nodes)!=1:raise RuntimeError('Unique Start button not observed')
+xy=list(map(int,re.findall(r'\d+',nodes[0].get('bounds'))))
+D.stop_uiautomator();time.sleep(2)
+subprocess.run(['adb','shell','settings','put','secure','enabled_accessibility_services','com.friday.assistant/com.friday.assistant.FridayAccessibilityService'],check=True)
+subprocess.run(['adb','shell','settings','put','secure','accessibility_enabled','1'],check=True)
+time.sleep(5)
+state=subprocess.check_output(['adb','shell','dumpsys','accessibility'],text=True);open(O+'/accessibility-before-trial.txt','w').write(state)
+if 'FridayAccessibilityService' not in state:raise RuntimeError('Friday accessibility not bound')
+subprocess.run(['adb','shell','input','tap',str((xy[0]+xy[2])//2),str((xy[1]+xy[3])//2)],check=True)
+time.sleep(90)
+with open(O+'/youtube-after-agent.png','wb') as out:subprocess.run(['adb','exec-out','screencap','-p'],stdout=out,check=True)
+subprocess.run(['adb','shell','am','start','-n','com.friday.assistant/.MainActivity'],check=True);time.sleep(3)
+with open(O+'/friday-after-agent.png','wb') as out:subprocess.run(['adb','exec-out','screencap','-p'],stdout=out,check=True)
+D.start_uiautomator();time.sleep(2)
+snap('friday-after-agent-ui')
 if not D(descriptionContains='Last decision').exists:click('Agent Mode')
 click('Last decision');snap('friday-last-decision')
 open(O+'/friday-outcome.json','w').write(json.dumps({'stage':'agent-trial','modelReady':True,'note':'See actual screenshots and hierarchy for outcome'}))
