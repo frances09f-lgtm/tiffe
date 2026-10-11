@@ -1,0 +1,55 @@
+name: Distribute audited Parent v1.1 privately
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  distribute:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      matrix:
+        include:
+          - name: parent
+            app: 'projects/509368336413/apps/1:509368336413:android:90f647c88882d7e40a46f4'
+            repo: child-safety-parent
+            tag: v1.1
+            sha: 2152a0447a488cdad440e8fbc5022746909f392074bbcf4fd380d2061395942c
+            build: '2'
+            version: '1.1.0'
+            notes: 'Child Safety Parent v1.1: one-time server/public-key configuration survives logout and session expiry; approved family UI, all child maps, recorded route playback, safe zones, report intervals, password popup and reset email, optional low-battery and speed alerts. Push is inactive until FCM server credential is configured and notification permission is granted. Install Child v8 for encrypted offline replay and reliable speed metadata. Report/network/Android delays apply; not emergency protection.'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.16.0'
+      - run: npm ci --prefix distribution/tooling --ignore-scripts --no-audit --no-fund
+      - name: Download reviewed published APK and verify hash
+        env:
+          SOURCE_REPO: ${{ matrix.repo }}
+          SOURCE_TAG: ${{ matrix.tag }}
+          EXPECTED_SHA: ${{ matrix.sha }}
+        run: |
+          curl -fL "https://github.com/frances09f-lgtm/$SOURCE_REPO/releases/download/$SOURCE_TAG/app-release.apk" -o "$RUNNER_TEMP/App.apk"
+          printf '%s %s\n' "$EXPECTED_SHA" "$RUNNER_TEMP/App.apk" | sha256sum -c
+      - name: Upload and distribute to existing owner tester
+        env:
+          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+          FIREBASE_APP_RESOURCE: ${{ matrix.app }}
+          EXPECTED_SHA: ${{ matrix.sha }}
+          EXPECTED_BUILD: ${{ matrix.build }}
+          EXPECTED_VERSION: ${{ matrix.version }}
+          RELEASE_NOTES: ${{ matrix.notes }}
+          RESULT_NAME: ${{ matrix.name }}
+        run: |
+          set -euo pipefail
+          umask 077
+          export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/firebase-distribution.json"
+          trap 'rm -f "$GOOGLE_APPLICATION_CREDENTIALS"' EXIT
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT_JSON" > "$GOOGLE_APPLICATION_CREDENTIALS"
+          unset FIREBASE_SERVICE_ACCOUNT_JSON
+          node scripts/firebase_parent_child_v1.cjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: firebase-${{ matrix.name }}-result
+          path: ${{ runner.temp }}/firebase-${{ matrix.name }}-result.json
