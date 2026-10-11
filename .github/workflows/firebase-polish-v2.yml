@@ -1,0 +1,66 @@
+name: Distribute audited Parent v1.3.0 and Child v10 privately
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  distribute:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      matrix:
+        include:
+          - name: parent
+            app: 'projects/509368336413/apps/1:509368336413:android:90f647c88882d7e40a46f4'
+            repo: child-safety-parent
+            tag: v1.3.0
+            asset: ChildSafetyParent-v1.3.0.apk
+            sha: 764f14a45929d9812a89b64be6888cb66a02d2d9e8a26ce798b272690d66ca15
+            build: '4'
+            version: '1.3.0'
+            notes: 'Parent v1.3.0: saved dark mode, rounded popups, in-place safe-zone editing and estimated activity display. Install over earlier Parent. Push alerts remain inactive pending FCM server setup. Android15 isolated UI verified, no physical device accuracy guarantee.'
+          - name: child
+            app: 'projects/509368336413/apps/1:509368336413:android:664d240443b77a5a0a46f4'
+            repo: child-safety-client
+            tag: v10
+            asset: ChildSafetyTracker-v1.0.10.apk
+            sha: 1dc0102e2b0a78ca5154328a78485924d71a69141f04654f083c33457b3a8bbc
+            build: '10'
+            version: '1.0.10'
+            notes: 'Child v1.0.10: optional battery-efficient Play services activity transitions with separate consent and Physical Activity permission; encrypted offline GPS queue restored. Phone Activity counts only, no messages or notification content. Estimates may be delayed or stale. Android15 isolated tests, no physical device motion accuracy claim. Install over earlier Child.'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.16.0'
+      - run: npm ci --prefix distribution/tooling --ignore-scripts --no-audit --no-fund
+      - name: Download reviewed published APK and verify hash
+        env:
+          SOURCE_REPO: ${{ matrix.repo }}
+          SOURCE_TAG: ${{ matrix.tag }}
+          SOURCE_ASSET: ${{ matrix.asset }}
+          EXPECTED_SHA: ${{ matrix.sha }}
+        run: |
+          curl -fL "https://github.com/frances09f-lgtm/$SOURCE_REPO/releases/download/$SOURCE_TAG/$SOURCE_ASSET" -o "$RUNNER_TEMP/App.apk"
+          printf '%s %s\n' "$EXPECTED_SHA" "$RUNNER_TEMP/App.apk" | sha256sum -c
+      - name: Upload and distribute to existing owner tester
+        env:
+          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+          FIREBASE_APP_RESOURCE: ${{ matrix.app }}
+          EXPECTED_SHA: ${{ matrix.sha }}
+          EXPECTED_BUILD: ${{ matrix.build }}
+          EXPECTED_VERSION: ${{ matrix.version }}
+          RELEASE_NOTES: ${{ matrix.notes }}
+          RESULT_NAME: ${{ matrix.name }}
+        run: |
+          set -euo pipefail
+          umask 077
+          export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/firebase-distribution.json"
+          trap 'rm -f "$GOOGLE_APPLICATION_CREDENTIALS"' EXIT
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT_JSON" > "$GOOGLE_APPLICATION_CREDENTIALS"
+          unset FIREBASE_SERVICE_ACCOUNT_JSON
+          node scripts/firebase_parent_child_v1.cjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: firebase-${{ matrix.name }}-result
+          path: ${{ runner.temp }}/firebase-${{ matrix.name }}-result.json
