@@ -48,221 +48,167 @@ class CustomerStyle extends StatelessWidget {
 
 class CustomerSplash extends StatelessWidget {
   const CustomerSplash({super.key});
+  static const _green = Color(0xFF1B3B2B);
+  static const _cream = Color(0xFFFBF9F5);
+  static const _saffron = Color(0xFFE86324);
+
+  static TextStyle _t(double s, Color c, FontWeight w, {double ls = 0}) =>
+      TextStyle(
+        fontFamily: 'PlusJakartaSans',
+        fontSize: s,
+        color: c,
+        fontWeight: w,
+        letterSpacing: ls,
+        height: 1.25,
+      );
+
+  Widget _dots() => Row(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      for (final o in const [1.0, .55, .25])
+        Container(
+          margin: const EdgeInsets.symmetric(horizontal: 4),
+          width: 8,
+          height: 8,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: _green.withValues(alpha: o),
+          ),
+        ),
+    ],
+  );
+
+  Widget _circle(double d) => Container(
+    width: d,
+    height: d,
+    decoration: const BoxDecoration(
+      shape: BoxShape.circle,
+      color: Color(0x0DFFFFFF),
+    ),
+  );
+
   @override
   Widget build(BuildContext context) => Scaffold(
-    backgroundColor: const Color(0xFFF9F9FB),
-    body: SafeArea(
-      child: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
+    backgroundColor: _cream,
+    body: Column(
+      children: [
+        Expanded(
+          flex: 11,
           child: Container(
-            constraints: const BoxConstraints(maxWidth: 440),
-            padding: const EdgeInsets.fromLTRB(20, 28, 20, 30),
-            decoration: BoxDecoration(
-              color: const Color(0xFF1B4332),
-              borderRadius: BorderRadius.circular(48),
-              boxShadow: const [
-                BoxShadow(
-                  color: Color(0x33012D1D),
-                  blurRadius: 30,
-                  offset: Offset(0, 14),
-                ),
-              ],
+            width: double.infinity,
+            decoration: const BoxDecoration(
+              color: _green,
+              borderRadius: BorderRadius.only(
+                bottomLeft: Radius.circular(56),
+                bottomRight: Radius.circular(56),
+              ),
             ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 7,
-                  ),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF274E3D),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: const Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.circle, size: 8, color: Color(0xFFFF8843)),
-                      SizedBox(width: 8),
-                      Text(
-                        'HOME-COOKED. EVERY DAY.',
-                        style: TextStyle(
-                          fontFamily: 'PlusJakartaSans',
-                          color: Colors.white,
-                          fontSize: 10.5,
-                          letterSpacing: .6,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 28),
-                Container(
-                  width: 150,
-                  height: 150,
-                  decoration: const BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: Color(0xFF214B3A),
-                  ),
-                  child: Center(
-                    child: Container(
-                      width: 112,
-                      height: 112,
-                      decoration: const BoxDecoration(
-                        shape: BoxShape.circle,
-                        gradient: LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          colors: [Color(0xFF1B4332), Color(0xFF0B2E20)],
-                        ),
-                      ),
-                      child: const Center(child: Logo(size: 78)),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 22),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    const Text(
-                      'Tiffe',
-                      style: TextStyle(
-                        fontFamily: 'PlusJakartaSans',
-                        fontWeight: FontWeight.w700,
-                        fontSize: 40,
-                        height: 1,
-                        color: Color(0xFFC1ECD4),
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.only(left: 3, bottom: 5),
-                      child: Container(
-                        width: 9,
-                        height: 9,
-                        decoration: const BoxDecoration(
-                          color: Color(0xFFFF8843),
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                const Text(
-                  'Rozcha dabba. Tumchya choice cha.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontFamily: 'PlusJakartaSans',
-                    color: Colors.white,
-                    fontSize: 17,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                const SizedBox(height: 14),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 8,
-                  ),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF274E3D),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: const Text(
-                    '3 chapatis  •  rice  •  2 bhajis of your choice',
-                    style: TextStyle(
-                      fontFamily: 'PlusJakartaSans',
-                      color: Colors.white,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 26),
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF0F3324),
-                    borderRadius: BorderRadius.circular(40),
-                  ),
-                  child: Row(
-                    children: [
-                      ClipOval(
-                        child: Image.asset(
-                          'assets/food/hero.jpg',
-                          width: 48,
-                          height: 48,
-                          fit: BoxFit.cover,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      const Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Your daily dabba',
-                              style: TextStyle(
-                                fontFamily: 'PlusJakartaSans',
-                                color: Colors.white,
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
+            child: ClipRRect(
+              borderRadius: const BorderRadius.only(
+                bottomLeft: Radius.circular(56),
+                bottomRight: Radius.circular(56),
+              ),
+              child: Stack(
+                children: [
+                  Positioned(left: -70, top: 40, child: _circle(220)),
+                  Positioned(right: -60, bottom: 30, child: _circle(180)),
+                  SafeArea(
+                    child: Center(
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: const BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: _cream,
+                                ),
+                                child: const Logo(size: 170),
                               ),
-                            ),
-                            Text(
-                              'Pick your two favourite bhajis',
-                              style: TextStyle(
-                                color: Color(0xFFC1ECD4),
-                                fontSize: 11.5,
+                              const SizedBox(height: 28),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 14,
+                                  vertical: 7,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF274E3D),
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(
+                                      Icons.circle,
+                                      size: 8,
+                                      color: _saffron,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      'HOME-COOKED. EVERY DAY.',
+                                      style: _t(
+                                        10.5,
+                                        Colors.white,
+                                        FontWeight.w700,
+                                        ls: .6,
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 28),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(4),
-                  child: Container(
-                    width: 200,
-                    height: 5,
-                    decoration: const BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [Color(0xFFFF8843), Color(0xFFFFDBCB)],
                       ),
                     ),
                   ),
-                ),
-                const SizedBox(height: 12),
-                const Text(
-                  'Making yourself at home...',
-                  style: TextStyle(
-                    fontFamily: 'PlusJakartaSans',
-                    color: Colors.white,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 22),
-                const Text(
-                  'MADE AT HOME. MADE FOR PUNE.',
-                  style: TextStyle(
-                    fontSize: 10,
-                    color: Color(0xFFA5D0B9),
-                    letterSpacing: 1.1,
-                  ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
-      ),
+        Expanded(
+          flex: 9,
+          child: SafeArea(
+            top: false,
+            child: Center(
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 12,
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'Tiffe',
+                        style: _t(40, _green, FontWeight.w700, ls: -.5),
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        'Rozcha dabba.',
+                        style: _t(18, _saffron, FontWeight.w700),
+                      ),
+                      Text(
+                        'Tumchya choice cha.',
+                        style: _t(18, _green, FontWeight.w700),
+                      ),
+                      const SizedBox(height: 28),
+                      _dots(),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
     ),
   );
 }
