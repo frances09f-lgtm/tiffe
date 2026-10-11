@@ -31,6 +31,9 @@ class GPlans extends StatelessWidget {
   /// Index of the plan the customer has chosen; its button reads Active Plan.
   final int? activeIndex;
 
+  /// Index of a plan bought but not yet confirmed by the kitchen.
+  final int? pendingIndex;
+
   /// When set, the bottom nav shows with Plans selected (tab 2).
   final ValueChanged<int>? onTab;
   const GPlans({
@@ -41,6 +44,7 @@ class GPlans extends StatelessWidget {
     this.onBack,
     this.onTab,
     this.activeIndex,
+    this.pendingIndex,
   });
 
   @override
@@ -113,7 +117,7 @@ class GPlans extends StatelessWidget {
                 padding: const EdgeInsets.fromLTRB(24, 24, 24, 24),
                 children: [
                   for (var i = 0; i < plans.length; i++)
-                    _card(plans[i], active: i == activeIndex),
+                    _card(plans[i], active: i == activeIndex, pending: i == pendingIndex && i != activeIndex),
                 ],
               ),
             ),
@@ -122,7 +126,7 @@ class GPlans extends StatelessWidget {
         ),
       );
 
-  Widget _card(GPlan p, {bool active = false}) => Padding(
+  Widget _card(GPlan p, {bool active = false, bool pending = false}) => Padding(
         padding: const EdgeInsets.only(bottom: 18),
         child: Container(
           decoration: BoxDecoration(
@@ -225,13 +229,13 @@ class GPlans extends StatelessWidget {
                     const SizedBox(height: 12),
                     GestureDetector(
                       onTap:
-                          onSelect == null || active ? null : () => onSelect!(p),
+                          onSelect == null || active || pending ? null : () => onSelect!(p),
                       child: Container(
                         width: double.infinity,
                         height: 52,
                         alignment: Alignment.center,
                         decoration: BoxDecoration(
-                          color: active
+                          color: active || pending
                               ? const Color(0xFFE3EDE7)
                               : GColors.green,
                           borderRadius: BorderRadius.circular(18),
@@ -247,12 +251,21 @@ class GPlans extends StatelessWidget {
                               ),
                               const SizedBox(width: 8),
                             ],
-                            Text(
-                              active ? 'Active Plan' : 'Select This Plan',
-                              style: gText(
-                                15,
-                                w: FontWeight.w700,
-                                c: active ? GColors.green : Colors.white,
+                            if (pending) ...[
+                              Icon(Icons.schedule, size: 20, color: GColors.green),
+                              const SizedBox(width: 8),
+                            ],
+                            Flexible(
+                              child: FittedBox(
+                                fit: BoxFit.scaleDown,
+                                child: Text(
+                                  active ? 'Active Plan' : pending ? 'Awaiting Confirmation' : 'Select This Plan',
+                                  style: gText(
+                                    15,
+                                    w: FontWeight.w700,
+                                    c: active || pending ? GColors.green : Colors.white,
+                                  ),
+                                ),
                               ),
                             ),
                           ],

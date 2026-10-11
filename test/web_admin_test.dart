@@ -8,6 +8,10 @@ import 'admin_controls_test.dart' show OwnerBackend;
 const today = '2026-10-11';
 
 class WebBackend extends OwnerBackend {
+  String? verifiedSub;
+  @override
+  Future<void> verifySubscription(String id) async => verifiedSub = id;
+
   @override
   Stream<List<Map<String, dynamic>>> orders({bool customer = false}) =>
       Stream.value([
@@ -119,6 +123,7 @@ class WebBackend extends OwnerBackend {
       'verified': true,
     },
     {
+      'id': 's3',
       'customer_id': 'c3',
       'plan': 'daily',
       'starts_on': '2026-10-08',
@@ -185,6 +190,16 @@ Future<void> open(
 }
 
 void main() {
+  testWidgets('owner can verify a pending plan from Subscriptions', (t) async {
+    final b = WebBackend();
+    await open(t, 1440, backend: b);
+    await t.tap(find.text('Active Subscriptions').first);
+    await t.pump(const Duration(milliseconds: 200));
+    await t.tap(find.text('Verify payment'));
+    await t.pump(const Duration(milliseconds: 200));
+    expect(b.verifiedSub, 's3');
+  });
+
   testWidgets('live orders lists open orders for any day, not only today', (
     t,
   ) async {

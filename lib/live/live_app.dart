@@ -497,21 +497,28 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
     if (state == AppLifecycleState.resumed) retryReports();
   }
 
-  /// Plan chosen in the demo pay flow: 'double' or 'daily', with its end day.
-  /// Phone-local only. No subscription is created.
-  String? _localPlan, _localPlanEnds;
-
-  /// The one active plan Home and Plans both use: a real kitchen subscription
-  /// first, then the phone-local plan until its 30-day end date has passed.
+  /// The one active plan Home and Plans both use: a verified kitchen
+  /// subscription covering today.
   ({String plan, String ends})? get _effectivePlan {
     final sub = activeSubscription;
-    if (sub != null) {
-      return (plan: sub['plan'] as String, ends: sub['ends_on'] as String);
+    if (sub == null) return null;
+    return (plan: sub['plan'] as String, ends: sub['ends_on'] as String);
+  }
+
+  /// A plan row the kitchen added unverified and has not confirmed yet.
+  Map<String, dynamic>? get pendingSubscription {
+    final day = _istDay();
+    Map<String, dynamic>? best;
+    for (final r in subRows) {
+      if (r['verified'] == true) continue;
+      if ((r['ends_on'] as String).compareTo(day) < 0) continue;
+      if (best == null ||
+          (r['starts_on'] as String).compareTo(best['starts_on'] as String) >
+              0) {
+        best = r;
+      }
     }
-    final lp = _localPlan, le = _localPlanEnds;
-    if (lp == null || le == null) return null;
-    if (le.compareTo(_istDay()) < 0) return null;
-    return (plan: lp, ends: le);
+    return best;
   }
 
   bool _lastDark = false;
@@ -577,8 +584,6 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
     UpdateCheck.available.addListener(_onUpdate);
     loadSettings();
     if (widget.role == null) {
-      _localPlan = widget.store.prefs.getString('active_plan');
-      _localPlanEnds = widget.store.prefs.getString('active_plan_ends');
       demoPlacedOrders.addAll(
         widget.store.prefs.getStringList('demo_orders') ?? const <String>[],
       );
@@ -4296,6 +4301,11 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
         'daily' => 1,
         _ => null,
       },
+      pendingIndex: switch (pendingSubscription?['plan']) {
+        'double' => 0,
+        'daily' => 1,
+        _ => null,
+      },
       onSelect: (p) => _planCheckout(p == plans.first),
     );
   }
@@ -4338,21 +4348,29 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
               builder: (_) => GPlanPay(
                 total: total,
                 onPay: () {
-                  final end = DateTime.now().add(const Duration(days: 30));
-                  final ends =
-                      '${end.year}-${end.month.toString().padLeft(2, '0')}-${end.day.toString().padLeft(2, '0')}';
-                  widget.store.prefs.setString(
-                    'active_plan',
-                    dbl ? 'double' : 'daily',
-                  );
-                  widget.store.prefs.setString('active_plan_ends', ends);
-                  setState(() {
-                    _localPlan = dbl ? 'double' : 'daily';
-                    _localPlanEnds = ends;
-                  });
                   nav.pushReplacement(
                     MaterialPageRoute<void>(
                       builder: (_) => GPlanConfirmed(
+                        task: () async {
+                          try {
+                            await widget.backend.buySubscription(
+                              dbl ? 'double' : 'daily',
+                            );
+                            return null;
+                          } catch (e) {
+                            final m = e
+                                .toString()
+                                .replaceFirst(RegExp(r'^\w*Exception[: ]*'), '')
+                                .trim();
+                            return m.isEmpty || m.length > 140
+                                ? 'Could not book the plan. Nothing was charged. Try again.'
+                                : m;
+                          }
+                        },
+                        onError: (e) {
+                          nav.popUntil((r) => r.isFirst);
+                          if (mounted) gToast(context, e);
+                        },
                         onDone: () {
                           nav.popUntil((r) => r.isFirst);
                           setState(() => tab = 0);
@@ -4851,14 +4869,18 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
           address: area.text.isEmpty ? 'Your home' : 'Home · ${area.text}',
           name: first.isEmpty ? 'there' : first,
           subtitle: 'Rozcha dabba. Tumchya choice cha.',
-          planTitle: eff == null
-              ? 'No active plan'
-              : eff.plan == 'double'
-              ? 'Double Tiffe'
-              : 'Daily Tiffe',
-          planSubtitle: eff == null
-              ? 'Order one tiffin or start a monthly plan'
-              : 'Valid till ${_niceDay(eff.ends)}',
+          planTitle: eff != null
+              ? (eff.plan == 'double' ? 'Double Tiffe' : 'Daily Tiffe')
+              : pendingSubscription != null
+              ? (pendingSubscription!['plan'] == 'double'
+                    ? 'Double Tiffe'
+                    : 'Daily Tiffe')
+              : 'No active plan',
+          planSubtitle: eff != null
+              ? 'Valid till ${_niceDay(eff.ends)}'
+              : pendingSubscription != null
+              ? 'Waiting for payment confirmation'
+              : 'Order one tiffin or start a monthly plan',
           todayLabel: 'Today: ',
           todayMeal: today == null
               ? 'No order yet'

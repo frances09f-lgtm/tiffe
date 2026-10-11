@@ -42,6 +42,8 @@ class ContentBackend extends TiffeBackend {
   @override
   Stream<List<Map<String, dynamic>>> subscriptions() => Stream.value([]);
   @override
+  Future<String> buySubscription(String plan) async => 'sub-1';
+  @override
   Future<List<Map<String, dynamic>>> allSubscriptions() async => [];
   @override
   Future<List<Map<String, dynamic>>> customers() async => [];

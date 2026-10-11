@@ -207,6 +207,16 @@ class TiffeBackend {
     'verified': verified,
   });
 
+  /// Customer buys a plan: the server creates an active subscription for the
+  /// signed in customer right away.
+  Future<String> buySubscription(String plan) async => (await client.rpc(
+    'buy_subscription',
+    params: {'p_plan': plan},
+  )).toString();
+
+  Future<void> verifySubscription(String id) async =>
+      client.rpc('verify_subscription', params: {'p_id': id});
+
   Future<void> verifyPayment(String orderId) async =>
       client.rpc('verify_payment', params: {'p_order': orderId});
 

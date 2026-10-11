@@ -968,10 +968,32 @@ class _Subscriptions extends StatelessWidget {
                                       _muted,
                                       const Color(0xFFF0EBDD),
                                     ))
-                            : _chip(
-                                'Unverified',
-                                _saffron,
-                                const Color(0x1AE86324),
+                            : Column(
+                                mainAxisSize: MainAxisSize.min,
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  _chip(
+                                    'Unverified',
+                                    _saffron,
+                                    const Color(0x1AE86324),
+                                  ),
+                                  if (s['id'] != null)
+                                    TextButton(
+                                      style: TextButton.styleFrom(
+                                        padding: EdgeInsets.zero,
+                                        minimumSize: const Size(0, 32),
+                                      ),
+                                      onPressed: () async {
+                                        try {
+                                          await b.verifySubscription(
+                                            '${s['id']}',
+                                          );
+                                          await onSaved();
+                                        } catch (_) {}
+                                      },
+                                      child: const Text('Verify payment'),
+                                    ),
+                                ],
                               ),
                       ),
                     ),
