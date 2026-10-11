@@ -13,6 +13,13 @@ import 'package:tiffe/ui/customer_style.dart';
 import 'package:tiffe/live/live_app.dart';
 
 import 'live_content_test.dart' show ContentBackend;
+import 'live_ui_test.dart' show EmptyBackend;
+
+class SignedOutBackend extends EmptyBackend {
+  @override
+  String? get userId => null;
+}
+
 
 Future<void> shot(WidgetTester t, String name) async {
   await t.pump(const Duration(milliseconds: 100));
@@ -161,4 +168,26 @@ void main() {
       await t.pumpWidget(const SizedBox());
     },
   );
+  testWidgets('first launch goes from splash straight to sign in, no intro page', (
+    t,
+  ) async {
+    SharedPreferences.setMockInitialValues({});
+    final store = TiffeStore(await SharedPreferences.getInstance());
+    await t.pumpWidget(
+      TiffeApp(
+        store: store,
+        startScreen: ConnectedStart(store: store, backend: SignedOutBackend()),
+      ),
+    );
+    expect(find.text('Tiffe'), findsOneWidget);
+    await t.pump(const Duration(milliseconds: 1100));
+    await t.pumpAndSettle();
+    expect(find.text('Your daily dabba, sorted.'), findsNothing);
+    expect(find.text('Skip'), findsNothing);
+    expect(find.text('Get Started'), findsNothing);
+    expect(find.text('Tiffie'), findsNothing);
+    expect(find.byType(SignIn), findsOneWidget);
+    expect(t.takeException(), isNull);
+    await t.pumpWidget(const SizedBox());
+  });
 }

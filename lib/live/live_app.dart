@@ -90,7 +90,7 @@ class _LiveGateState extends State<LiveGate> {
           return SignIn(
             backend: b,
             admin: widget.admin,
-            showIntro: !widget.admin,
+            showIntro: false,
           );
         }
         if (widget.admin) {

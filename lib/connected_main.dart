@@ -43,14 +43,10 @@ class _ConnectedStartState extends State<ConnectedStart> {
   late TiffeBackend? backend = widget.backend;
   bool busy = false;
   bool starting = true;
-  bool welcome = false;
   Timer? splashTimer;
   @override
   void initState() {
     super.initState();
-    welcome =
-        widget.backend?.userId == null &&
-        widget.store.prefs.getBool('tiffe.connected.welcomeSeen') != true;
     splashTimer = Timer(const Duration(milliseconds: 1000), () {
       if (mounted) setState(() => starting = false);
     });
@@ -60,11 +56,6 @@ class _ConnectedStartState extends State<ConnectedStart> {
   void dispose() {
     splashTimer?.cancel();
     super.dispose();
-  }
-
-  Future<void> continueToLogin() async {
-    await widget.store.prefs.setBool('tiffe.connected.welcomeSeen', true);
-    if (mounted) setState(() => welcome = false);
   }
 
   Future<void> retry() async {
@@ -84,8 +75,6 @@ class _ConnectedStartState extends State<ConnectedStart> {
         ? const CustomerSplash()
         : backend == null
         ? CustomerOffline(busy: busy, onRetry: retry)
-        : welcome && backend?.userId == null
-        ? CustomerWelcome(onContinue: continueToLogin)
         : LiveGate(store: widget.store, backend: backend),
   );
 }
