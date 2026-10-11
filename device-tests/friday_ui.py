@@ -20,7 +20,7 @@ if not click('Agent Mode'):raise RuntimeError('Agent entry missing')
 snap('friday-agent-before')
 click('Set up local model');snap('friday-model-before')
 if not click('Download and test local model'):raise RuntimeError('Download control missing')
-for i in range(80):
+for i in range(240):
  time.sleep(10)
  xml=D.dump_hierarchy()
  if 'Local inference responded' in xml:break
