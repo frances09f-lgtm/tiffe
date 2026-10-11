@@ -1,0 +1,33 @@
+name: Distribute audited Replier17
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  distribute:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.16.0'
+      - run: npm ci --prefix distribution/tooling --ignore-scripts --no-audit --no-fund
+      - name: Download and verify reviewed public-source APK
+        run: |
+          curl -fL https://github.com/frances09f-lgtm/replier/releases/download/v17/Replier.apk -o "$RUNNER_TEMP/Replier.apk"
+          echo '2f9c34ee4922adab90c7af2cf408ed3d9bd0bbee8d269d6cc939ec38d3bbad70 '"$RUNNER_TEMP/Replier.apk" | sha256sum -c
+      - name: Upload and verify live version
+        env:
+          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+        run: |
+          set -euo pipefail
+          umask 077
+          export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/firebase-distribution.json"
+          trap 'rm -f "$GOOGLE_APPLICATION_CREDENTIALS"' EXIT
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT_JSON" > "$GOOGLE_APPLICATION_CREDENTIALS"
+          unset FIREBASE_SERVICE_ACCOUNT_JSON
+          node scripts/firebase_replier17.cjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: firebase-replier17-result
+          path: ${{ runner.temp }}/firebase-replier17-result.json
