@@ -1,0 +1,36 @@
+import uiautomator2 as u,requests,secrets,time,json,subprocess,os
+D=u.connect();O='device-results';base='https://child-safety-api-t76a.onrender.com';key=os.environ['CHILD_PUBLIC_CONFIG'];report=[];token='';device=''
+def sh(*a):return subprocess.check_output(['adb','shell',*a],text=True)
+def snap(n):D.screenshot(O+'/'+n+'.png');open(O+'/'+n+'.xml','w').write(D.dump_hierarchy())
+def click(text):
+ for _ in range(6):
+  if D(textContains=text).exists:D(textContains=text).click();time.sleep(2);return
+  D.swipe_ext('up',scale=.6);time.sleep(1)
+ raise RuntimeError('UI control unavailable: '+text)
+def history():
+ r=requests.get(base+'/api/location/history/'+device,headers={'Authorization':'Bearer '+token},timeout=30);r.raise_for_status();return r.json()
+def observe(name,action,seconds=95):
+ before=history();action();time.sleep(seconds);after=history();report.append({'scenario':name,'seconds':seconds,'beforeRows':len(before),'afterRows':len(after),'newUpdates':len(after)-len(before),'last':{k:after[0].get(k) for k in ['timestamp','latitude','longitude']} if after else None});snap(name)
+email='child-device-test-'+secrets.token_hex(8)+'@example.invalid';password=secrets.token_urlsafe(24)
+try:
+ r=requests.post('https://identitytoolkit.googleapis.com/v1/accounts:signUp',params={'key':key},json={'email':email,'password':password,'returnSecureToken':True},timeout=30);r.raise_for_status();token=r.json()['idToken']
+ D.app_start('com.childsafety.child_safety_tracker',stop=True);time.sleep(6)
+ fields=D(className='android.widget.EditText');fields[1].set_text(key);fields[2].set_text(email);fields[3].set_text(password);D.press('back');click('Child Name');D(className='android.widget.EditText',focused=True).set_text('Isolated Android test');D.press('back');click('Sign in and pair device');time.sleep(15)
+ devices=requests.get(base+'/api/devices',headers={'Authorization':'Bearer '+token},timeout=30).json();assert len(devices)==1;device=devices[0]['deviceId']
+ snap('child-paired');subprocess.run(['adb','emu','geo','fix','73.85','18.52'],check=True);click('Start Tracking')
+ for _ in range(3):
+  if D(text='While using the app').exists:D(text='While using the app').click();time.sleep(3)
+  elif D(text='Allow').exists:D(text='Allow').click();time.sleep(3)
+ time.sleep(35);observe('foreground',lambda:None)
+ observe('screen-locked',lambda:D.press('power'));D.press('power');D.unlock();time.sleep(3)
+ sh('dumpsys','battery','unplug');sh('settings','put','global','low_power','1');observe('battery-saver',lambda:None);sh('settings','put','global','low_power','0');sh('dumpsys','battery','reset')
+ observe('internet-cut',lambda:(sh('svc','wifi','disable'),sh('svc','data','disable')));sh('svc','wifi','enable');sh('svc','data','enable');observe('internet-restored',lambda:None)
+ D.press('recent');time.sleep(2);D.swipe(.5,.55,.5,.1,duration=.4);observe('swiped-away',lambda:None)
+ subprocess.run(['adb','reboot'],check=True);subprocess.run(['adb','wait-for-device'],check=True);time.sleep(55);D=u.connect();D.unlock();observe('restarted-no-launch',lambda:None)
+ D.app_start('com.childsafety.child_safety_tracker');time.sleep(5);observe('relaunched-no-start',lambda:None)
+finally:
+ if token:
+  if device:
+   r=requests.delete(base+'/api/devices/'+device,headers={'Authorization':'Bearer '+token},timeout=30);report.append({'cleanupDeviceStatus':r.status_code})
+  r=requests.post('https://identitytoolkit.googleapis.com/v1/accounts:delete',params={'key':key},json={'idToken':token},timeout=30);report.append({'cleanupAccountStatus':r.status_code})
+ json.dump(report,open(O+'/child-tracking-result.json','w'),indent=2)
