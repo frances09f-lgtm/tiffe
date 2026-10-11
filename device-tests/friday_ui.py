@@ -20,10 +20,13 @@ if not click('Agent Mode'):raise RuntimeError('Agent entry missing')
 snap('friday-agent-before')
 click('Set up local model');snap('friday-model-before')
 if not click('Download and test local model'):raise RuntimeError('Download control missing')
+resumes=0
 for i in range(240):
  time.sleep(10)
  xml=D.dump_hierarchy()
  if 'Local inference responded' in xml:break
+ if 'Connection closed while receiving data' in xml and resumes<2:
+  snap('download-interrupted-'+str(resumes));resumes+=1;click('Download and test local model');continue
  if 'failed:' in xml or 'Agent is not ready' in xml:break
  if i%12==0:snap('model-progress-'+str(i))
 snap('friday-model-result')
