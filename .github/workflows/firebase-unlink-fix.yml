@@ -1,0 +1,57 @@
+name: Distribute Parent remove child v1.4.4 privately
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  distribute:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      matrix:
+        include:
+          - name: parent
+            app: 'projects/509368336413/apps/1:509368336413:android:90f647c88882d7e40a46f4'
+            repo: child-safety-parent
+            tag: v1.4.4
+            asset: ChildSafetyParent-v1.4.4.apk
+            sha: 34cfe04c46e461cbd83447fdb3200ca60a7af8c8cff7aa7b73d5c57f9a2e77c8
+            build: '9'
+            version: '1.4.4'
+            notes: 'Parent1.4.4 adds Remove device on child card with named confirmation. Stops showing/new reports to parent, keeps stored history/zones, no child app wipe. Same parent re-pair to resume; Child1.0.11 unchanged. Safe backend unlink694efc1 live, old-server capability check refuses unsafe removal. Signed APK audited, backend retention/token/re-pair tests passed, Android15 confirmation pixels inspected. Automated Cancel/final removal not completed due harness selector. Owner tests, no actual device removed.'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.16.0'
+      - run: npm ci --prefix distribution/tooling --ignore-scripts --no-audit --no-fund
+      - name: Download reviewed published APK and verify hash
+        env:
+          SOURCE_REPO: ${{ matrix.repo }}
+          SOURCE_TAG: ${{ matrix.tag }}
+          SOURCE_ASSET: ${{ matrix.asset }}
+          EXPECTED_SHA: ${{ matrix.sha }}
+        run: |
+          curl -fL "https://github.com/frances09f-lgtm/$SOURCE_REPO/releases/download/$SOURCE_TAG/$SOURCE_ASSET" -o "$RUNNER_TEMP/App.apk"
+          printf '%s %s\n' "$EXPECTED_SHA" "$RUNNER_TEMP/App.apk" | sha256sum -c
+      - name: Upload and distribute to existing owner tester
+        env:
+          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+          FIREBASE_APP_RESOURCE: ${{ matrix.app }}
+          EXPECTED_SHA: ${{ matrix.sha }}
+          EXPECTED_BUILD: ${{ matrix.build }}
+          EXPECTED_VERSION: ${{ matrix.version }}
+          RELEASE_NOTES: ${{ matrix.notes }}
+          RESULT_NAME: ${{ matrix.name }}
+        run: |
+          set -euo pipefail
+          umask 077
+          export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/firebase-distribution.json"
+          trap 'rm -f "$GOOGLE_APPLICATION_CREDENTIALS"' EXIT
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT_JSON" > "$GOOGLE_APPLICATION_CREDENTIALS"
+          unset FIREBASE_SERVICE_ACCOUNT_JSON
+          node scripts/firebase_parent_child_v1.cjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: firebase-${{ matrix.name }}-result
+          path: ${{ runner.temp }}/firebase-${{ matrix.name }}-result.json
