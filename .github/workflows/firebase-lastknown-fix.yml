@@ -1,0 +1,67 @@
+name: Distribute Parent and Child last-known fix privately
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  distribute:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      matrix:
+        include:
+          - name: parent
+            app: 'projects/509368336413/apps/1:509368336413:android:90f647c88882d7e40a46f4'
+            repo: child-safety-parent
+            tag: v1.4.2
+            asset: ChildSafetyParent-v1.4.2.apk
+            sha: e7bed8bea6449d20f8a948a9b4de1d6324b6e52f842ce03ee2d713599226f16e
+            build: '7'
+            version: '1.4.2'
+            notes: 'Parent1.4.2 preserves original last-known map/time when latest report has no fix. Latest battery/report stay separate. Not current location label. Same signer, install over existing. Notification1.4.1 fix retained. Signed release audit passed; map/time pixels inspected but launcher ANR obscured part of screen. Owner physical-device test.'
+          - name: child
+            app: 'projects/509368336413/apps/1:509368336413:android:664d240443b77a5a0a46f4'
+            repo: child-safety-client
+            tag: v11
+            asset: ChildSafetyTracker-v1.0.11.apk
+            sha: 97f629f3571b2d567fcfb0c026eb115383540c755c3025c1844827c9d06c8bbe
+            build: '11'
+            version: '1.0.11'
+            notes: 'Child1.0.11 restores Android cached GPS/network fix on tracking startup, with original timestamp and existing permissions/consent. No new-fix guarantee when cache absent. Encrypted offline FIFO retained. Same signer, install over existing no re-pair. Signed release audited; owner real-device test.'
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.16.0'
+      - run: npm ci --prefix distribution/tooling --ignore-scripts --no-audit --no-fund
+      - name: Download reviewed published APK and verify hash
+        env:
+          SOURCE_REPO: ${{ matrix.repo }}
+          SOURCE_TAG: ${{ matrix.tag }}
+          SOURCE_ASSET: ${{ matrix.asset }}
+          EXPECTED_SHA: ${{ matrix.sha }}
+        run: |
+          curl -fL "https://github.com/frances09f-lgtm/$SOURCE_REPO/releases/download/$SOURCE_TAG/$SOURCE_ASSET" -o "$RUNNER_TEMP/App.apk"
+          printf '%s %s\n' "$EXPECTED_SHA" "$RUNNER_TEMP/App.apk" | sha256sum -c
+      - name: Upload and distribute to existing owner tester
+        env:
+          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+          FIREBASE_APP_RESOURCE: ${{ matrix.app }}
+          EXPECTED_SHA: ${{ matrix.sha }}
+          EXPECTED_BUILD: ${{ matrix.build }}
+          EXPECTED_VERSION: ${{ matrix.version }}
+          RELEASE_NOTES: ${{ matrix.notes }}
+          RESULT_NAME: ${{ matrix.name }}
+        run: |
+          set -euo pipefail
+          umask 077
+          export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/firebase-distribution.json"
+          trap 'rm -f "$GOOGLE_APPLICATION_CREDENTIALS"' EXIT
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT_JSON" > "$GOOGLE_APPLICATION_CREDENTIALS"
+          unset FIREBASE_SERVICE_ACCOUNT_JSON
+          node scripts/firebase_parent_child_v1.cjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: firebase-${{ matrix.name }}-result
+          path: ${{ runner.temp }}/firebase-${{ matrix.name }}-result.json
