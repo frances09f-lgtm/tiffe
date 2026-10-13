@@ -13,6 +13,8 @@ final today = DateTime.now()
     .substring(0, 10);
 
 class WebBackend extends OwnerBackend {
+  @override
+  Future<List<Map<String, dynamic>>> orderItems(List<String> ids) async => [];
   String? verifiedSub;
   @override
   Future<void> verifySubscription(String id) async => verifiedSub = id;
@@ -198,7 +200,7 @@ void main() {
   testWidgets('owner can verify a pending plan from Subscriptions', (t) async {
     final b = WebBackend();
     await open(t, 1440, backend: b);
-    await t.tap(find.text('Active Subscriptions').first);
+    await t.tap(find.text('Subscriptions').first);
     await t.pump(const Duration(milliseconds: 200));
     await t.tap(find.text('Verify payment'));
     await t.pump(const Duration(milliseconds: 200));
@@ -209,7 +211,7 @@ void main() {
     t,
   ) async {
     await open(t, 1440, backend: FutureOrdersBackend());
-    await t.tap(find.text('Live Orders & Dispatch').first);
+    await t.tap(find.text('All Orders').first);
     await t.pump(const Duration(milliseconds: 200));
     expect(find.text('Priya Patel'), findsOneWidget);
     expect(find.textContaining('Tomorrow'), findsOneWidget);
@@ -227,7 +229,7 @@ void main() {
   testWidgets('subscriptions screen can add a plan for a customer', (t) async {
     final b = WebBackend();
     await open(t, 1440, backend: b);
-    await t.tap(find.text('Active Subscriptions').first);
+    await t.tap(find.text('Subscriptions').first);
     await t.pump(const Duration(milliseconds: 200));
     await t.tap(find.text('Add subscription'));
     await t.pump(const Duration(milliseconds: 300));
@@ -251,7 +253,7 @@ void main() {
   testWidgets('subscriptions screen can add a plan for a customer', (t) async {
     final b = WebBackend();
     await open(t, 1440, backend: b);
-    await t.tap(find.text('Active Subscriptions').first);
+    await t.tap(find.text('Subscriptions').first);
     await t.pump(const Duration(milliseconds: 200));
     await t.tap(find.text('Add subscription'));
     await t.pump(const Duration(milliseconds: 300));
@@ -274,6 +276,8 @@ void main() {
 
   testWidgets('desktop shows real counts and customers search', (t) async {
     await open(t, 1440);
+    await t.tap(find.text('Dashboard & Overview').first);
+    await t.pump();
     expect(find.text('Kitchen overview'), findsOneWidget);
     expect(find.text('Orders today'), findsOneWidget);
     expect(find.text('Aarav Sharma'), findsWidgets);
@@ -291,7 +295,7 @@ void main() {
 
   testWidgets('every screen fits 320px at 1.3x text', (t) async {
     await open(t, 320, scale: 1.3);
-    for (var i = 0; i < 5; i++) {
+    for (var i = 0; i < 7; i++) {
       await t.tap(find.byType(NavigationDestination).at(i));
       await t.pump(const Duration(milliseconds: 200));
       final ex = t.takeException();

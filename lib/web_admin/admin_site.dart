@@ -1,3 +1,4 @@
+// ignore_for_file: curly_braces_in_flow_control_structures
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -75,16 +76,37 @@ class AdminSite extends StatefulWidget {
 }
 
 class _AdminSiteState extends State<AdminSite> {
-  int screen = 0;
+  int screen = 5;
   List<Map<String, dynamic>> orders = [], menu = [];
   List<Map<String, dynamic>> subs = [], customers = [], riders = [];
   StreamSubscription? os, ms;
   String query = '';
+  List<Map<String, dynamic>> items = [];
+  String? itemsError;
 
   @override
   void initState() {
     super.initState();
-    os = widget.backend.orders().listen((r) => setState(() => orders = r));
+    os = widget.backend.orders().listen((r) async {
+      if (!mounted) return;
+      setState(() => orders = r);
+      try {
+        final got = await widget.backend.orderItems(
+          r.map((o) => o['id'] as String).toList(),
+        );
+        if (mounted)
+          setState(() {
+            items = got;
+            itemsError = null;
+          });
+      } catch (_) {
+        if (mounted)
+          setState(
+            () => itemsError =
+                'Bhaji counts could not be loaded. Refresh to retry.',
+          );
+      }
+    });
     ms = widget.backend.menu().listen((r) => setState(() => menu = r));
     reload();
   }
@@ -95,12 +117,16 @@ class _AdminSiteState extends State<AdminSite> {
         widget.backend.allSubscriptions(),
         widget.backend.customers(),
         widget.backend.deliveryStaff(),
+        widget.backend.orderItems(
+          orders.map((o) => o['id'] as String).toList(),
+        ),
       ]);
       if (mounted) {
         setState(() {
           subs = r[0];
           customers = r[1];
           riders = r[2];
+          items = r[3];
         });
       }
     } catch (_) {}
@@ -127,10 +153,12 @@ class _AdminSiteState extends State<AdminSite> {
 
   static const nav = [
     (Icons.dashboard_outlined, 'Dashboard & Overview'),
-    (Icons.local_shipping_outlined, 'Live Orders & Dispatch'),
-    (Icons.event_repeat_outlined, 'Active Subscriptions'),
-    (Icons.restaurant_menu_outlined, 'Menu & Bhaji Manager'),
+    (Icons.local_shipping_outlined, 'All Orders'),
+    (Icons.event_repeat_outlined, 'Subscriptions'),
+    (Icons.restaurant_menu_outlined, 'Menu & Item Status'),
     (Icons.people_outline, 'Customers'),
+    (Icons.soup_kitchen_outlined, 'Live Kitchen'),
+    (Icons.delivery_dining, 'Delivery Fleet'),
   ];
 
   @override
@@ -141,8 +169,16 @@ class _AdminSiteState extends State<AdminSite> {
       0 => _Dashboard(d, onAll: () => setState(() => screen = 1)),
       1 => _LiveOrders(d, widget.backend),
       2 => _Subscriptions(d, widget.backend, reload),
-      3 => _MenuManager(d),
-      _ => _Customers(d, query, (q) => setState(() => query = q)),
+      3 => _MenuManager(d, widget.backend),
+      4 => _Customers(d, query, (q) => setState(() => query = q)),
+      5 => KitchenHub(
+        d: d,
+        b: widget.backend,
+        items: items,
+        error: itemsError,
+        onSync: reload,
+      ),
+      _ => _Fleet(d),
     };
     return Theme(
       data: ThemeData(
@@ -186,7 +222,7 @@ class _AdminSiteState extends State<AdminSite> {
                   for (final n in nav)
                     NavigationDestination(
                       icon: Icon(n.$1),
-                      label: n.$2.split(' ').first,
+                      label: n.$2 == 'Dashboard & Overview' ? 'Overview' : n.$2,
                     ),
                 ],
               ),
@@ -742,7 +778,11 @@ class _LiveOrdersState extends State<_LiveOrders> {
               if (!verified)
                 Expanded(
                   child: OutlinedButton(
-                    onPressed: () => b.verifyPayment(o['id'] as String),
+                    onPressed: () => confirmAdminAction(
+                      context,
+                      'Verify payment received',
+                      () => b.verifyPayment(o['id'] as String),
+                    ),
                     child: const Text('Verify payment'),
                   ),
                 ),
@@ -783,7 +823,15 @@ class _LiveOrdersState extends State<_LiveOrders> {
                 Expanded(
                   child: FilledButton(
                     style: FilledButton.styleFrom(backgroundColor: _forest),
-                    onPressed: () => b.advance(o['id'] as String, next),
+                    onPressed:
+                        next == 'Out for Delivery' &&
+                            (!verified || o['assigned_to'] == null)
+                        ? null
+                        : () => confirmAdminAction(
+                            context,
+                            'Mark $next',
+                            () => b.advance(o['id'] as String, next),
+                          ),
                     child: Text('Mark $next'),
                   ),
                 ),
@@ -1017,7 +1065,8 @@ class _Subscriptions extends StatelessWidget {
 
 class _MenuManager extends StatelessWidget {
   final AdminData d;
-  const _MenuManager(this.d);
+  final TiffeBackend b;
+  const _MenuManager(this.d, this.b);
   @override
   Widget build(BuildContext context) => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
@@ -1053,9 +1102,28 @@ class _MenuManager extends StatelessWidget {
                         ],
                       ),
                     ),
-                    m['available'] == true
-                        ? _chip('Available', _forest, const Color(0x1A1B3B2B))
-                        : _chip('Hidden', _muted, const Color(0xFFF0EBDD)),
+                    Switch(
+                      value: m['available'] == true,
+                      onChanged: (value) async {
+                        try {
+                          await b.saveMenu(
+                            id: m['id'] as String,
+                            name: '${m['name']}',
+                            description: '${m['description'] ?? ''}',
+                            available: value,
+                          );
+                        } catch (_) {
+                          if (context.mounted)
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'Item status could not be saved.',
+                                ),
+                              ),
+                            );
+                        }
+                      },
+                    ),
                   ],
                 ),
               ),
@@ -1203,4 +1271,453 @@ class _EmptyNote extends StatelessWidget {
   Widget build(BuildContext context) => _card(
     child: Text(t, style: const TextStyle(color: _muted)),
   );
+}
+
+/// Counts include only today's active kitchen queue, not cancelled or delivered.
+class KitchenCounts {
+  final int tiffins;
+  final Map<String, int> bhajis;
+  const KitchenCounts(this.tiffins, this.bhajis);
+  factory KitchenCounts.from(AdminData d, List<Map<String, dynamic>> items) {
+    final rows = d.todayOrders
+        .where(
+          (o) => {'Confirmed', 'Preparing', 'Packed'}.contains(o['status']),
+        )
+        .toList();
+    final ids = rows.map((o) => o['id']).toSet();
+    final counts = <String, int>{};
+    for (final i in items.where((i) => ids.contains(i['order_id']))) {
+      final n = '${i['item_name'] ?? 'Unnamed bhaji'}';
+      counts[n] = (counts[n] ?? 0) + 1;
+    }
+    return KitchenCounts(
+      rows.fold<int>(0, (n, o) => n + ((o['quantity'] as num?)?.toInt() ?? 0)),
+      counts,
+    );
+  }
+}
+
+class KitchenHub extends StatefulWidget {
+  final AdminData d;
+  final TiffeBackend b;
+  final List<Map<String, dynamic>> items;
+  final String? error;
+  final Future<void> Function() onSync;
+  const KitchenHub({
+    super.key,
+    required this.d,
+    required this.b,
+    required this.items,
+    this.error,
+    required this.onSync,
+  });
+  @override
+  State<KitchenHub> createState() => _KitchenHubState();
+}
+
+class _KitchenHubState extends State<KitchenHub> {
+  Timer? clock;
+  String? error;
+  bool busy = false;
+  @override
+  void initState() {
+    super.initState();
+    clock = Timer.periodic(const Duration(minutes: 1), (_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    clock?.cancel();
+    super.dispose();
+  }
+
+  Future<void> act(Map<String, dynamic> o, String label, String status) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: Text('$label?'),
+        content: Text(
+          'This changes the live order to $status.${status == 'Cancelled' ? ' Payment refunds are not automatic.' : ''}',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(c, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(c, true),
+            child: const Text('Confirm'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    setState(() {
+      busy = true;
+      error = null;
+    });
+    try {
+      await widget.b.advance(o['id'] as String, status);
+    } catch (_) {
+      if (mounted)
+        setState(
+          () => error = 'Server refused the update. Refresh and check payment, rider and current status.',
+        );
+    } finally {
+      if (mounted) setState(() => busy = false);
+    }
+  }
+
+  String age(Map o) {
+    final created = DateTime.tryParse('${o['created_at']}');
+    if (created == null) return 'Order time unavailable';
+    final n = DateTime.now().toUtc().difference(created.toUtc()).inMinutes;
+    return 'Waiting ${n < 0 ? 0 : n} min · no automatic expiry';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final d = widget.d;
+    final count = KitchenCounts.from(d, widget.items);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _title(
+          'Live Kitchen',
+          'Today\'s kitchen queue, customer choices and handover.',
+          TextButton.icon(
+            onPressed: widget.onSync,
+            icon: const Icon(Icons.sync),
+            label: const Text('Sync'),
+          ),
+        ),
+        _card(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Auto-Accept Orders',
+                style: TextStyle(fontWeight: FontWeight.w700, color: _forest),
+              ),
+              const SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                value: false,
+                onChanged: null,
+                title: Text('Manual kitchen acceptance'),
+                subtitle: Text(
+                  'Automatic kitchen acceptance is not configured on the backend. Customer orders are already Confirmed.',
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        Wrap(
+          spacing: 16,
+          runSpacing: 16,
+          children: [
+            SizedBox(
+              width: _cw(context),
+              child: _card(
+                child: Text(
+                  'TOTAL TIFFINS\n${count.tiffins}',
+                  style: const TextStyle(
+                    color: _forest,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 20,
+                  ),
+                ),
+              ),
+            ),
+            SizedBox(
+              width: _cw(context),
+              child: _card(
+                child: Text(
+                  'CHAPATIS (3/TIFFIN)\n${count.tiffins * 3}',
+                  style: const TextStyle(
+                    color: _forest,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 20,
+                  ),
+                ),
+              ),
+            ),
+            SizedBox(
+              width: _cw(context),
+              child: _card(
+                child: Text(
+                  'RICE PORTIONS\n${count.tiffins}',
+                  style: const TextStyle(
+                    color: _forest,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 20,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        _card(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Bhaji portions breakdown',
+                style: TextStyle(
+                  color: _forest,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 18,
+                ),
+              ),
+              const SizedBox(height: 12),
+              if (widget.error != null)
+                Text(widget.error!)
+              else if (count.bhajis.isEmpty)
+                const Text('No selected bhajis in the active queue.')
+              else
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    for (final e in count.bhajis.entries)
+                      _chip(
+                        '${e.key}: ${e.value} portions',
+                        _forest,
+                        const Color(0x1A1B3B2B),
+                      ),
+                  ],
+                ),
+              const SizedBox(height: 8),
+              const Text(
+                'Each order-item row is one selected portion. Includes extra bhajis.',
+                style: TextStyle(color: _muted, fontSize: 12),
+              ),
+            ],
+          ),
+        ),
+        if (error != null)
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: Text(error!, style: const TextStyle(color: Colors.red)),
+          ),
+        if (busy) const LinearProgressIndicator(),
+        for (final state in ['Confirmed', 'Preparing', 'Packed']) ...[
+          const SizedBox(height: 24),
+          Text(
+            '${switch (state) {
+              'Confirmed' => 'New Orders',
+              'Preparing' => 'Preparing',
+              _ => 'Ready for Pickup',
+            }} (${d.todayOrders.where((o) => o['status'] == state).length})',
+            style: const TextStyle(
+              color: _forest,
+              fontWeight: FontWeight.w800,
+              fontSize: 20,
+            ),
+          ),
+          const SizedBox(height: 12),
+          if (!d.todayOrders.any((o) => o['status'] == state))
+            const _EmptyNote('No orders in this queue.'),
+          Wrap(
+            spacing: 16,
+            runSpacing: 16,
+            children: [
+              for (final o in d.todayOrders.where((o) => o['status'] == state))
+                SizedBox(
+                  width: _cw(context),
+                  child: _card(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '#${'${o['id']}'.substring(0, 6).toUpperCase()} · ${_slot(o)}',
+                          style: const TextStyle(color: _muted, fontSize: 12),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          d.nameOf(o),
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w800,
+                            fontSize: 17,
+                            color: _forest,
+                          ),
+                        ),
+                        Text(
+                          '${o['quantity'] ?? 0} tiffin(s) · ${o['subscription_id'] == null ? 'One-time' : 'Subscription'}',
+                        ),
+                        if (state == 'Confirmed')
+                          Text(
+                            age(o),
+                            style: const TextStyle(
+                              color: _saffron,
+                              fontSize: 12,
+                            ),
+                          ),
+                        const SizedBox(height: 8),
+                        Text(
+                          widget.items
+                              .where((i) => i['order_id'] == o['id'])
+                              .map((i) => '${i['item_name']}')
+                              .join(' · '),
+                        ),
+                        if ('${o['instructions'] ?? ''}'.isNotEmpty)
+                          Text('Note: ${o['instructions']}'),
+                        if (state == 'Packed')
+                          Text('Partner: ${d.riderName(o['assigned_to'])}'),
+                        const SizedBox(height: 12),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            if (state == 'Confirmed') ...[
+                              FilledButton(
+                                onPressed: busy
+                                    ? null
+                                    : () => act(o, 'Accept Order', 'Preparing'),
+                                child: const Text('Accept Order'),
+                              ),
+                              OutlinedButton(
+                                onPressed: busy
+                                    ? null
+                                    : () => act(o, 'Reject order', 'Cancelled'),
+                                child: const Text('Reject'),
+                              ),
+                            ] else if (state == 'Preparing')
+                              FilledButton(
+                                onPressed: busy
+                                    ? null
+                                    : () => act(
+                                        o,
+                                        'Mark Ready for Pickup',
+                                        'Packed',
+                                      ),
+                                child: const Text('Mark Ready for Pickup'),
+                              )
+                            else
+                              FilledButton(
+                                onPressed:
+                                    busy ||
+                                        o['payment_status'] != 'verified' ||
+                                        o['assigned_to'] == null
+                                    ? null
+                                    : () => act(
+                                        o,
+                                        'Confirm Handover',
+                                        'Out for Delivery',
+                                      ),
+                                child: const Text('Confirm Handover'),
+                              ),
+                          ],
+                        ),
+                        if (state == 'Packed' &&
+                            (o['payment_status'] != 'verified' ||
+                                o['assigned_to'] == null))
+                          const Text(
+                            'Verify payment and assign a rider in All Orders before handover.',
+                            style: TextStyle(fontSize: 12, color: _muted),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _Fleet extends StatelessWidget {
+  final AdminData d;
+  const _Fleet(this.d);
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      _title(
+        'Delivery Fleet',
+        'Enrolled riders and their current assigned orders. No GPS tracking.',
+      ),
+      if (d.riders.isEmpty) const _EmptyNote('No delivery staff enrolled.'),
+      Wrap(
+        spacing: 16,
+        runSpacing: 16,
+        children: [
+          for (final r in d.riders)
+            SizedBox(
+              width: _cw(context),
+              child: _card(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      d.riderName(r['user_id']),
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                        color: _forest,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      '${d.orders.where((o) => o['assigned_to'] == r['user_id'] && !{'Delivered', 'Cancelled'}.contains(o['status'])).length} active assigned orders',
+                    ),
+                    for (final o in d.orders.where(
+                      (o) =>
+                          o['assigned_to'] == r['user_id'] &&
+                          !{'Delivered', 'Cancelled'}.contains(o['status']),
+                    ))
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: Text(
+                          '${d.nameOf(o)} · ${o['delivery_date']} · ${o['status']}',
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+        ],
+      ),
+    ],
+  );
+}
+
+Future<void> confirmAdminAction(
+  BuildContext context,
+  String label,
+  Future<void> Function() action,
+) async {
+  final yes = await showDialog<bool>(
+    context: context,
+    builder: (c) => AlertDialog(
+      title: Text('$label?'),
+      content: const Text('This updates the live customer order.'),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(c, false),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.pop(c, true),
+          child: const Text('Confirm'),
+        ),
+      ],
+    ),
+  );
+  if (yes != true) return;
+  try {
+    await action();
+  } catch (_) {
+    if (context.mounted)
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Update refused. Refresh before trying again.'),
+        ),
+      );
+  }
 }
