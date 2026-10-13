@@ -1,0 +1,56 @@
+name: Distribute audited Tiffe Staff v2 privately
+on:
+  workflow_dispatch:
+    inputs:
+      expected_sha256:
+        required: true
+        type: string
+permissions:
+  contents: read
+  actions: read
+jobs:
+  distribute:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/staff-app-v2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.16.0'
+      - run: npm ci --prefix distribution/tooling --ignore-scripts --no-audit --no-fund
+      - uses: actions/download-artifact@v4
+        with:
+          name: tiffe-staff-apk
+          run-id: 38410483321
+          github-token: ${{ github.token }}
+          path: staff-apk
+      - name: Audit artifact before credentials
+        env:
+          EXPECTED_SHA256: ${{ inputs.expected_sha256 }}
+        run: |
+          test "$(sha256sum staff-apk/Tiffe-Staff.apk | cut -d' ' -f1)" = "$EXPECTED_SHA256"
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" 'build-tools;35.0.0'
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs staff-apk/Tiffe-Staff.apk > "$RUNNER_TEMP/signer.txt"
+          grep -q 'Verified using v2 scheme (APK Signature Scheme v2): true' "$RUNNER_TEMP/signer.txt"
+          grep -q 'certificate SHA-256 digest: 92a04460d70c949c2c6ddf0ad42ab3914db6efe6987802279354669ef9a15ae5' "$RUNNER_TEMP/signer.txt"
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging staff-apk/Tiffe-Staff.apk | grep "package: name='com.ambi.tiffe.staff' versionCode='2' versionName='1.0.2'"
+      - name: Register staff app and upload only audited artifact
+        env:
+          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+          EXPECTED_SHA256: ${{ inputs.expected_sha256 }}
+          APK_PATH: staff-apk/Tiffe-Staff.apk
+        run: |
+          set -euo pipefail
+          umask 077
+          export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/firebase-staff.json"
+          trap 'rm -f "$GOOGLE_APPLICATION_CREDENTIALS"' EXIT
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT_JSON" > "$GOOGLE_APPLICATION_CREDENTIALS"
+          unset FIREBASE_SERVICE_ACCOUNT_JSON
+          node scripts/firebase_staff_v2.cjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: firebase-staff-v2-result
+          path: ${{ runner.temp }}/firebase-staff-v2-result.json
+          if-no-files-found: error
