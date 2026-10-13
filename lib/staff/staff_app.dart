@@ -5,6 +5,7 @@ import '../live/backend.dart';
 import 'staff_backend.dart';
 import '../live/live_app.dart';
 import 'staff_policy.dart';
+import 'partner_hub.dart';
 
 class StaffGate extends StatelessWidget {
   final TiffeBackend backend;
@@ -44,7 +45,9 @@ class StaffGate extends StatelessWidget {
                 ),
               ),
             );
-          return StaffHome(backend: backend, role: s.data!);
+          return s.data == 'delivery'
+              ? StaffHome(backend: backend, role: s.data!)
+              : PartnerHub(backend: backend, role: s.data!);
         },
       );
     },
