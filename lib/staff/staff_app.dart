@@ -108,6 +108,35 @@ class _StaffHomeState extends State<StaffHome> {
     }
   }
 
+  Future<void> verify(Map<String, dynamic> o) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: const Text('Verify payment received?'),
+        content: Text(
+          'Only confirm after checking receipt of Rs ${(o['total_paise'] as num) / 100}. This changes live payment status.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(c, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(c, true),
+            child: const Text('Confirm received'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    try {
+      await widget.backend.verifyPayment(o['id']);
+    } catch (_) {
+      if (mounted)
+        setState(() => error = 'Could not verify payment. No success claimed.');
+    }
+  }
+
   Future<void> assign(Map<String, dynamic> o) async {
     try {
       final riders = await widget.backend.deliveryStaff();
@@ -264,6 +293,12 @@ class _StaffHomeState extends State<StaffHome> {
                     Text('Delivered: ${o['delivered_at']}'),
                   if (o['instructions']?.toString().isNotEmpty == true)
                     Text('Note: ${o['instructions']}'),
+                  if (widget.role == 'owner' &&
+                      o['status'] == 'Packed' &&
+                      next == null)
+                    const Text(
+                      'Dispatch needs verified payment and a delivery person.',
+                    ),
                   Wrap(
                     spacing: 8,
                     children: [
@@ -271,6 +306,12 @@ class _StaffHomeState extends State<StaffHome> {
                         FilledButton(
                           onPressed: busy ? null : () => update(o),
                           child: Text('Mark $next'),
+                        ),
+                      if (widget.role == 'owner' &&
+                          o['payment_status'] != 'verified')
+                        TextButton(
+                          onPressed: busy ? null : () => verify(o),
+                          child: const Text('Verify received payment'),
                         ),
                       if (StaffPolicy.canAssign(widget.role))
                         TextButton(
