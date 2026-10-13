@@ -83,6 +83,7 @@ class _AdminSiteState extends State<AdminSite> {
   String query = '';
   List<Map<String, dynamic>> items = [];
   String? itemsError;
+  bool autoAccept = false, autoKnown = false;
 
   @override
   void initState() {
@@ -112,6 +113,14 @@ class _AdminSiteState extends State<AdminSite> {
   }
 
   Future<void> reload() async {
+    try {
+      final v = await widget.backend.currentSettings();
+      if (mounted)
+        setState(() {
+          autoAccept = v?['kitchen_auto_accept'] == true;
+          autoKnown = v?.containsKey('kitchen_auto_accept') == true;
+        });
+    } catch (_) {}
     try {
       final r = await Future.wait([
         widget.backend.allSubscriptions(),
@@ -177,6 +186,15 @@ class _AdminSiteState extends State<AdminSite> {
         items: items,
         error: itemsError,
         onSync: reload,
+        autoAccept: autoAccept,
+        autoKnown: autoKnown,
+        onAuto: (v) async {
+          await widget.backend.client.rpc(
+            'set_kitchen_auto_accept',
+            params: {'p_enabled': v},
+          );
+          await reload();
+        },
       ),
       _ => _Fleet(d),
     };
@@ -1302,6 +1320,8 @@ class KitchenHub extends StatefulWidget {
   final TiffeBackend b;
   final List<Map<String, dynamic>> items;
   final String? error;
+  final bool autoAccept, autoKnown;
+  final Future<void> Function(bool)? onAuto;
   final Future<void> Function() onSync;
   const KitchenHub({
     super.key,
@@ -1309,6 +1329,9 @@ class KitchenHub extends StatefulWidget {
     required this.b,
     required this.items,
     this.error,
+    this.autoAccept = false,
+    this.autoKnown = false,
+    this.onAuto,
     required this.onSync,
   });
   @override
@@ -1401,13 +1424,56 @@ class _KitchenHubState extends State<KitchenHub> {
                 'Auto-Accept Orders',
                 style: TextStyle(fontWeight: FontWeight.w700, color: _forest),
               ),
-              const SwitchListTile(
+              SwitchListTile(
                 contentPadding: EdgeInsets.zero,
-                value: false,
-                onChanged: null,
-                title: Text('Manual kitchen acceptance'),
+                value: widget.autoAccept,
+                onChanged: !widget.autoKnown || busy
+                    ? null
+                    : (v) async {
+                        final yes = await showDialog<bool>(
+                          context: context,
+                          builder: (c) => AlertDialog(
+                            title: Text(
+                              v
+                                  ? 'Enable Auto-Accept?'
+                                  : 'Use manual acceptance?',
+                            ),
+                            content: Text(
+                              v
+                                  ? 'New Confirmed orders move to Preparing on the server, even with this site closed. Existing orders are unchanged.'
+                                  : 'New orders stay Confirmed until accepted. Existing orders are unchanged.',
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(c, false),
+                                child: const Text('Cancel'),
+                              ),
+                              FilledButton(
+                                onPressed: () => Navigator.pop(c, true),
+                                child: const Text('Confirm'),
+                              ),
+                            ],
+                          ),
+                        );
+                        if (yes != true) return;
+                        try {
+                          await widget.onAuto?.call(v);
+                        } catch (_) {
+                          if (mounted)
+                            setState(
+                              () => error = 'Auto-Accept could not be saved.',
+                            );
+                        }
+                      },
+                title: Text(
+                  widget.autoAccept
+                      ? 'Auto-Accept Orders: ON'
+                      : 'Auto-Accept Orders: OFF',
+                ),
                 subtitle: Text(
-                  'Automatic kitchen acceptance is not configured on the backend. Customer orders are already Confirmed.',
+                  widget.autoKnown
+                      ? 'Server setting applies to new orders only.'
+                      : 'Could not verify the server setting. Sync to retry.',
                 ),
               ),
             ],
@@ -1612,6 +1678,13 @@ class _KitchenHubState extends State<KitchenHub> {
                               ),
                           ],
                         ),
+                        if (state == 'Preparing')
+                          OutlinedButton(
+                            onPressed: busy
+                                ? null
+                                : () => act(o, 'Reject order', 'Cancelled'),
+                            child: const Text('Reject'),
+                          ),
                         if (state == 'Packed' &&
                             (o['payment_status'] != 'verified' ||
                                 o['assigned_to'] == null))
