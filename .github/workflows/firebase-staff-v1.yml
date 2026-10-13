@@ -41,6 +41,7 @@ jobs:
           FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
           EXPECTED_SHA256: ${{ inputs.expected_sha256 }}
           APK_PATH: staff-apk/Tiffe-Staff.apk
+          STAFF_READ_ONLY: 'true'
         run: |
           set -euo pipefail
           umask 077

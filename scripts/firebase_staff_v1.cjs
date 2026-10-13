@@ -6,11 +6,12 @@ if(crypto.createHash('sha256').update(fs.readFileSync(apk)).digest('hex')!==expe
 const credential=JSON.parse(fs.readFileSync(process.env.GOOGLE_APPLICATION_CREDENTIALS));
 if(credential.project_id!=='app-testing-2cdba'||credential.client_email!=='github-app-distribution@app-testing-2cdba.iam.gserviceaccount.com')throw Error('credential-account');
 const c=await new GoogleAuth({scopes:['https://www.googleapis.com/auth/cloud-platform']}).getClient();
-const req=async(url,method='GET',data,headers)=> (await c.request({url,method,data,headers,timeout:60000})).data;
+const req=async(url,method='GET',data,headers)=> {try{return (await c.request({url,method,data,headers,timeout:60000})).data;}catch(e){console.error('API failed: '+method+' '+url.split('?')[0]+' status '+e.response?.status);throw e;}};
 const base='https://firebase.googleapis.com/v1beta1',apps=base+'/projects/app-testing-2cdba/androidApps';
 let all=[],pageToken;
 do{const d=await req(apps+(pageToken?'?pageToken='+encodeURIComponent(pageToken):''));all.push(...(d.apps||[]));pageToken=d.nextPageToken;}while(pageToken);
 let app=all.find(a=>a.packageName==='com.ambi.tiffe.staff');
+if(process.env.STAFF_READ_ONLY==='true'){console.log('Read-only Staff app result: '+JSON.stringify(app?{appId:app.appId,packageName:app.packageName}:null));return;}
 async function complete(op,base){for(let n=0;!op.done&&n<60;n++){await new Promise(r=>setTimeout(r,2000));op=await req(base+'/'+op.name);}if(op.error||!op.done)throw Error('operation');return op.response;}
 if(!app)app=await complete(await req(apps,'POST',{packageName:'com.ambi.tiffe.staff',displayName:'Tiffe Staff'}),base);
 if(app.packageName!=='com.ambi.tiffe.staff')throw Error('wrong-app');
