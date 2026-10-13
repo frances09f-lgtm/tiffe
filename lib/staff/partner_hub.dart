@@ -994,11 +994,23 @@ class _MenuManager extends StatelessWidget {
   final AdminData d;
   final TiffeBackend b;
   const _MenuManager(this.d, this.b);
+  Future<void> addBhaji(BuildContext context) => showDialog<void>(
+    context: context,
+    builder: (c) => _AddBhajiDialog(backend: b),
+  );
   @override
   Widget build(BuildContext context) => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
-      _title('Menu & bhaji manager', 'Bhajis customers can pick from.'),
+      _title(
+        'Menu & Daily Item Stock Status',
+        'Toggle bhaji availability in customer apps.',
+        FilledButton.icon(
+          onPressed: () => addBhaji(context),
+          icon: const Icon(Icons.add, size: 16),
+          label: const Text('Add Bhaji', style: TextStyle(fontSize: 12)),
+        ),
+      ),
       Wrap(
         spacing: 16,
         runSpacing: 16,
@@ -1996,5 +2008,96 @@ class _PartnerHeader extends StatelessWidget {
           ),
       ],
     ),
+  );
+}
+
+class _AddBhajiDialog extends StatefulWidget {
+  final TiffeBackend backend;
+  const _AddBhajiDialog({required this.backend});
+  @override
+  State<_AddBhajiDialog> createState() => _AddBhajiDialogState();
+}
+
+class _AddBhajiDialogState extends State<_AddBhajiDialog> {
+  final name = TextEditingController(), description = TextEditingController();
+  @override
+  void dispose() {
+    name.dispose();
+    description.dispose();
+    super.dispose();
+  }
+
+  bool saving = false;
+  String? error;
+  @override
+  Widget build(BuildContext c) => AlertDialog(
+    title: const Text('Add Bhaji'),
+    content: SingleChildScrollView(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextField(
+            controller: name,
+            onChanged: (_) {
+              if (error != null) setState(() => error = null);
+            },
+            maxLength: 80,
+            decoration: const InputDecoration(
+              labelText: 'Bhaji name',
+              hintText: 'e.g. Aloo Jeera',
+            ),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: description,
+            maxLength: 300,
+            maxLines: 3,
+            decoration: const InputDecoration(labelText: 'Description'),
+          ),
+          const SizedBox(height: 12),
+          const Text(
+            'Saved as available in the live customer catalog.',
+            style: TextStyle(fontSize: 12),
+          ),
+          if (error != null)
+            Text(error!, style: const TextStyle(color: Colors.red)),
+        ],
+      ),
+    ),
+    actions: [
+      TextButton(
+        onPressed: saving ? null : () => Navigator.pop(c),
+        child: const Text('Cancel'),
+      ),
+      FilledButton(
+        onPressed: saving
+            ? null
+            : () async {
+                if (name.text.trim().isEmpty) {
+                  setState(() => error = 'Enter a bhaji name.');
+                  return;
+                }
+                setState(() {
+                  saving = true;
+                  error = null;
+                });
+                try {
+                  await widget.backend.saveMenu(
+                    name: name.text.trim(),
+                    description: description.text.trim(),
+                    available: true,
+                  );
+                  if (c.mounted) Navigator.pop(c);
+                } catch (_) {
+                  if (mounted)
+                    setState(() {
+                      saving = false;
+                      error = 'Could not save. Check your connection and owner access.';
+                    });
+                }
+              },
+        child: Text(saving ? 'Saving...' : 'Add to catalog'),
+      ),
+    ],
   );
 }

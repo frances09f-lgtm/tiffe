@@ -209,7 +209,7 @@ void main() {
     await t.pumpAndSettle();
     await t.tap(find.text('Menu & Item Status'));
     await t.pumpAndSettle();
-    expect(find.text('Menu & bhaji manager'), findsOneWidget);
+    expect(find.text('Menu & Daily Item Stock Status'), findsOneWidget);
     expect(t.takeException(), isNull);
   });
   testWidgets('kitchen cannot reject, handover or edit automatic setting', (
