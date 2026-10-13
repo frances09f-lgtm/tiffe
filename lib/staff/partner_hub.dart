@@ -749,7 +749,10 @@ class _LiveOrdersState extends State<_LiveOrders> {
               if (next != null)
                 Expanded(
                   child: FilledButton(
-                    style: FilledButton.styleFrom(backgroundColor: _forest),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: _saffron,
+                      foregroundColor: const Color(0xFF121212),
+                    ),
                     onPressed:
                         next == 'Out for Delivery' &&
                             (!verified || o['assigned_to'] == null)
@@ -886,7 +889,10 @@ class _Subscriptions extends StatelessWidget {
         'Active subscriptions',
         '${d.activeSubscribers} customers with a verified plan today.',
         FilledButton.icon(
-          style: FilledButton.styleFrom(backgroundColor: _forest),
+          style: FilledButton.styleFrom(
+            backgroundColor: _saffron,
+            foregroundColor: const Color(0xFF121212),
+          ),
           onPressed: () => add(context),
           icon: const Icon(Icons.add, size: 18),
           label: const Text('Add subscription'),
