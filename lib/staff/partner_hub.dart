@@ -495,7 +495,7 @@ Widget _card({required Widget child, EdgeInsets? pad}) => Container(
     borderRadius: BorderRadius.circular(24),
     border: Border.all(color: _creamMuted),
   ),
-  child: child,
+  child: Material(color: Colors.transparent, child: child),
 );
 
 Widget _chip(String t, Color fg, Color bg) => Container(
