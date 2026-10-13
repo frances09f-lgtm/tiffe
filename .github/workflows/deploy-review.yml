@@ -2,7 +2,7 @@ name: Deploy Tiffe Review alongside Demo
 on:
   workflow_dispatch:
   push:
-    branches: [deploy/kitchen-hub-v1]
+    branches: [backend-review]
 permissions:
   contents: read
   pages: write
