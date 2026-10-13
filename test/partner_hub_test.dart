@@ -199,10 +199,15 @@ Future<void> open(
 void main() {
   testWidgets('owner mobile hub has usable navigation', (t) async {
     await open(t, 390);
-    expect(find.text('Tiffe Partner Hub'), findsOneWidget);
-    expect(find.text('Kitchen'), findsOneWidget);
+    expect(find.text('Tiffie Central Kitchen'), findsOneWidget);
+    expect(find.text('Live Kitchen (KDS)'), findsOneWidget);
     expect(t.takeException(), isNull);
-    await t.tap(find.text('Menu'));
+    await t.drag(
+      find.byType(SingleChildScrollView).first,
+      const Offset(-240, 0),
+    );
+    await t.pumpAndSettle();
+    await t.tap(find.text('Menu & Item Status'));
     await t.pumpAndSettle();
     expect(find.text('Menu & bhaji manager'), findsOneWidget);
     expect(t.takeException(), isNull);

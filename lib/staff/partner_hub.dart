@@ -5,12 +5,11 @@ import 'package:flutter/material.dart';
 
 import '../live/backend.dart';
 
-const _forest = Color(0xFF1B3B2B);
-const _forestLight = Color(0xFF2C5E45);
-const _cream = Color(0xFFFBF9F5);
-const _creamMuted = Color(0xFFE6E0D3);
-const _saffron = Color(0xFFE86324);
-const _muted = Color(0xFF666666);
+const _forest = Color(0xFFF4F4F5);
+const _cream = Color(0xFF121212);
+const _creamMuted = Color(0xFF383838);
+const _saffron = Color(0xFFFC8019);
+const _muted = Color(0xFFA1A1AA);
 const _font = 'PlusJakartaSans';
 
 /// Snapshot of everything the admin website shows. Built from the same
@@ -86,6 +85,7 @@ class _PartnerHubState extends State<PartnerHub> {
   StreamSubscription? os, ms;
   String query = '';
   List<Map<String, dynamic>> items = [];
+  String manager = 'Staff';
   String? itemsError;
   bool autoAccept = false, autoKnown = false;
 
@@ -117,6 +117,15 @@ class _PartnerHubState extends State<PartnerHub> {
   }
 
   Future<void> reload() async {
+    try {
+      final p = await widget.backend.profile();
+      if (mounted && p != null)
+        setState(
+          () => manager = (p['name'] as String?)?.trim().isNotEmpty == true
+              ? p['name']
+              : 'Staff',
+        );
+    } catch (_) {}
     try {
       final v = await widget.backend.currentSettings();
       if (mounted)
@@ -176,7 +185,7 @@ class _PartnerHubState extends State<PartnerHub> {
     (Icons.event_repeat_outlined, 'Subscriptions'),
     (Icons.restaurant_menu_outlined, 'Menu & Item Status'),
     (Icons.people_outline, 'Customers'),
-    (Icons.soup_kitchen_outlined, 'Live Kitchen'),
+    (Icons.soup_kitchen_outlined, 'Live Kitchen (KDS)'),
     (Icons.delivery_dining, 'Delivery Fleet'),
   ];
 
@@ -213,19 +222,39 @@ class _PartnerHubState extends State<PartnerHub> {
       data: ThemeData(
         fontFamily: _font,
         scaffoldBackgroundColor: _cream,
-        colorScheme: ColorScheme.fromSeed(seedColor: _forest),
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: _saffron,
+          brightness: Brightness.dark,
+        ),
+        filledButtonTheme: FilledButtonThemeData(
+          style: FilledButton.styleFrom(
+            backgroundColor: _saffron,
+            foregroundColor: Colors.white,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+        ),
         useMaterial3: true,
       ),
       child: Scaffold(
         body: Column(
           children: [
-            if (wide) _Header(compact: false),
+            SafeArea(
+              bottom: false,
+              child: _PartnerHeader(
+                manager: manager,
+                role: widget.role,
+                screen: screen,
+                onTab: (i) => setState(() => screen = i),
+                autoAccept: autoAccept,
+                onSignOut: widget.backend.signOut,
+              ),
+            ),
             Expanded(
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  if (wide && widget.role == 'owner')
-                    _Sidebar(screen, (i) => setState(() => screen = i)),
                   Expanded(
                     child: SingleChildScrollView(
                       padding: EdgeInsets.all(wide ? 32 : 16),
@@ -243,206 +272,11 @@ class _PartnerHubState extends State<PartnerHub> {
             ),
           ],
         ),
-        appBar: wide
-            ? null
-            : AppBar(
-                title: const Text('Tiffe Partner Hub'),
-                actions: [
-                  IconButton(onPressed: reload, icon: const Icon(Icons.sync)),
-                  IconButton(
-                    onPressed: widget.backend.signOut,
-                    icon: const Icon(Icons.logout),
-                  ),
-                ],
-              ),
-        drawer: wide
-            ? null
-            : Drawer(
-                child: SafeArea(
-                  child: ListView(
-                    children: [
-                      const Padding(
-                        padding: EdgeInsets.all(20),
-                        child: Text(
-                          'Tiffe Staff',
-                          style: TextStyle(
-                            fontSize: 24,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                      for (final i
-                          in widget.role == 'owner'
-                              ? [5, 1, 3, 2, 6, 4, 0]
-                              : [5])
-                        ListTile(
-                          leading: Icon(nav[i].$1),
-                          title: Text(nav[i].$2),
-                          selected: screen == i,
-                          onTap: () {
-                            Navigator.pop(context);
-                            setState(() => screen = i);
-                          },
-                        ),
-                    ],
-                  ),
-                ),
-              ),
-        bottomNavigationBar: wide || widget.role != 'owner'
-            ? null
-            : NavigationBar(
-                selectedIndex: [5, 1, 3, 6].contains(screen)
-                    ? [5, 1, 3, 6].indexOf(screen)
-                    : 0,
-                onDestinationSelected: (i) =>
-                    setState(() => screen = [5, 1, 3, 6][i]),
-                destinations: const [
-                  NavigationDestination(
-                    icon: Icon(Icons.soup_kitchen_outlined),
-                    label: 'Kitchen',
-                  ),
-                  NavigationDestination(
-                    icon: Icon(Icons.receipt_long),
-                    label: 'Orders',
-                  ),
-                  NavigationDestination(
-                    icon: Icon(Icons.restaurant_menu),
-                    label: 'Menu',
-                  ),
-                  NavigationDestination(
-                    icon: Icon(Icons.delivery_dining),
-                    label: 'Fleet',
-                  ),
-                ],
-              ),
+        appBar: null,
+        bottomNavigationBar: null,
       ),
     );
   }
-}
-
-class _Header extends StatelessWidget {
-  final bool compact;
-  const _Header({this.compact = false});
-  @override
-  Widget build(BuildContext context) => Container(
-    color: _forest,
-    padding: EdgeInsets.symmetric(horizontal: compact ? 16 : 28, vertical: 14),
-    child: Row(
-      children: [
-        Container(
-          width: 40,
-          height: 40,
-          decoration: BoxDecoration(
-            color: _saffron,
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: const Icon(Icons.restaurant, color: Colors.white),
-        ),
-        const SizedBox(width: 12),
-        const Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Tiffe Staff',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w800,
-                  fontSize: 18,
-                ),
-              ),
-              Text(
-                'Kitchen operations and subscriptions',
-                style: TextStyle(color: Color(0xB3FBF9F5), fontSize: 11),
-              ),
-            ],
-          ),
-        ),
-        if (!compact)
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-            decoration: BoxDecoration(
-              color: _forestLight.withValues(alpha: .5),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.white12),
-            ),
-            child: const Row(
-              children: [
-                Icon(Icons.circle, size: 9, color: Color(0xFF34D399)),
-                SizedBox(width: 8),
-                Text(
-                  'Connected to live data',
-                  style: TextStyle(
-                    color: _cream,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-          ),
-      ],
-    ),
-  );
-}
-
-class _Sidebar extends StatelessWidget {
-  final int selected;
-  final ValueChanged<int> onTap;
-  const _Sidebar(this.selected, this.onTap);
-  @override
-  Widget build(BuildContext context) => Container(
-    width: 250,
-    padding: const EdgeInsets.all(20),
-    decoration: const BoxDecoration(
-      color: Colors.white,
-      border: Border(right: BorderSide(color: _creamMuted)),
-    ),
-    child: Column(
-      children: [
-        for (var i = 0; i < _PartnerHubState.nav.length; i++)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 6),
-            child: Material(
-              color: i == selected ? _forest : Colors.transparent,
-              borderRadius: BorderRadius.circular(16),
-              child: InkWell(
-                borderRadius: BorderRadius.circular(16),
-                onTap: () => onTap(i),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 13,
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        _PartnerHubState.nav[i].$1,
-                        size: 18,
-                        color: i == selected ? Colors.white : _muted,
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Text(
-                          _PartnerHubState.nav[i].$2,
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: i == selected
-                                ? FontWeight.w800
-                                : FontWeight.w600,
-                            color: i == selected ? Colors.white : _muted,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-      ],
-    ),
-  );
 }
 
 double _cw(BuildContext c) {
@@ -491,8 +325,8 @@ Widget _card({required Widget child, EdgeInsets? pad}) => Container(
   width: double.infinity,
   padding: pad ?? const EdgeInsets.all(20),
   decoration: BoxDecoration(
-    color: Colors.white,
-    borderRadius: BorderRadius.circular(24),
+    color: const Color(0xFF262626),
+    borderRadius: BorderRadius.circular(16),
     border: Border.all(color: _creamMuted),
   ),
   child: Material(color: Colors.transparent, child: child),
@@ -500,7 +334,7 @@ Widget _card({required Widget child, EdgeInsets? pad}) => Container(
 
 Widget _chip(String t, Color fg, Color bg) => Container(
   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-  decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(99)),
+  decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(8)),
   child: Text(
     t,
     style: TextStyle(color: fg, fontSize: 11, fontWeight: FontWeight.w800),
@@ -896,7 +730,7 @@ class _LiveOrdersState extends State<_LiveOrders> {
                       height: 40,
                       alignment: Alignment.center,
                       decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(99),
+                        borderRadius: BorderRadius.circular(8),
                         border: Border.all(color: _forest),
                       ),
                       child: const Text(
@@ -1474,7 +1308,7 @@ class _KitchenHubState extends State<KitchenHub> {
     final created = DateTime.tryParse('${o['created_at']}');
     if (created == null) return 'Order time unavailable';
     final n = DateTime.now().toUtc().difference(created.toUtc()).inMinutes;
-    return 'Waiting ${n < 0 ? 0 : n} min · no automatic expiry';
+    return '${n < 0 ? 0 : n} min elapsed';
   }
 
   @override
@@ -1484,295 +1318,432 @@ class _KitchenHubState extends State<KitchenHub> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _title(
-          'Live Kitchen',
-          'Today\'s kitchen queue, customer choices and handover.',
-          TextButton.icon(
-            onPressed: widget.onSync,
-            icon: const Icon(Icons.sync),
-            label: const Text('Sync'),
-          ),
-        ),
         _card(
+          pad: const EdgeInsets.all(18),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                'Auto-Accept Orders',
-                style: TextStyle(fontWeight: FontWeight.w700, color: _forest),
+              const Row(
+                children: [
+                  Icon(Icons.circle, color: Color(0xFF10B981), size: 10),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'LIVE KITCHEN PREPARATION SUMMARY (PUNE BATCHES)',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ],
               ),
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                value: widget.autoAccept,
-                onChanged: !widget.autoKnown || busy || widget.role != 'owner'
-                    ? null
-                    : (v) async {
-                        final yes = await showDialog<bool>(
-                          context: context,
-                          builder: (c) => AlertDialog(
-                            title: Text(
-                              v
-                                  ? 'Enable Auto-Accept?'
-                                  : 'Use manual acceptance?',
+              const SizedBox(height: 14),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  _chip(
+                    'Auto-Calculated Quantities',
+                    _saffron,
+                    const Color(0xFF4A2D17),
+                  ),
+                  TextButton.icon(
+                    onPressed: widget.onSync,
+                    icon: const Icon(Icons.sync, size: 14),
+                    label: const Text('Sync', style: TextStyle(fontSize: 11)),
+                  ),
+                ],
+              ),
+              const Divider(color: _creamMuted, height: 26),
+              LayoutBuilder(
+                builder: (c, box) {
+                  final w = (box.maxWidth - 12) / 2;
+                  return Wrap(
+                    spacing: 12,
+                    runSpacing: 12,
+                    children: [
+                      for (final m in [
+                        ('TOTAL TIFFINS', '${count.tiffins}', 'Active Queue'),
+                        (
+                          'CHAPATIS (3/TIFFIN)',
+                          '${count.tiffins * 3} Pcs',
+                          'Freshly pressed',
+                        ),
+                        (
+                          'RICE PORTIONS',
+                          '${count.tiffins} Port.',
+                          'Steamed & Jeera',
+                        ),
+                      ])
+                        SizedBox(
+                          width: w,
+                          child: _card(
+                            pad: const EdgeInsets.all(14),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  m.$1,
+                                  style: const TextStyle(
+                                    fontSize: 9,
+                                    color: _muted,
+                                  ),
+                                ),
+                                const SizedBox(height: 6),
+                                Text(
+                                  m.$2,
+                                  style: TextStyle(
+                                    fontSize: 24,
+                                    fontWeight: FontWeight.w800,
+                                    color: m.$1.startsWith('CHAPATIS')
+                                        ? _saffron
+                                        : Colors.white,
+                                  ),
+                                ),
+                                Text(
+                                  m.$3,
+                                  style: const TextStyle(
+                                    fontSize: 9,
+                                    color: _muted,
+                                  ),
+                                ),
+                              ],
                             ),
-                            content: Text(
-                              v
-                                  ? 'New Confirmed orders move to Preparing on the server, even with this app closed. Existing orders are unchanged.'
-                                  : 'New orders stay Confirmed until accepted. Existing orders are unchanged.',
-                            ),
-                            actions: [
-                              TextButton(
-                                onPressed: () => Navigator.pop(c, false),
-                                child: const Text('Cancel'),
+                          ),
+                        ),
+                      SizedBox(
+                        width: w,
+                        child: _card(
+                          pad: const EdgeInsets.all(14),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'BHAJI PORTIONS BREAKDOWN',
+                                style: TextStyle(fontSize: 9, color: _muted),
                               ),
-                              FilledButton(
-                                onPressed: () => Navigator.pop(c, true),
-                                child: const Text('Confirm'),
-                              ),
+                              const SizedBox(height: 6),
+                              if (widget.error != null)
+                                Text(
+                                  widget.error!,
+                                  style: const TextStyle(fontSize: 10),
+                                )
+                              else if (count.bhajis.isEmpty)
+                                const Text(
+                                  'No bhajis in active queue',
+                                  style: TextStyle(fontSize: 10, color: _muted),
+                                )
+                              else
+                                Wrap(
+                                  spacing: 5,
+                                  runSpacing: 5,
+                                  children: [
+                                    for (final e in count.bhajis.entries)
+                                      _chip(
+                                        '${e.key}: ${e.value} port.',
+                                        Colors.white,
+                                        _saffron,
+                                      ),
+                                  ],
+                                ),
                             ],
                           ),
-                        );
-                        if (yes != true) return;
-                        try {
-                          await widget.onAuto?.call(v);
-                        } catch (_) {
-                          if (mounted)
-                            setState(
-                              () => error = 'Auto-Accept could not be saved.',
-                            );
-                        }
-                      },
-                title: Text(
-                  widget.autoAccept
-                      ? 'Auto-Accept Orders: ON'
-                      : 'Auto-Accept Orders: OFF',
-                ),
-                subtitle: Text(
-                  widget.autoKnown
-                      ? 'Server setting applies to new orders only.'
-                      : 'Could not verify the server setting. Sync to retry.',
-                ),
+                        ),
+                      ),
+                    ],
+                  );
+                },
               ),
             ],
           ),
         ),
-        const SizedBox(height: 16),
-        LayoutBuilder(
-          builder: (c, box) => Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              for (final metric in [
-                ('Tiffins', count.tiffins),
-                ('Chapatis', count.tiffins * 3),
-                ('Rice', count.tiffins),
-              ])
-                SizedBox(
-                  width: (box.maxWidth - 16) / 3,
-                  child: _card(
-                    pad: const EdgeInsets.all(12),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          '${metric.$2}',
-                          style: const TextStyle(
-                            fontSize: 26,
-                            fontWeight: FontWeight.w800,
-                            color: _forest,
-                          ),
+        const SizedBox(height: 12),
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          title: Text(
+            'Auto-Accept Orders: ${widget.autoAccept ? 'ON' : 'OFF'}',
+            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+          ),
+          subtitle: const Text(
+            'Server setting • new orders only',
+            style: TextStyle(fontSize: 10, color: _muted),
+          ),
+          value: widget.autoAccept,
+          onChanged: widget.role != 'owner' || !widget.autoKnown
+              ? null
+              : (v) async {
+                  final yes = await showDialog<bool>(
+                    context: context,
+                    builder: (c) => AlertDialog(
+                      title: Text(
+                        v ? 'Enable Auto-Accept?' : 'Use manual acceptance?',
+                      ),
+                      content: const Text(
+                        'Applies to new orders only. Existing orders are unchanged.',
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(c, false),
+                          child: const Text('Cancel'),
                         ),
-                        Text(
-                          metric.$1,
-                          style: const TextStyle(fontSize: 12, color: _muted),
+                        FilledButton(
+                          onPressed: () => Navigator.pop(c, true),
+                          child: const Text('Confirm'),
                         ),
                       ],
                     ),
-                  ),
-                ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 8),
-        const Text(
-          '3 chapatis and 1 rice portion per tiffin',
-          style: TextStyle(fontSize: 11, color: _muted),
-        ),
-        const SizedBox(height: 16),
-        _card(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Bhaji portions breakdown',
-                style: TextStyle(
-                  color: _forest,
-                  fontWeight: FontWeight.w800,
-                  fontSize: 18,
-                ),
-              ),
-              const SizedBox(height: 12),
-              if (widget.error != null)
-                Text(widget.error!)
-              else if (count.bhajis.isEmpty)
-                const Text('No selected bhajis in the active queue.')
-              else
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    for (final e in count.bhajis.entries)
-                      _chip(
-                        '${e.key}: ${e.value} portions',
-                        _forest,
-                        const Color(0x1A1B3B2B),
-                      ),
-                  ],
-                ),
-              const SizedBox(height: 8),
-              const Text(
-                'Each order-item row is one selected portion. Includes extra bhajis.',
-                style: TextStyle(color: _muted, fontSize: 12),
-              ),
-            ],
-          ),
+                  );
+                  if (yes == true) {
+                    try {
+                      await widget.onAuto?.call(v);
+                    } catch (_) {
+                      if (mounted)
+                        setState(
+                          () => error = 'Auto-Accept could not be saved.',
+                        );
+                    }
+                  }
+                },
         ),
         if (error != null)
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: Text(error!, style: const TextStyle(color: Colors.red)),
-          ),
+          Text(error!, style: const TextStyle(color: Colors.red)),
         if (busy) const LinearProgressIndicator(),
         for (final state in ['Confirmed', 'Preparing', 'Packed']) ...[
-          const SizedBox(height: 24),
-          Text(
-            '${switch (state) {
-              'Confirmed' => 'New Orders',
-              'Preparing' => 'Preparing',
-              _ => 'Ready for Pickup',
-            }} (${d.todayOrders.where((o) => o['status'] == state).length})',
-            style: const TextStyle(
-              color: _forest,
-              fontWeight: FontWeight.w800,
-              fontSize: 20,
-            ),
-          ),
-          const SizedBox(height: 12),
-          if (!d.todayOrders.any((o) => o['status'] == state))
-            const _EmptyNote('No orders in this queue.'),
-          Wrap(
-            spacing: 16,
-            runSpacing: 16,
-            children: [
-              for (final o in d.todayOrders.where((o) => o['status'] == state))
-                SizedBox(
-                  width: _cw(context),
-                  child: _card(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          '#${'${o['id']}'.substring(0, 6).toUpperCase()} · ${_slot(o)}',
-                          style: const TextStyle(color: _muted, fontSize: 12),
+          const SizedBox(height: 18),
+          _card(
+            pad: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(
+                      Icons.circle,
+                      size: 10,
+                      color: state == 'Packed'
+                          ? const Color(0xFF10B981)
+                          : _saffron,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        '${state == 'Confirmed'
+                            ? 'NEW ORDERS'
+                            : state == 'Preparing'
+                            ? 'PREPARING'
+                            : 'READY FOR PICKUP'} (${d.todayOrders.where((o) => o['status'] == state).length})',
+                        style: TextStyle(
+                          color: state == 'Packed'
+                              ? const Color(0xFF34D399)
+                              : _saffron,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 12,
                         ),
-                        const SizedBox(height: 8),
-                        Text(
-                          d.nameOf(o),
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w800,
-                            fontSize: 17,
-                            color: _forest,
-                          ),
-                        ),
-                        Text(
-                          '${o['quantity'] ?? 0} tiffin(s) · ${o['subscription_id'] == null ? 'One-time' : 'Subscription'}',
-                        ),
-                        if (state == 'Confirmed')
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  state == 'Confirmed'
+                      ? 'Action Required'
+                      : state == 'Preparing'
+                      ? 'Cooking & Packing'
+                      : 'Awaiting Delivery Partner',
+                  style: const TextStyle(fontSize: 9, color: _muted),
+                ),
+                const Divider(color: _creamMuted, height: 24),
+                if (!d.todayOrders.any((o) => o['status'] == state))
+                  const Text(
+                    'No orders in this queue.',
+                    style: TextStyle(fontSize: 12, color: _muted),
+                  ),
+                for (final o in d.todayOrders.where(
+                  (o) => o['status'] == state,
+                ))
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: _card(
+                      pad: const EdgeInsets.all(14),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (state == 'Confirmed')
+                            Align(
+                              alignment: Alignment.centerRight,
+                              child: _chip(
+                                age(o),
+                                Colors.black,
+                                const Color(0xFFF59E0B),
+                              ),
+                            ),
+                          const SizedBox(height: 6),
                           Text(
-                            age(o),
+                            '#${'${o['id']}'.substring(0, 6).toUpperCase()} • ${_slot(o)}',
                             style: const TextStyle(
-                              color: _saffron,
+                              fontWeight: FontWeight.w800,
                               fontSize: 12,
+                              color: Colors.white,
                             ),
                           ),
-                        const SizedBox(height: 8),
-                        Text(
-                          widget.items
-                              .where((i) => i['order_id'] == o['id'])
-                              .map((i) => '${i['item_name']}')
-                              .join(' · '),
-                        ),
-                        if ('${o['instructions'] ?? ''}'.isNotEmpty)
-                          Text('Note: ${o['instructions']}'),
-                        if (state == 'Packed')
-                          Text('Partner: ${d.riderName(o['assigned_to'])}'),
-                        const SizedBox(height: 12),
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: [
-                            if (state == 'Confirmed') ...[
-                              FilledButton(
-                                onPressed: busy
-                                    ? null
-                                    : () => act(o, 'Accept Order', 'Preparing'),
-                                child: const Text('Accept Order'),
+                          const SizedBox(height: 4),
+                          Text(
+                            o['subscription_id'] == null
+                                ? 'One-time'
+                                : 'Monthly Sub',
+                            style: const TextStyle(fontSize: 10, color: _muted),
+                          ),
+                          const SizedBox(height: 12),
+                          _card(
+                            pad: const EdgeInsets.all(12),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  d.nameOf(o),
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    color: _muted,
+                                  ),
+                                ),
+                                const SizedBox(height: 5),
+                                Text(
+                                  'Qty: ${o['quantity'] ?? 0} Tiffin (${((o['quantity'] as num?)?.toInt() ?? 0) * 3} Chapatis, ${o['quantity'] ?? 0} Rice)',
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w800,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                Wrap(
+                                  spacing: 5,
+                                  runSpacing: 5,
+                                  children: [
+                                    for (final name
+                                        in widget.items
+                                            .where(
+                                              (i) => i['order_id'] == o['id'],
+                                            )
+                                            .map((i) => '${i['item_name']}')
+                                            .toSet())
+                                      _chip(
+                                        name,
+                                        _saffron,
+                                        const Color(0xFF4A2D17),
+                                      ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                          if ('${o['instructions'] ?? ''}'.isNotEmpty)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 8),
+                              child: Text(
+                                'Note: ${o['instructions']}',
+                                style: const TextStyle(
+                                  fontSize: 10,
+                                  fontStyle: FontStyle.italic,
+                                  color: _muted,
+                                ),
                               ),
-                              if (widget.role == 'owner')
-                                OutlinedButton(
+                            ),
+                          if (state == 'Packed')
+                            Padding(
+                              padding: const EdgeInsets.only(top: 8),
+                              child: Text(
+                                'Partner: ${d.riderName(o['assigned_to'])}',
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  color: _muted,
+                                ),
+                              ),
+                            ),
+                          const SizedBox(height: 12),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: [
+                              if (state == 'Confirmed')
+                                FilledButton(
+                                  onPressed: busy
+                                      ? null
+                                      : () =>
+                                            act(o, 'Accept Order', 'Preparing'),
+                                  child: const Text(
+                                    'Accept Order',
+                                    style: TextStyle(fontSize: 11),
+                                  ),
+                                ),
+                              if (state == 'Preparing')
+                                FilledButton(
+                                  onPressed: busy
+                                      ? null
+                                      : () => act(
+                                          o,
+                                          'Mark Ready for Pickup',
+                                          'Packed',
+                                        ),
+                                  child: const Text(
+                                    'Mark Ready for Pickup',
+                                    style: TextStyle(fontSize: 11),
+                                  ),
+                                ),
+                              if (state == 'Packed')
+                                FilledButton(
+                                  style: FilledButton.styleFrom(
+                                    backgroundColor: const Color(0xFF059669),
+                                  ),
+                                  onPressed:
+                                      busy ||
+                                          widget.role != 'owner' ||
+                                          o['payment_status'] != 'verified' ||
+                                          o['assigned_to'] == null
+                                      ? null
+                                      : () => act(
+                                          o,
+                                          'Confirm Handover',
+                                          'Out for Delivery',
+                                        ),
+                                  child: const Text(
+                                    'Confirm Handover',
+                                    style: TextStyle(fontSize: 11),
+                                  ),
+                                ),
+                              if (state != 'Packed' && widget.role == 'owner')
+                                TextButton(
+                                  style: TextButton.styleFrom(
+                                    backgroundColor: const Color(0xFF4C2424),
+                                    foregroundColor: const Color(0xFFF87171),
+                                  ),
                                   onPressed: busy
                                       ? null
                                       : () =>
                                             act(o, 'Reject order', 'Cancelled'),
-                                  child: const Text('Reject'),
+                                  child: const Text(
+                                    'Reject',
+                                    style: TextStyle(fontSize: 11),
+                                  ),
                                 ),
-                            ] else if (state == 'Preparing')
-                              FilledButton(
-                                onPressed: busy
-                                    ? null
-                                    : () => act(
-                                        o,
-                                        'Mark Ready for Pickup',
-                                        'Packed',
-                                      ),
-                                child: const Text('Mark Ready for Pickup'),
-                              )
-                            else
-                              FilledButton(
-                                onPressed:
-                                    busy ||
-                                        widget.role != 'owner' ||
-                                        o['payment_status'] != 'verified' ||
-                                        o['assigned_to'] == null
-                                    ? null
-                                    : () => act(
-                                        o,
-                                        'Confirm Handover',
-                                        'Out for Delivery',
-                                      ),
-                                child: const Text('Confirm Handover'),
-                              ),
-                          ],
-                        ),
-                        if (state == 'Preparing' && widget.role == 'owner')
-                          OutlinedButton(
-                            onPressed: busy
-                                ? null
-                                : () => act(o, 'Reject order', 'Cancelled'),
-                            child: const Text('Reject'),
+                            ],
                           ),
-                        if (state == 'Packed' &&
-                            (o['payment_status'] != 'verified' ||
-                                o['assigned_to'] == null))
-                          const Text(
-                            'Verify payment and assign a rider in All Orders before handover.',
-                            style: TextStyle(fontSize: 12, color: _muted),
-                          ),
-                      ],
+                          if (state == 'Packed' &&
+                              (o['payment_status'] != 'verified' ||
+                                  o['assigned_to'] == null))
+                            const Text(
+                              'Verify payment and assign a rider in All Orders before handover.',
+                              style: TextStyle(fontSize: 10, color: _muted),
+                            ),
+                        ],
+                      ),
                     ),
                   ),
-                ),
-            ],
+              ],
+            ),
           ),
         ],
       ],
@@ -1869,4 +1840,161 @@ Future<void> confirmAdminAction(
         ),
       );
   }
+}
+
+class _PartnerHeader extends StatelessWidget {
+  final String manager, role;
+  final int screen;
+  final ValueChanged<int> onTab;
+  final bool autoAccept;
+  final VoidCallback onSignOut;
+  const _PartnerHeader({
+    required this.manager,
+    required this.role,
+    required this.screen,
+    required this.onTab,
+    required this.autoAccept,
+    required this.onSignOut,
+  });
+  @override
+  Widget build(BuildContext c) => Container(
+    color: const Color(0xFF1F1F1F),
+    child: Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 14, 8, 14),
+          child: Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: _saffron,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(Icons.restaurant, color: Colors.white),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Wrap(
+                      spacing: 8,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        const Text(
+                          'Tiffie Central Kitchen',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w800,
+                            color: Colors.white,
+                            fontSize: 14,
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 3,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF14372A),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: const Text(
+                            'LIVE',
+                            style: TextStyle(
+                              color: Color(0xFF34D399),
+                              fontSize: 9,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 3),
+                    const Text(
+                      'Pune Kitchen Hub • Pune, MH',
+                      style: TextStyle(fontSize: 10, color: _muted),
+                    ),
+                  ],
+                ),
+              ),
+              PopupMenuButton<String>(
+                icon: CircleAvatar(
+                  radius: 18,
+                  backgroundColor: _saffron,
+                  child: Text(
+                    manager.isNotEmpty ? manager[0].toUpperCase() : 'S',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                onSelected: (v) {
+                  if (v == 'logout')
+                    onSignOut();
+                  else
+                    onTab(int.parse(v));
+                },
+                itemBuilder: (_) => [
+                  PopupMenuItem(
+                    enabled: false,
+                    child: Text(
+                      '$manager\n${role == 'owner' ? 'Outlet Manager' : 'Kitchen Staff'}',
+                    ),
+                  ),
+                  if (role == 'owner')
+                    const PopupMenuItem(value: '4', child: Text('Customers')),
+                  if (role == 'owner')
+                    const PopupMenuItem(value: '0', child: Text('Overview')),
+                  const PopupMenuItem(value: 'logout', child: Text('Sign out')),
+                ],
+              ),
+            ],
+          ),
+        ),
+        if (role == 'owner')
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+            child: Row(
+              children: [
+                for (final i in [5, 1, 3, 2, 6])
+                  Padding(
+                    padding: const EdgeInsets.only(right: 6),
+                    child: TextButton.icon(
+                      style: TextButton.styleFrom(
+                        backgroundColor: screen == i
+                            ? _saffron
+                            : Colors.transparent,
+                        foregroundColor: screen == i
+                            ? Colors.white
+                            : const Color(0xFFD4D4D8),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 12,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      onPressed: () => onTab(i),
+                      icon: Icon(_PartnerHubState.nav[i].$1, size: 15),
+                      label: Text(
+                        _PartnerHubState.nav[i].$2,
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+      ],
+    ),
+  );
 }
