@@ -9,3 +9,5 @@ Gemini-matching dark charcoal and orange Partner Hub with top tabs: Live Kitchen
 Owner: full hub, payment verification, rider assignment and payment+rider-gated handover. Kitchen: preparation/packing only, no owner settings, rejects, menu edits, payments or dispatch. Delivery: prior assigned-only delivery screen retained. No role selection/promotion in the app. Supabase server rules remain authoritative.
 
 Analyzer and focused mobile role tests passed. Full tests and signing verified by release CI before publication. Mobile screenshots show actual Flutter app widgets with isolated sample data, not production test orders or an installed-device session. Physical-device/network checks remain for the user. No privileged keys or passwords embedded.
+
+Owner Menu manager includes Add Bhaji: name and description saved to the shared live catalog as available. Kitchen and delivery privileges are unchanged.
