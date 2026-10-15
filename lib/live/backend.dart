@@ -1,7 +1,8 @@
 import 'dart:async';
-import 'dart:convert';
 
 import 'package:supabase_flutter/supabase_flutter.dart';
+
+import 'order_sync.dart';
 
 class BackendConfig {
   static const ownerEmail = String.fromEnvironment('TIFFE_OWNER_EMAIL');
@@ -57,48 +58,32 @@ class TiffeBackend {
       client.from('menu_items').stream(primaryKey: ['id']).order('sort_order');
   Stream<List<Map<String, dynamic>>> settings() =>
       client.from('settings').stream(primaryKey: ['id']);
-  Stream<List<Map<String, dynamic>>> orders({bool customer = false}) {
-    final stream = client.from('orders').stream(primaryKey: ['id']);
-    if (!customer) return stream.order('created_at', ascending: false);
-    final live = stream
-        .eq('customer_id', userId ?? '')
-        .order('created_at', ascending: false);
-    // Realtime can stall (sleeping phone, dropped socket), so the customer
-    // list is also re-read every 15 seconds. Only changes are emitted.
-    late StreamController<List<Map<String, dynamic>>> out;
-    StreamSubscription<List<Map<String, dynamic>>>? sub;
-    Timer? timer;
-    String? last;
-    void emit(List<Map<String, dynamic>> rows) {
-      final key = jsonEncode(rows);
-      if (key == last || out.isClosed) return;
-      last = key;
-      out.add(rows);
-    }
+  final _orderRefresh = StreamController<void>.broadcast(sync: true);
 
-    Future<void> poll() async {
-      try {
-        final rows = await client
-            .from('orders')
-            .select()
-            .eq('customer_id', userId ?? '')
+  /// Re-read the same RLS-protected order scope on Sync or app resume.
+  void refreshOrders() => _orderRefresh.add(null);
+
+  Stream<List<Map<String, dynamic>>> orders({bool customer = false}) {
+    final customerId = userId ?? '';
+    final stream = client.from('orders').stream(primaryKey: ['id']);
+    final live = customer
+        ? stream
+              .eq('customer_id', customerId)
+              .order('created_at', ascending: false)
+        : stream.order('created_at', ascending: false);
+    return syncedOrders(
+      live: live,
+      read: () async {
+        final query = client.from('orders').select();
+        final scoped = customer ? query.eq('customer_id', customerId) : query;
+        final rows = await scoped
             .order('created_at', ascending: false)
             .timeout(const Duration(seconds: 10));
-        emit(List<Map<String, dynamic>>.from(rows));
-      } catch (_) {}
-    }
-
-    out = StreamController<List<Map<String, dynamic>>>(
-      onListen: () {
-        sub = live.listen(emit, onError: (_) {});
-        timer = Timer.periodic(const Duration(seconds: 15), (_) => poll());
+        return List<Map<String, dynamic>>.from(rows);
       },
-      onCancel: () async {
-        timer?.cancel();
-        await sub?.cancel();
-      },
+      refresh: _orderRefresh.stream,
+      interval: Duration(seconds: customer ? 15 : 5),
     );
-    return out.stream;
   }
 
   Stream<List<Map<String, dynamic>>> subscriptions() => client

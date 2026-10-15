@@ -78,7 +78,7 @@ class PartnerHub extends StatefulWidget {
   State<PartnerHub> createState() => _PartnerHubState();
 }
 
-class _PartnerHubState extends State<PartnerHub> {
+class _PartnerHubState extends State<PartnerHub> with WidgetsBindingObserver {
   int screen = 5;
   List<Map<String, dynamic>> orders = [], menu = [];
   List<Map<String, dynamic>> subs = [], customers = [], riders = [];
@@ -87,36 +87,92 @@ class _PartnerHubState extends State<PartnerHub> {
   List<Map<String, dynamic>> items = [];
   String manager = 'Staff';
   String? itemsError;
+  String? ordersError;
   bool autoAccept = false, autoKnown = false;
+  int _itemsGeneration = 0;
+  final Set<String> _pendingOrderIds = {};
+
+  // Shared across stream and manual refresh; a stale success OR error is ignored.
+  Future<void> _loadItems(List<String> ids) async {
+    final generation = ++_itemsGeneration;
+    try {
+      final got = await widget.backend.orderItems(ids);
+      if (!mounted || generation != _itemsGeneration) return;
+      setState(() {
+        items = got;
+        itemsError = null;
+      });
+    } catch (_) {
+      if (!mounted || generation != _itemsGeneration) return;
+      setState(
+        () =>
+            itemsError = 'Bhaji counts could not be loaded. Refresh to retry.',
+      );
+    }
+  }
+
+  // Own the lock above both screens so navigation cannot bypass an in-flight RPC.
+  // Acquire before confirmation, and release on cancel, success or failure.
+  // This serializes local submissions only; it is not backend idempotency.
+  Future<void> _runOrderAction(
+    String id,
+    Future<void> Function() action,
+  ) async {
+    if (!mounted || _pendingOrderIds.contains(id)) return;
+    setState(() => _pendingOrderIds.add(id));
+    try {
+      await action();
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Update refused. Refresh before trying again.'),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _pendingOrderIds.remove(id));
+      } else {
+        _pendingOrderIds.remove(id);
+      }
+    }
+  }
 
   @override
   void initState() {
     super.initState();
-    os = widget.backend.orders().listen((r) async {
-      if (!mounted) return;
-      setState(() => orders = r);
-      try {
-        final got = await widget.backend.orderItems(
-          r.map((o) => o['id'] as String).toList(),
+    WidgetsBinding.instance.addObserver(this);
+    os = widget.backend.orders().listen(
+      (r) {
+        if (!mounted) return;
+        setState(() {
+          orders = r;
+          ordersError = null;
+        });
+        unawaited(_loadItems(r.map((o) => o['id'] as String).toList()));
+      },
+      onError: (Object _) {
+        if (!mounted) return;
+        setState(
+          () => ordersError = 'Orders could not sync. Showing the last received orders. Check connection and tap Sync.',
         );
-        if (mounted)
-          setState(() {
-            items = got;
-            itemsError = null;
-          });
-      } catch (_) {
-        if (mounted)
-          setState(
-            () => itemsError =
-                'Bhaji counts could not be loaded. Refresh to retry.',
-          );
-      }
+      },
+    );
+    ms = widget.backend.menu().listen((r) {
+      if (mounted) setState(() => menu = r);
     });
-    ms = widget.backend.menu().listen((r) => setState(() => menu = r));
     reload();
   }
 
   Future<void> reload() async {
+    if (!mounted) return;
+    widget.backend.refreshOrders();
+    // Start now, not after unrelated profile/settings reads: a later stream
+    // snapshot must supersede this refresh even if those reads finish late.
+    final itemsRequest = _loadItems(
+      orders.map((o) => o['id'] as String).toList(),
+    );
     try {
       final p = await widget.backend.profile();
       if (mounted && p != null)
@@ -126,6 +182,7 @@ class _PartnerHubState extends State<PartnerHub> {
               : 'Staff',
         );
     } catch (_) {}
+    if (!mounted) return;
     try {
       final v = await widget.backend.currentSettings();
       if (mounted)
@@ -134,6 +191,7 @@ class _PartnerHubState extends State<PartnerHub> {
           autoKnown = v?.containsKey('kitchen_auto_accept') == true;
         });
     } catch (_) {}
+    if (!mounted) return;
     try {
       final r = await Future.wait([
         widget.role == 'owner'
@@ -145,23 +203,27 @@ class _PartnerHubState extends State<PartnerHub> {
         widget.role == 'owner'
             ? widget.backend.deliveryStaff()
             : Future.value(<Map<String, dynamic>>[]),
-        widget.backend.orderItems(
-          orders.map((o) => o['id'] as String).toList(),
-        ),
       ]);
       if (mounted) {
         setState(() {
           subs = r[0];
           customers = r[1];
           riders = r[2];
-          items = r[3];
         });
       }
     } catch (_) {}
+    await itemsRequest;
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) widget.backend.refreshOrders();
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _itemsGeneration++;
     os?.cancel();
     ms?.cancel();
     super.dispose();
@@ -195,7 +257,12 @@ class _PartnerHubState extends State<PartnerHub> {
     final wide = MediaQuery.sizeOf(context).width >= 900;
     final body = switch (widget.role == 'owner' ? screen : 5) {
       0 => _Dashboard(d, onAll: () => setState(() => screen = 1)),
-      1 => _LiveOrders(d, widget.backend),
+      1 => _LiveOrders(
+        d,
+        widget.backend,
+        pendingOrderIds: _pendingOrderIds,
+        runOrderAction: _runOrderAction,
+      ),
       2 => _Subscriptions(d, widget.backend, reload),
       3 => _MenuManager(d, widget.backend),
       4 => _Customers(d, query, (q) => setState(() => query = q)),
@@ -205,7 +272,10 @@ class _PartnerHubState extends State<PartnerHub> {
         role: widget.role,
         items: items,
         error: itemsError,
+        ordersError: ordersError,
         onSync: reload,
+        pendingOrderIds: _pendingOrderIds,
+        runOrderAction: _runOrderAction,
         autoAccept: autoAccept,
         autoKnown: autoKnown,
         onAuto: (v) async {
@@ -549,7 +619,14 @@ Widget _orderTableBody(AdminData d, List<Map<String, dynamic>> rows) {
 class _LiveOrders extends StatefulWidget {
   final AdminData d;
   final TiffeBackend b;
-  const _LiveOrders(this.d, this.b);
+  final Set<String> pendingOrderIds;
+  final Future<void> Function(String, Future<void> Function()) runOrderAction;
+  const _LiveOrders(
+    this.d,
+    this.b, {
+    required this.pendingOrderIds,
+    required this.runOrderAction,
+  });
   @override
   State<_LiveOrders> createState() => _LiveOrdersState();
 }
@@ -656,6 +733,8 @@ class _LiveOrdersState extends State<_LiveOrders> {
   }
 
   Widget _orderCard(BuildContext context, Map<String, dynamic> o) {
+    final id = o['id'] as String;
+    final pending = widget.pendingOrderIds.contains(id);
     final verified = o['payment_status'] == 'verified';
     final i = flow.indexOf('${o['status']}');
     final next = i >= 0 && i < flow.length - 1 ? flow[i + 1] : null;
@@ -705,11 +784,16 @@ class _LiveOrdersState extends State<_LiveOrders> {
               if (!verified)
                 Expanded(
                   child: OutlinedButton(
-                    onPressed: () => confirmAdminAction(
-                      context,
-                      'Verify payment received',
-                      () => b.verifyPayment(o['id'] as String),
-                    ),
+                    onPressed: pending
+                        ? null
+                        : () => widget.runOrderAction(
+                            id,
+                            () => confirmAdminAction(
+                              context,
+                              'Verify payment received',
+                              () => b.verifyPayment(id),
+                            ),
+                          ),
                     child: const Text('Verify payment'),
                   ),
                 ),
@@ -718,7 +802,9 @@ class _LiveOrdersState extends State<_LiveOrders> {
                   d.riders.isNotEmpty) ...[
                 Expanded(
                   child: PopupMenuButton<String>(
-                    onSelected: (r) => b.assignRider(o['id'] as String, r),
+                    enabled: !pending,
+                    onSelected: (r) =>
+                        widget.runOrderAction(id, () => b.assignRider(id, r)),
                     itemBuilder: (_) => [
                       for (final r in d.riders)
                         PopupMenuItem(
@@ -754,13 +840,17 @@ class _LiveOrdersState extends State<_LiveOrders> {
                       foregroundColor: const Color(0xFF121212),
                     ),
                     onPressed:
-                        next == 'Out for Delivery' &&
-                            (!verified || o['assigned_to'] == null)
+                        pending ||
+                            (next == 'Out for Delivery' &&
+                                (!verified || o['assigned_to'] == null))
                         ? null
-                        : () => confirmAdminAction(
-                            context,
-                            'Mark $next',
-                            () => b.advance(o['id'] as String, next),
+                        : () => widget.runOrderAction(
+                            id,
+                            () => confirmAdminAction(
+                              context,
+                              'Mark $next',
+                              () => b.advance(id, next),
+                            ),
                           ),
                     child: Text('Mark $next'),
                   ),
@@ -1248,9 +1338,12 @@ class KitchenHub extends StatefulWidget {
   final String role;
   final List<Map<String, dynamic>> items;
   final String? error;
+  final String? ordersError;
   final bool autoAccept, autoKnown;
   final Future<void> Function(bool)? onAuto;
   final Future<void> Function() onSync;
+  final Set<String> pendingOrderIds;
+  final Future<void> Function(String, Future<void> Function())? runOrderAction;
   const KitchenHub({
     super.key,
     required this.d,
@@ -1258,10 +1351,13 @@ class KitchenHub extends StatefulWidget {
     this.role = 'owner',
     required this.items,
     this.error,
+    this.ordersError,
     this.autoAccept = false,
     this.autoKnown = false,
     this.onAuto,
     required this.onSync,
+    this.pendingOrderIds = const {},
+    this.runOrderAction,
   });
   @override
   State<KitchenHub> createState() => _KitchenHubState();
@@ -1286,37 +1382,54 @@ class _KitchenHubState extends State<KitchenHub> {
   }
 
   Future<void> act(Map<String, dynamic> o, String label, String status) async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (c) => AlertDialog(
-        title: Text('$label?'),
-        content: Text(
-          'This changes the live order to $status.${status == 'Cancelled' ? ' Payment refunds are not automatic.' : ''}',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(c, false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(c, true),
-            child: const Text('Confirm'),
-          ),
-        ],
-      ),
-    );
-    if (ok != true) return;
+    if (busy || !mounted) return;
+    final id = o['id'] as String;
+    if (widget.pendingOrderIds.contains(id)) return;
+    final run = widget.runOrderAction;
+    if (run != null) {
+      await run(id, () => _confirmAndAct(o, label, status));
+    } else {
+      await _confirmAndAct(o, label, status);
+    }
+  }
+
+  Future<void> _confirmAndAct(
+    Map<String, dynamic> o,
+    String label,
+    String status,
+  ) async {
     setState(() {
       busy = true;
       error = null;
     });
     try {
+      final ok = await showDialog<bool>(
+        context: context,
+        builder: (c) => AlertDialog(
+          title: Text('$label?'),
+          content: Text(
+            'This changes the live order to $status.${status == 'Cancelled' ? ' Payment refunds are not automatic.' : ''}',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(c, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(c, true),
+              child: const Text('Confirm'),
+            ),
+          ],
+        ),
+      );
+      if (ok != true || !mounted) return;
       await widget.b.advance(o['id'] as String, status);
     } catch (_) {
-      if (mounted)
+      if (mounted) {
         setState(
           () => error = 'Server refused the update. Refresh and check payment, rider and current status.',
         );
+      }
     } finally {
       if (mounted) setState(() => busy = false);
     }
@@ -1333,9 +1446,33 @@ class _KitchenHubState extends State<KitchenHub> {
   Widget build(BuildContext context) {
     final d = widget.d;
     final count = KitchenCounts.from(d, widget.items);
+    final upcoming =
+        d.orders
+            .where(
+              (o) =>
+                  '${o['delivery_date']}'.compareTo(d.today) > 0 &&
+                  const {
+                    'Confirmed',
+                    'Preparing',
+                    'Packed',
+                  }.contains(o['status']),
+            )
+            .toList()
+          ..sort(
+            (a, b) =>
+                '${a['delivery_date']}'.compareTo('${b['delivery_date']}'),
+          );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        if (widget.ordersError != null)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: Text(
+              widget.ordersError!,
+              style: const TextStyle(color: Colors.orange, fontSize: 12),
+            ),
+          ),
         _card(
           pad: const EdgeInsets.all(18),
           child: Column(
@@ -1529,6 +1666,41 @@ class _KitchenHubState extends State<KitchenHub> {
         if (error != null)
           Text(error!, style: const TextStyle(color: Colors.red)),
         if (busy) const LinearProgressIndicator(),
+        if (upcoming.isNotEmpty) ...[
+          const SizedBox(height: 18),
+          _card(
+            pad: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'UPCOMING ORDERS (${upcoming.length})',
+                  style: const TextStyle(
+                    color: _saffron,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 12,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                const Text(
+                  'Received for a later delivery date. Not included in today’s preparation totals.',
+                  style: TextStyle(color: _muted, fontSize: 12),
+                ),
+                for (final o in upcoming) ...[
+                  const Divider(color: _creamMuted),
+                  Text(
+                    'Delivery ${o['delivery_date']} • ${_slot(o)} • #${o['id']}',
+                    style: const TextStyle(color: Colors.white),
+                  ),
+                  Text(
+                    '${d.nameOf(o)} • ${o['quantity'] ?? 0} tiffin • ${o['status']}',
+                    style: const TextStyle(color: _muted),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
         for (final state in ['Confirmed', 'Preparing', 'Packed']) ...[
           const SizedBox(height: 18),
           _card(
@@ -1688,7 +1860,11 @@ class _KitchenHubState extends State<KitchenHub> {
                             children: [
                               if (state == 'Confirmed')
                                 FilledButton(
-                                  onPressed: busy
+                                  onPressed:
+                                      busy ||
+                                          widget.pendingOrderIds.contains(
+                                            o['id'],
+                                          )
                                       ? null
                                       : () =>
                                             act(o, 'Accept Order', 'Preparing'),
@@ -1699,7 +1875,11 @@ class _KitchenHubState extends State<KitchenHub> {
                                 ),
                               if (state == 'Preparing')
                                 FilledButton(
-                                  onPressed: busy
+                                  onPressed:
+                                      busy ||
+                                          widget.pendingOrderIds.contains(
+                                            o['id'],
+                                          )
                                       ? null
                                       : () => act(
                                           o,
@@ -1718,6 +1898,9 @@ class _KitchenHubState extends State<KitchenHub> {
                                   ),
                                   onPressed:
                                       busy ||
+                                          widget.pendingOrderIds.contains(
+                                            o['id'],
+                                          ) ||
                                           widget.role != 'owner' ||
                                           o['payment_status'] != 'verified' ||
                                           o['assigned_to'] == null
@@ -1738,7 +1921,11 @@ class _KitchenHubState extends State<KitchenHub> {
                                     backgroundColor: const Color(0xFF4C2424),
                                     foregroundColor: const Color(0xFFF87171),
                                   ),
-                                  onPressed: busy
+                                  onPressed:
+                                      busy ||
+                                          widget.pendingOrderIds.contains(
+                                            o['id'],
+                                          )
                                       ? null
                                       : () =>
                                             act(o, 'Reject order', 'Cancelled'),
@@ -1847,7 +2034,7 @@ Future<void> confirmAdminAction(
       ],
     ),
   );
-  if (yes != true) return;
+  if (yes != true || !context.mounted) return;
   try {
     await action();
   } catch (_) {
