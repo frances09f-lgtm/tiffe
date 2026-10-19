@@ -3,6 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'data/store.dart';
 import 'ui/app.dart';
+import 'update/app_update.dart';
 import 'ui/customer_style.dart';
 
 import 'dart:async';
@@ -23,6 +24,9 @@ Future<void> main() async {
   } catch (_) {
     // The retry screen below retains local preferences but makes no success claim.
   }
+  // In-app self-update: check the latest release in the background.
+  // ignore: unawaited_futures
+  checkForUpdateOnLaunch();
   runApp(
     TiffeApp(
       store: store,

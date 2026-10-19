@@ -1,3 +1,4 @@
+import '../update/app_update.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -186,6 +187,7 @@ class TiffeApp extends StatelessWidget {
     builder: (context, _) {
       GColors.dark = store.darkMode;
       return MaterialApp(
+        navigatorKey: appNavigatorKey,
         themeMode: store.darkMode ? ThemeMode.dark : ThemeMode.light,
         darkTheme: tiffeDarkTheme(),
         debugShowCheckedModeBanner: false,
