@@ -65,19 +65,13 @@ class UpdateChecker {
     Future<void> Function()? openInstallSettings,
     Future<Directory> Function()? cacheDir,
     DateTime Function()? clock,
-    Future<File> Function(
-      UpdateInfo info, {
-      void Function(int received, int? total)? onProgress,
-      Stream<void>? cancelToken,
-    })?
-    downloader,
+    this._downloader,
   }) : _client = client ?? http.Client(),
        _currentVersion = currentVersion ?? _nativeVersion,
        _installer = installer ?? _nativeInstall,
        _canInstall = canInstall ?? _nativeCanInstall,
        _openInstallSettings = openInstallSettings ?? _nativeOpenSettings,
        _cacheDir = cacheDir ?? _nativeCacheDir,
-       _downloader = downloader,
        _clock = clock ?? DateTime.now;
 
   static const _channel = MethodChannel('app/update');
