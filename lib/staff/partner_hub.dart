@@ -73,7 +73,15 @@ String rupees(num paise) => '₹${(paise / 100).toStringAsFixed(0)}';
 class PartnerHub extends StatefulWidget {
   final TiffeBackend backend;
   final String role;
-  const PartnerHub({super.key, required this.backend, required this.role});
+
+  /// Optional read seam for isolated tests; production still uses the session's RLS.
+  final Future<List<Map<String, dynamic>>> Function()? readOrders;
+  const PartnerHub({
+    super.key,
+    required this.backend,
+    required this.role,
+    this.readOrders,
+  });
   @override
   State<PartnerHub> createState() => _PartnerHubState();
 }
@@ -87,33 +95,90 @@ class _PartnerHubState extends State<PartnerHub> {
   List<Map<String, dynamic>> items = [];
   String manager = 'Staff';
   String? itemsError;
+  Timer? ordersPoll;
+  Future<void>? ordersRequest;
+  String? ordersError;
+  bool ordersRefreshing = false;
+  int ordersRevision = 0;
   bool autoAccept = false, autoKnown = false;
 
   @override
   void initState() {
     super.initState();
-    os = widget.backend.orders().listen((r) async {
-      if (!mounted) return;
-      setState(() => orders = r);
-      try {
-        final got = await widget.backend.orderItems(
-          r.map((o) => o['id'] as String).toList(),
-        );
-        if (mounted)
-          setState(() {
-            items = got;
-            itemsError = null;
-          });
-      } catch (_) {
-        if (mounted)
-          setState(
-            () => itemsError =
-                'Bhaji counts could not be loaded. Refresh to retry.',
-          );
-      }
-    });
+    os = widget.backend.orders().listen(
+      acceptOrders,
+      onError: (Object error, StackTrace stack) => orderLoadFailed(),
+    );
+    // Realtime remains the fast path. A separate SELECT recovers a stalled socket.
+    ordersPoll = Timer.periodic(
+      const Duration(seconds: 15),
+      (_) => refreshOrders(),
+    );
     ms = widget.backend.menu().listen((r) => setState(() => menu = r));
     reload();
+  }
+
+  void orderLoadFailed() {
+    if (!mounted) return;
+    setState(
+      () => ordersError = 'Orders could not load. The list may be out of date. Tap Refresh to retry.',
+    );
+  }
+
+  Future<void> acceptOrders(List<Map<String, dynamic>> rows) async {
+    if (!mounted) return;
+    ordersRevision++;
+    setState(() {
+      orders = rows;
+      ordersError = null;
+    });
+    try {
+      final got = await widget.backend.orderItems(
+        rows.map((o) => o['id'] as String).toList(),
+      );
+      if (mounted)
+        setState(() {
+          items = got;
+          itemsError = null;
+        });
+    } catch (_) {
+      if (mounted)
+        setState(
+          () => itemsError =
+              'Bhaji counts could not be loaded. Refresh to retry.',
+        );
+    }
+  }
+
+  Future<void> refreshOrders() {
+    if (!mounted) return Future.value();
+    // Timer, button and pull-to-refresh share one in-flight request.
+    return ordersRequest ??= readOrdersOnce().whenComplete(() {
+      ordersRequest = null;
+    });
+  }
+
+  Future<void> readOrdersOnce() async {
+    setState(() => ordersRefreshing = true);
+    final revision = ordersRevision;
+    try {
+      final read =
+          widget.readOrders ??
+          () async {
+            final rows = await widget.backend.client
+                .from('orders')
+                .select()
+                .order('created_at', ascending: false);
+            return List<Map<String, dynamic>>.from(rows);
+          };
+      final rows = await read().timeout(const Duration(seconds: 10));
+      // Do not overwrite a newer realtime snapshot with an older SELECT result.
+      if (mounted && revision == ordersRevision) await acceptOrders(rows);
+    } catch (_) {
+      orderLoadFailed();
+    } finally {
+      if (mounted) setState(() => ordersRefreshing = false);
+    }
   }
 
   Future<void> reload() async {
@@ -162,6 +227,7 @@ class _PartnerHubState extends State<PartnerHub> {
 
   @override
   void dispose() {
+    ordersPoll?.cancel();
     os?.cancel();
     ms?.cancel();
     super.dispose();
@@ -251,18 +317,48 @@ class _PartnerHubState extends State<PartnerHub> {
                 onSignOut: widget.backend.signOut,
               ),
             ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton.icon(
+                      onPressed: ordersRefreshing ? null : refreshOrders,
+                      icon: const Icon(Icons.refresh, size: 18),
+                      label: Text(
+                        ordersRefreshing ? 'Refreshing...' : 'Refresh',
+                      ),
+                    ),
+                  ),
+                  if (ordersError != null)
+                    Semantics(
+                      liveRegion: true,
+                      child: Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: Text(ordersError!),
+                      ),
+                    ),
+                ],
+              ),
+            ),
             Expanded(
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Expanded(
-                    child: SingleChildScrollView(
-                      padding: EdgeInsets.all(wide ? 32 : 16),
-                      child: Align(
-                        alignment: Alignment.topCenter,
-                        child: ConstrainedBox(
-                          constraints: const BoxConstraints(maxWidth: 1180),
-                          child: body,
+                    child: RefreshIndicator(
+                      onRefresh: refreshOrders,
+                      child: SingleChildScrollView(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        padding: EdgeInsets.all(wide ? 32 : 16),
+                        child: Align(
+                          alignment: Alignment.topCenter,
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 1180),
+                            child: body,
+                          ),
                         ),
                       ),
                     ),
@@ -715,7 +811,11 @@ class _LiveOrdersState extends State<_LiveOrders> {
                     ),
                     child: const FittedBox(
                       fit: BoxFit.scaleDown,
-                      child: Text('Verify payment', maxLines: 1, softWrap: false),
+                      child: Text(
+                        'Verify payment',
+                        maxLines: 1,
+                        softWrap: false,
+                      ),
                     ),
                   ),
                 ),
