@@ -705,12 +705,18 @@ class _LiveOrdersState extends State<_LiveOrders> {
               if (!verified)
                 Expanded(
                   child: OutlinedButton(
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                    ),
                     onPressed: () => confirmAdminAction(
                       context,
                       'Verify payment received',
                       () => b.verifyPayment(o['id'] as String),
                     ),
-                    child: const Text('Verify payment'),
+                    child: const FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text('Verify payment', maxLines: 1, softWrap: false),
+                    ),
                   ),
                 ),
               if (verified &&
@@ -751,7 +757,7 @@ class _LiveOrdersState extends State<_LiveOrders> {
                   child: FilledButton(
                     style: FilledButton.styleFrom(
                       backgroundColor: _saffron,
-                      foregroundColor: const Color(0xFF121212),
+                      foregroundColor: _cream,
                     ),
                     onPressed:
                         next == 'Out for Delivery' &&
@@ -891,7 +897,7 @@ class _Subscriptions extends StatelessWidget {
         FilledButton.icon(
           style: FilledButton.styleFrom(
             backgroundColor: _saffron,
-            foregroundColor: const Color(0xFF121212),
+            foregroundColor: _cream,
           ),
           onPressed: () => add(context),
           icon: const Icon(Icons.add, size: 18),
