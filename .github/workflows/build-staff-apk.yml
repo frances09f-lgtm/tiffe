@@ -13,82 +13,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     permissions:
-      contents: write
-    outputs:
-      sha: ${{ steps.patch.outputs.sha }}
+      contents: read
     steps:
       - uses: actions/checkout@v4
-      - name: Apply order button style fix and version bump
-        id: patch
-        run: |
-          set -euo pipefail
-          python3 - <<'PY'
-          import pathlib, re
-          p = pathlib.Path('lib/staff/partner_hub.dart')
-          s = p.read_text()
-          if 'softWrap: false' not in s:
-              old_ink = 'foregroundColor: const Color(0xFF121212),'
-              assert s.count(old_ink) == 2, 'expected two dark-ink buttons'
-              s = s.replace(old_ink, 'foregroundColor: _cream,')
-              pat = re.compile(r"OutlinedButton\(\s*onPressed: \(\) => confirmAdminAction\(\s*context,\s*'Verify payment received',\s*\(\) => b\.verifyPayment\(o\['id'\] as String\),\s*\),\s*child: const Text\('Verify payment'\),\s*\)")
-              assert len(pat.findall(s)) == 1, 'verify button not found once'
-              new = ("OutlinedButton(\n"
-                     "                    style: OutlinedButton.styleFrom(\n"
-                     "                      padding: const EdgeInsets.symmetric(horizontal: 8),\n"
-                     "                    ),\n"
-                     "                    onPressed: () => confirmAdminAction(\n"
-                     "                      context,\n"
-                     "                      'Verify payment received',\n"
-                     "                      () => b.verifyPayment(o['id'] as String),\n"
-                     "                    ),\n"
-                     "                    child: const FittedBox(\n"
-                     "                      fit: BoxFit.scaleDown,\n"
-                     "                      child: Text('Verify payment', maxLines: 1, softWrap: false),\n"
-                     "                    ),\n"
-                     "                  )")
-              s = pat.sub(lambda m: new, s)
-              p.write_text(s)
-          PY
-          cat > test/order_button_fit_test.dart <<'DART'
-          import 'package:flutter/material.dart';
-          import 'package:flutter_test/flutter_test.dart';
-
-          import 'partner_hub_test.dart' as hub;
-
-          void main() {
-            testWidgets('All Orders Verify payment label stays on one line', (t) async {
-              await hub.open(t, 360);
-              await t.tap(find.text('All Orders'));
-              await t.pumpAndSettle();
-              final finder = find.text('Verify payment');
-              if (finder.evaluate().isEmpty) {
-                await t.scrollUntilVisible(finder, 300);
-              }
-              expect(finder, findsWidgets);
-              final text = t.widget<Text>(finder.first);
-              expect(text.maxLines, 1);
-              expect(text.softWrap, false);
-              final style = DefaultTextStyle.of(t.element(finder.first)).style;
-              final fontSize = text.style?.fontSize ?? style.fontSize ?? 14;
-              expect(t.getSize(finder.first).height, lessThan(fontSize * 2));
-              expect(t.takeException(), isNull);
-            });
-          }
-          DART
-          sed -i 's/^version: 1\.0\.45+45$/version: 1.0.46+46/' pubspec.yaml
-          sed -i "s/const appVersion = '1\.0\.45+45';/const appVersion = '1.0.46+46';/" lib/live/bug_report.dart
-          grep -q '^version: 1.0.46+46$' pubspec.yaml
-          grep -q "const appVersion = '1.0.46+46';" lib/live/bug_report.dart
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add lib/staff/partner_hub.dart test/order_button_fit_test.dart pubspec.yaml lib/live/bug_report.dart
-          if git diff --cached --quiet; then
-            echo 'nothing to commit'
-          else
-            git commit -m 'Staff: readable order action buttons and single-line Verify payment; bump to 1.0.46+46'
-            git push origin "HEAD:${GITHUB_REF_NAME}"
-          fi
-          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -141,7 +68,7 @@ jobs:
           cat > notes.md <<EOF
           # Tiffe Staff v3
 
-          Version 1.0.3 (3), package com.ambi.tiffe.staff. Updates Staff v2 in place.
+          Version 1.0.3 (3), package com.ambi.tiffe.staff.
 
           Fixes in All Orders (Live orders & dispatch):
           - The Mark Preparing button now has an orange fill with dark text, so the label is readable. The Add subscription button uses the same style.
@@ -153,4 +80,4 @@ jobs:
 
           Not tested on a physical phone. Firebase App Distribution is not part of this release.
           EOF
-          gh release create staff-v3 staff-apk/Tiffe-Staff.apk --target "${{ needs.build.outputs.sha }}" --title "Tiffe Staff v3 - readable order buttons" --notes-file notes.md --prerelease
+          gh release create staff-v3 staff-apk/Tiffe-Staff.apk --target "${{ github.sha }}" --title "Tiffe Staff v3 - readable order buttons" --notes-file notes.md --prerelease

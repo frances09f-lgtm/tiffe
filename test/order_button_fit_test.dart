@@ -5,13 +5,13 @@ import 'partner_hub_test.dart' as hub;
 
 void main() {
   testWidgets('All Orders Verify payment label stays on one line', (t) async {
-    await hub.open(t, 360);
+    await hub.open(t, 390);
+    await t.ensureVisible(find.text('All Orders'));
     await t.tap(find.text('All Orders'));
     await t.pumpAndSettle();
+    t.view.physicalSize = const Size(390, 3000);
+    await t.pumpAndSettle();
     final finder = find.text('Verify payment');
-    if (finder.evaluate().isEmpty) {
-      await t.scrollUntilVisible(finder, 300);
-    }
     expect(finder, findsWidgets);
     final text = t.widget<Text>(finder.first);
     expect(text.maxLines, 1);
