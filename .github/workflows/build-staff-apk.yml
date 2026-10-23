@@ -3,7 +3,7 @@ on:
   workflow_dispatch:
     inputs:
       publish:
-        description: 'Publish a GitHub release after analyze, tests and build pass'
+        description: Publish staff-v4 only after analyze, full tests and signed builds pass
         type: boolean
         default: false
 permissions:
@@ -13,7 +13,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     permissions:
-      contents: read
+      contents: write
+    outputs:
+      sha: ${{ steps.patch.outputs.sha }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -24,27 +26,46 @@ jobs:
         with:
           channel: stable
           flutter-version: '3.47.6'
+      - name: Apply and commit the reviewed Staff-only refresh patch
+        id: patch
+        run: |
+          set -euo pipefail
+          python3 scripts/patch_staff_refresh.py
+          dart format lib/staff/partner_hub.dart test/staff_order_refresh_test.dart
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add lib/staff/partner_hub.dart pubspec.yaml lib/live/bug_report.dart test/staff_order_refresh_test.dart scripts/firebase_staff_v4.cjs
+          if ! git diff --cached --quiet; then
+            git commit -m 'Staff v4: apply orders refresh and paired version bump'
+            git push origin HEAD:${{ github.ref_name }}
+          fi
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
       - run: flutter pub get
       - run: flutter analyze
       - run: flutter test --dart-define=TIFFE_OWNER_EMAIL=frances09f@gmail.com
-      - name: Build separate signed Staff APK
+      - name: Build signed Staff APK and AAB
         env:
           TIFFE_KEYSTORE_BASE64: ${{ secrets.TIFFE_KEYSTORE_BASE64 }}
           TIFFE_KEYSTORE_FILE: ${{ runner.temp }}/tiffe-release.jks
           TIFFE_KEYSTORE_PASSWORD: ${{ secrets.TIFFE_KEYSTORE_PASSWORD }}
           TIFFE_KEY_PASSWORD: ${{ secrets.TIFFE_KEY_PASSWORD }}
         run: |
+          set -euo pipefail
+          trap 'rm -f "$TIFFE_KEYSTORE_FILE"' EXIT
           printf '%s' "$TIFFE_KEYSTORE_BASE64" | base64 -d > "$TIFFE_KEYSTORE_FILE"
-          flutter build apk --release --target-platform android-arm64 -t lib/staff_main.dart --build-name=1.0.3 --build-number=3 \
-            --dart-define=TIFFE_SUPABASE_URL=https://obbtxyjglgivcpusjpcx.supabase.co \
-            --dart-define=TIFFE_SUPABASE_KEY=sb_publishable__5qR0bvVmwqKykgbQpAtRw_H0eIgl3_ \
-            --dart-define=TIFFE_OWNER_EMAIL=frances09f@gmail.com
-          mv build/app/outputs/flutter-apk/app-release.apk build/app/outputs/flutter-apk/Tiffe-Staff.apk
-          rm -f "$TIFFE_KEYSTORE_FILE"
+          FLAGS=(--release -t lib/staff_main.dart --build-name=1.0.4 --build-number=4 --dart-define=TIFFE_SUPABASE_URL=https://obbtxyjglgivcpusjpcx.supabase.co --dart-define=TIFFE_SUPABASE_KEY=sb_publishable__5qR0bvVmwqKykgbQpAtRw_H0eIgl3_ --dart-define=TIFFE_OWNER_EMAIL=frances09f@gmail.com)
+          flutter build apk --target-platform android-arm64 "${FLAGS[@]}"
+          flutter build appbundle --target-platform android-arm64 "${FLAGS[@]}"
+          mkdir staff-build
+          cp build/app/outputs/flutter-apk/app-release.apk staff-build/Tiffe-Staff.apk
+          cp build/app/outputs/bundle/release/app-release.aab staff-build/Tiffe-Staff.aab
+          sha256sum staff-build/*
+          stat -c '%n %s bytes' staff-build/*
       - uses: actions/upload-artifact@v4
         with:
           name: tiffe-staff-apk
-          path: build/app/outputs/flutter-apk/Tiffe-Staff.apk
+          path: staff-build/*
+          if-no-files-found: error
   release:
     needs: build
     if: ${{ inputs.publish }}
@@ -56,28 +77,60 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: tiffe-staff-apk
-          path: staff-apk
-      - name: Publish Tiffe Staff v3 release with the APK
+          path: staff-build
+      - name: Publish green-CI Staff v4
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
-          SHA256=$(sha256sum staff-apk/Tiffe-Staff.apk | cut -d' ' -f1)
-          SIZE=$(stat -c %s staff-apk/Tiffe-Staff.apk)
+          SHA256=$(sha256sum staff-build/Tiffe-Staff.apk | cut -d' ' -f1)
+          SIZE=$(stat -c %s staff-build/Tiffe-Staff.apk)
           cat > notes.md <<EOF
-          # Tiffe Staff v3
+          Tiffe Staff v4, version 1.0.4 (4), com.ambi.tiffe.staff
 
-          Version 1.0.3 (3), package com.ambi.tiffe.staff.
+          Orders are re-read every 15 seconds while the hub is open, alongside realtime updates. Refresh and pull-to-refresh use the same read. Loading failures show a banner and keep the last loaded list. Refresh is available even for empty lists.
 
-          Fixes in All Orders (Live orders & dispatch):
-          - The Mark Preparing button now has an orange fill with dark text, so the label is readable. The Add subscription button uses the same style.
-          - Verify payment stays on one line.
+          Payment, login, roles, order creation and order actions are unchanged. Source versions were bumped together to 1.0.47+47; this separate Staff build is 1.0.4 (4).
 
-          Order, payment, login and role logic are unchanged. Analyze, the full test suite and the signed build passed in CI run ${GITHUB_RUN_ID} before this release was created.
+          Flutter analyze, the full test suite (including five refresh regression tests), and signed APK/AAB builds passed in CI ${GITHUB_RUN_ID} before publication.
 
-          APK size: ${SIZE} bytes. APK SHA256: ${SHA256}.
-
-          Not tested on a physical phone. Firebase App Distribution is not part of this release.
+          APK: ${SIZE} bytes. SHA256: ${SHA256}
+          Not tested on a phone. No live Supabase, payment, login, network-drop or real order #7228C4 end-to-end test was performed. This fixes stale reads; it cannot override database row-access rules.
           EOF
-          gh release create staff-v3 staff-apk/Tiffe-Staff.apk --target "${{ github.sha }}" --title "Tiffe Staff v3 - readable order buttons" --notes-file notes.md --prerelease
+          gh release create staff-v4 staff-build/Tiffe-Staff.apk staff-build/Tiffe-Staff.aab --target '${{ needs.build.outputs.sha }}' --title 'Tiffe Staff v4 - orders refresh and load errors' --notes-file notes.md --prerelease
+  firebase:
+    needs: [build, release]
+    if: ${{ inputs.publish }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.build.outputs.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.16.0'
+      - run: npm ci --prefix distribution/tooling --ignore-scripts --no-audit --no-fund
+      - uses: actions/download-artifact@v4
+        with:
+          name: tiffe-staff-apk
+          path: staff-build
+      - name: Upload identical Staff APK to existing Firebase app without adding testers
+        env:
+          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+          APK_PATH: staff-build/Tiffe-Staff.apk
+        run: |
+          set -euo pipefail
+          umask 077
+          export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/firebase-staff.json"
+          trap 'rm -f "$GOOGLE_APPLICATION_CREDENTIALS"' EXIT
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT_JSON" > "$GOOGLE_APPLICATION_CREDENTIALS"
+          unset FIREBASE_SERVICE_ACCOUNT_JSON
+          export EXPECTED_SHA256=$(sha256sum "$APK_PATH" | cut -d' ' -f1)
+          node scripts/firebase_staff_v4.cjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: firebase-staff-v4-result
+          path: ${{ runner.temp }}/firebase-staff-v4-result.json
+          if-no-files-found: error
