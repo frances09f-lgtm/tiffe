@@ -23,45 +23,30 @@ jobs:
         run: |
           set -euo pipefail
           python3 - <<'PY'
-          import pathlib
+          import pathlib, re
           p = pathlib.Path('lib/staff/partner_hub.dart')
           s = p.read_text()
-          ink_a = """                      backgroundColor: _saffron,
-                      foregroundColor: const Color(0xFF121212),"""
-          ink_b = """            backgroundColor: _saffron,
-            foregroundColor: const Color(0xFF121212),"""
-          old_btn = """                  child: OutlinedButton(
-                    onPressed: () => confirmAdminAction(
-                      context,
-                      'Verify payment received',
-                      () => b.verifyPayment(o['id'] as String),
-                    ),
-                    child: const Text('Verify payment'),
-                  ),"""
-          new_btn = """                  child: OutlinedButton(
-                    style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(horizontal: 8),
-                    ),
-                    onPressed: () => confirmAdminAction(
-                      context,
-                      'Verify payment received',
-                      () => b.verifyPayment(o['id'] as String),
-                    ),
-                    child: const FittedBox(
-                      fit: BoxFit.scaleDown,
-                      child: Text(
-                        'Verify payment',
-                        maxLines: 1,
-                        softWrap: false,
-                      ),
-                    ),
-                  ),"""
           if 'softWrap: false' not in s:
-              for block in (ink_a, ink_b):
-                  assert s.count(block) == 1, 'ink block not found once'
-                  s = s.replace(block, block.replace('const Color(0xFF121212)', '_cream'))
-              assert s.count(old_btn) == 1, 'verify button not found once'
-              s = s.replace(old_btn, new_btn)
+              old_ink = 'foregroundColor: const Color(0xFF121212),'
+              assert s.count(old_ink) == 2, 'expected two dark-ink buttons'
+              s = s.replace(old_ink, 'foregroundColor: _cream,')
+              pat = re.compile(r"OutlinedButton\(\s*onPressed: \(\) => confirmAdminAction\(\s*context,\s*'Verify payment received',\s*\(\) => b\.verifyPayment\(o\['id'\] as String\),\s*\),\s*child: const Text\('Verify payment'\),\s*\)")
+              assert len(pat.findall(s)) == 1, 'verify button not found once'
+              new = ("OutlinedButton(\n"
+                     "                    style: OutlinedButton.styleFrom(\n"
+                     "                      padding: const EdgeInsets.symmetric(horizontal: 8),\n"
+                     "                    ),\n"
+                     "                    onPressed: () => confirmAdminAction(\n"
+                     "                      context,\n"
+                     "                      'Verify payment received',\n"
+                     "                      () => b.verifyPayment(o['id'] as String),\n"
+                     "                    ),\n"
+                     "                    child: const FittedBox(\n"
+                     "                      fit: BoxFit.scaleDown,\n"
+                     "                      child: Text('Verify payment', maxLines: 1, softWrap: false),\n"
+                     "                    ),\n"
+                     "                  )")
+              s = pat.sub(lambda m: new, s)
               p.write_text(s)
           PY
           cat > test/order_button_fit_test.dart <<'DART'
