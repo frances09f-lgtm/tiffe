@@ -5,7 +5,12 @@ import 'package:tiffe/web_admin/admin_site.dart';
 
 import 'admin_controls_test.dart' show OwnerBackend;
 
-const today = '2026-10-11';
+// Match the production admin's Pune day instead of expiring at midnight.
+final today = DateTime.now()
+    .toUtc()
+    .add(const Duration(hours: 5, minutes: 30))
+    .toIso8601String()
+    .substring(0, 10);
 
 class WebBackend extends OwnerBackend {
   String? verifiedSub;
