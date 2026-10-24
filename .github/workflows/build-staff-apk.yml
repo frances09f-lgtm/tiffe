@@ -3,7 +3,7 @@ on:
   workflow_dispatch:
     inputs:
       publish:
-        description: Publish staff-v4 only after analyze, full tests and signed builds pass
+        description: Publish staff-v5 only after analyze, full tests and signed builds pass
         type: boolean
         default: false
 permissions:
@@ -34,7 +34,7 @@ jobs:
           dart format lib/staff/partner_hub.dart test/staff_order_refresh_test.dart
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add lib/staff/partner_hub.dart pubspec.yaml lib/live/bug_report.dart test/staff_order_refresh_test.dart scripts/firebase_staff_v4.cjs
+          git add lib/staff/partner_hub.dart pubspec.yaml lib/live/bug_report.dart test/staff_order_refresh_test.dart scripts/firebase_staff_v5.cjs
           if ! git diff --cached --quiet; then
             git commit -m 'Staff v4: apply orders refresh and paired version bump'
             git push origin HEAD:${{ github.ref_name }}
@@ -53,9 +53,9 @@ jobs:
           set -euo pipefail
           trap 'rm -f "$TIFFE_KEYSTORE_FILE"' EXIT
           printf '%s' "$TIFFE_KEYSTORE_BASE64" | base64 -d > "$TIFFE_KEYSTORE_FILE"
-          FLAGS=(--release -t lib/staff_main.dart --build-name=1.0.4 --build-number=4 --dart-define=TIFFE_SUPABASE_URL=https://obbtxyjglgivcpusjpcx.supabase.co --dart-define=TIFFE_SUPABASE_KEY=sb_publishable__5qR0bvVmwqKykgbQpAtRw_H0eIgl3_ --dart-define=TIFFE_OWNER_EMAIL=frances09f@gmail.com)
-          flutter build apk --target-platform android-arm64 "${FLAGS[@]}"
-          flutter build appbundle --target-platform android-arm64 "${FLAGS[@]}"
+          FLAGS=(--release -t lib/staff_main.dart --build-name=1.0.5 --build-number=5 --dart-define=TIFFE_SUPABASE_URL=https://obbtxyjglgivcpusjpcx.supabase.co --dart-define=TIFFE_SUPABASE_KEY=sb_publishable__5qR0bvVmwqKykgbQpAtRw_H0eIgl3_ --dart-define=TIFFE_OWNER_EMAIL=frances09f@gmail.com)
+          flutter build apk --target-platform android-arm,android-arm64 "${FLAGS[@]}"
+          flutter build appbundle --target-platform android-arm,android-arm64 "${FLAGS[@]}"
           mkdir staff-build
           cp build/app/outputs/flutter-apk/app-release.apk staff-build/Tiffe-Staff.apk
           cp build/app/outputs/bundle/release/app-release.aab staff-build/Tiffe-Staff.aab
@@ -78,7 +78,7 @@ jobs:
         with:
           name: tiffe-staff-apk
           path: staff-build
-      - name: Publish green-CI Staff v4
+      - name: Publish green-CI Staff v5
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
@@ -87,18 +87,18 @@ jobs:
           SHA256=$(sha256sum staff-build/Tiffe-Staff.apk | cut -d' ' -f1)
           SIZE=$(stat -c %s staff-build/Tiffe-Staff.apk)
           cat > notes.md <<EOF
-          Tiffe Staff v4, version 1.0.4 (4), com.ambi.tiffe.staff
+          Tiffe Staff v5, version 1.0.5 (5), com.ambi.tiffe.staff
 
-          Orders are re-read every 15 seconds while the hub is open, alongside realtime updates. Refresh and pull-to-refresh use the same read. Loading failures show a banner and keep the last loaded list. Refresh is available even for empty lists.
+          Adds 32-bit ARM (armeabi-v7a) support so the app installs on older 32-bit-only phones. APK and AAB now target android-arm + android-arm64. App code is staff-v4 (orders refresh and load-error banner) unchanged.
 
-          Payment, login, roles, order creation and order actions are unchanged. Source versions were bumped together to 1.0.47+47; this separate Staff build is 1.0.4 (4).
+          Payment, login, roles, order creation and order actions are unchanged.
 
-          Flutter analyze, the full test suite (including five refresh regression tests), and signed APK/AAB builds passed in CI ${GITHUB_RUN_ID} before publication.
+          Flutter analyze, the full test suite, and signed APK/AAB builds passed in CI ${GITHUB_RUN_ID} before publication.
 
           APK: ${SIZE} bytes. SHA256: ${SHA256}
-          Not tested on a phone. No live Supabase, payment, login, network-drop or real order #7228C4 end-to-end test was performed. This fixes stale reads; it cannot override database row-access rules.
+          Not tested on a phone. No live Supabase, payment, login, network-drop or real-order end-to-end test was performed. 32-bit support changes which devices can install the app; it cannot override database row-access rules.
           EOF
-          gh release create staff-v4 staff-build/Tiffe-Staff.apk staff-build/Tiffe-Staff.aab --target '${{ needs.build.outputs.sha }}' --title 'Tiffe Staff v4 - orders refresh and load errors' --notes-file notes.md --prerelease
+          gh release create staff-v5 staff-build/Tiffe-Staff.apk staff-build/Tiffe-Staff.aab --target '${{ needs.build.outputs.sha }}' --title 'Tiffe Staff v5 - 32-bit ARM support for older devices' --notes-file notes.md --prerelease
   firebase:
     needs: [build, release]
     if: ${{ inputs.publish }}
@@ -128,9 +128,9 @@ jobs:
           printf '%s' "$FIREBASE_SERVICE_ACCOUNT_JSON" > "$GOOGLE_APPLICATION_CREDENTIALS"
           unset FIREBASE_SERVICE_ACCOUNT_JSON
           export EXPECTED_SHA256=$(sha256sum "$APK_PATH" | cut -d' ' -f1)
-          node scripts/firebase_staff_v4.cjs
+          node scripts/firebase_staff_v5.cjs
       - uses: actions/upload-artifact@v4
         with:
-          name: firebase-staff-v4-result
-          path: ${{ runner.temp }}/firebase-staff-v4-result.json
+          name: firebase-staff-v5-result
+          path: ${{ runner.temp }}/firebase-staff-v5-result.json
           if-no-files-found: error
