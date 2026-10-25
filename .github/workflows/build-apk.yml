@@ -31,35 +31,19 @@ jobs:
         with:
           channel: stable
           flutter-version: '3.47.6'
-      - name: Apply reviewed customer-only v49 source patch
-        if: github.ref == 'refs/heads/feat/customer-in-app-update'
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - name: Apply customer v50 patch
+        id: v50
+        if: github.ref == 'refs/heads/feat/customer-v50'
         run: |
           set -euo pipefail
-          if [ -f test/customer_staff_status_invariants_test.dart ]; then echo 'Customer patch already applied'; exit 0; fi
-          test "$(git rev-parse HEAD~2)" = ad222d48430be20fbcb36e6bd584680fafe8b99a
-          curl --fail --location --retry 3 'https://my.pally.com/f/QtwY2iI5lKz1?download=1' -o "$RUNNER_TEMP/customer-patch.zip"
-          echo 'f44a425fd9f1c3917180feb7b8e185d0bc9be661b6d5359ad2fa38227e646d38  '"$RUNNER_TEMP/customer-patch.zip" | sha256sum --check
-          python3 - <<'PY'
-          import os, pathlib, zipfile
-          allowed = {'lib/update/app_update.dart', 'lib/live/update_check.dart', 'lib/connected_main.dart', 'lib/live/live_app.dart', 'lib/ui/gemini/orders_screen.dart', 'lib/ui/app.dart', 'lib/ui/scheduled_tracking.dart', 'lib/ui/subscriber_orders.dart', 'lib/domain/delivery_schedule.dart', 'android/app/src/main/kotlin/com/tiffe/tiffe/MainActivity.kt', 'android/app/src/main/kotlin/com/tiffe/tiffe/DeliveryNotificationReceiver.kt', 'pubspec.yaml', 'lib/live/bug_report.dart', '.github/workflows/build-apk.yml', 'test/update_check_test.dart', 'test/update/app_update_test.dart', 'test/daily_orders_test.dart', 'test/live_shell_test.dart', 'test/ui_test.dart', 'test/customer_staff_status_invariants_test.dart'}
-          with zipfile.ZipFile(os.environ['RUNNER_TEMP'] + '/customer-patch.zip') as z:
-              assert set(z.namelist()) == allowed, 'Unexpected patch paths'
-              for name in z.namelist():
-                  assert not pathlib.PurePosixPath(name).is_absolute() and '..' not in pathlib.PurePosixPath(name).parts
-                  path = pathlib.Path(name)
-                  path.parent.mkdir(parents=True, exist_ok=True)
-                  path.write_bytes(z.read(name))
-          PY
-          git checkout HEAD -- .github/workflows/build-apk.yml
-          dart format lib/update/app_update.dart lib/live/update_check.dart lib/connected_main.dart lib/live/live_app.dart lib/ui/gemini/orders_screen.dart lib/ui/app.dart lib/ui/scheduled_tracking.dart lib/ui/subscriber_orders.dart lib/domain/delivery_schedule.dart lib/live/bug_report.dart test/update_check_test.dart test/update/app_update_test.dart test/daily_orders_test.dart test/live_shell_test.dart test/ui_test.dart test/customer_staff_status_invariants_test.dart
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add lib android/app/src/main pubspec.yaml .github/workflows/build-apk.yml test
-          git commit -m 'Customer v49: direct feed updates, price-only cards, staff-only statuses'
-          git push origin HEAD:feat/customer-in-app-update
-          echo "Customer source commit: $(git rev-parse HEAD). Rerun this workflow on the resulting commit before releasing." >> "$GITHUB_STEP_SUMMARY"
+          if [ -f lib/live/order_alerts.dart ]; then
+            echo 'applied=false' >> "$GITHUB_OUTPUT"
+            echo 'v50 patch is already in the source'
+            exit 0
+          fi
+          python3 scripts/patch_v50.py .
+          dart format lib/live/live_app.dart lib/live/order_alerts.dart lib/live/backend.dart lib/ui/gemini/menu_screen.dart test/bhaji_unavailable_test.dart
+          echo 'applied=true' >> "$GITHUB_OUTPUT"
       - name: Validate matching app version
         id: version
         run: |
@@ -128,3 +112,13 @@ jobs:
           assert not any(a['name'] in ('Tiffe.apk', 'Tiffe.aab') for a in release['assets']), 'Assets already exist: reconcile, do not overwrite'
           PY
           gh release upload "$TAG" --repo "$GITHUB_REPOSITORY" build/app/outputs/flutter-apk/Tiffe.apk build/app/outputs/bundle/release/Tiffe.aab
+      - name: Commit patched v50 source after green checks
+        if: success() && steps.v50.outputs.applied == 'true'
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add lib test pubspec.yaml pubspec.lock android/app/build.gradle.kts
+          git commit -m 'Customer v50: block unavailable bhajis, closed-app order alerts'
+          git push origin HEAD:feat/customer-v50
+          echo "Customer v50 source commit: $(git rev-parse HEAD). Rerun this workflow on it before releasing." >> "$GITHUB_STEP_SUMMARY"
