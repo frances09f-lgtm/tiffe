@@ -3,7 +3,7 @@ on:
   workflow_dispatch:
     inputs:
       publish:
-        description: Publish staff-v5 only after analyze, full tests and signed builds pass
+        description: Publish staff-v6 only after analyze, full tests and signed builds pass
         type: boolean
         default: false
 permissions:
@@ -26,17 +26,17 @@ jobs:
         with:
           channel: stable
           flutter-version: '3.47.6'
-      - name: Apply and commit the reviewed Staff-only refresh patch
+      - name: Apply and commit the reviewed Staff-only Upcoming and newest-first patch
         id: patch
         run: |
           set -euo pipefail
-          python3 scripts/patch_staff_refresh.py
-          dart format lib/staff/partner_hub.dart test/staff_order_refresh_test.dart
+          python3 scripts/patch_staff_upcoming.py
+          dart format lib/staff/partner_hub.dart test/staff_upcoming_orders_test.dart
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add lib/staff/partner_hub.dart pubspec.yaml lib/live/bug_report.dart test/staff_order_refresh_test.dart scripts/firebase_staff_v5.cjs
+          git add lib/staff/partner_hub.dart pubspec.yaml lib/live/bug_report.dart test/staff_upcoming_orders_test.dart
           if ! git diff --cached --quiet; then
-            git commit -m 'Staff v4: apply orders refresh and paired version bump'
+            git commit -m 'Staff v6: Upcoming list in Live Kitchen, newest-first All Orders, paired version bump'
             git push origin HEAD:${{ github.ref_name }}
           fi
           echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
@@ -53,7 +53,7 @@ jobs:
           set -euo pipefail
           trap 'rm -f "$TIFFE_KEYSTORE_FILE"' EXIT
           printf '%s' "$TIFFE_KEYSTORE_BASE64" | base64 -d > "$TIFFE_KEYSTORE_FILE"
-          FLAGS=(--release -t lib/staff_main.dart --build-name=1.0.5 --build-number=5 --dart-define=TIFFE_SUPABASE_URL=https://obbtxyjglgivcpusjpcx.supabase.co --dart-define=TIFFE_SUPABASE_KEY=sb_publishable__5qR0bvVmwqKykgbQpAtRw_H0eIgl3_ --dart-define=TIFFE_OWNER_EMAIL=frances09f@gmail.com)
+          FLAGS=(--release -t lib/staff_main.dart --build-name=1.0.6 --build-number=6 --dart-define=TIFFE_SUPABASE_URL=https://obbtxyjglgivcpusjpcx.supabase.co --dart-define=TIFFE_SUPABASE_KEY=sb_publishable__5qR0bvVmwqKykgbQpAtRw_H0eIgl3_ --dart-define=TIFFE_OWNER_EMAIL=frances09f@gmail.com)
           flutter build apk --target-platform android-arm,android-arm64 "${FLAGS[@]}"
           flutter build appbundle --target-platform android-arm,android-arm64 "${FLAGS[@]}"
           mkdir staff-build
@@ -78,7 +78,7 @@ jobs:
         with:
           name: tiffe-staff-apk
           path: staff-build
-      - name: Publish green-CI Staff v5
+      - name: Publish green-CI Staff v6
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
@@ -87,18 +87,20 @@ jobs:
           SHA256=$(sha256sum staff-build/Tiffe-Staff.apk | cut -d' ' -f1)
           SIZE=$(stat -c %s staff-build/Tiffe-Staff.apk)
           cat > notes.md <<EOF
-          Tiffe Staff v5, version 1.0.5 (5), com.ambi.tiffe.staff
+          Tiffe Staff v6, version 1.0.6 (6), com.ambi.tiffe.staff
 
-          Adds 32-bit ARM (armeabi-v7a) support so the app installs on older 32-bit-only phones. APK and AAB now target android-arm + android-arm64. App code is staff-v4 (orders refresh and load-error banner) unchanged.
+          Live Kitchen now has an Upcoming Orders list for open orders dated after today, for the owner and kitchen roles. The customer app dates orders placed after its daily cut-off for tomorrow, so these orders were hidden from Live Kitchen until that day. Upcoming orders are shown separately and are not counted in today's tiffin, chapati, rice or bhaji totals.
 
-          Payment, login, roles, order creation and order actions are unchanged.
+          All Orders now lists the newest order first.
+
+          Payment, login, roles, order creation and order actions are unchanged. This build does not add push notifications: a new order shows when the app is open, refreshed every 15 seconds.
 
           Flutter analyze, the full test suite, and signed APK/AAB builds passed in CI ${GITHUB_RUN_ID} before publication.
 
           APK: ${SIZE} bytes. SHA256: ${SHA256}
-          Not tested on a phone. No live Supabase, payment, login, network-drop or real-order end-to-end test was performed. 32-bit support changes which devices can install the app; it cannot override database row-access rules.
+          Not tested on a phone. No live Supabase, payment, login or real-order end-to-end test was performed. It cannot override database row-access rules.
           EOF
-          gh release create staff-v5 staff-build/Tiffe-Staff.apk staff-build/Tiffe-Staff.aab --target '${{ needs.build.outputs.sha }}' --title 'Tiffe Staff v5 - 32-bit ARM support for older devices' --notes-file notes.md --prerelease
+          gh release create staff-v6 staff-build/Tiffe-Staff.apk staff-build/Tiffe-Staff.aab --target '${{ needs.build.outputs.sha }}' --title 'Tiffe Staff v6 - Upcoming orders and newest-first All Orders' --notes-file notes.md --prerelease
   firebase:
     needs: [build, release]
     if: ${{ inputs.publish }}
@@ -128,9 +130,9 @@ jobs:
           printf '%s' "$FIREBASE_SERVICE_ACCOUNT_JSON" > "$GOOGLE_APPLICATION_CREDENTIALS"
           unset FIREBASE_SERVICE_ACCOUNT_JSON
           export EXPECTED_SHA256=$(sha256sum "$APK_PATH" | cut -d' ' -f1)
-          node scripts/firebase_staff_v5.cjs
+          node scripts/firebase_staff_v6.cjs
       - uses: actions/upload-artifact@v4
         with:
-          name: firebase-staff-v5-result
-          path: ${{ runner.temp }}/firebase-staff-v5-result.json
+          name: firebase-staff-v6-result
+          path: ${{ runner.temp }}/firebase-staff-v6-result.json
           if-no-files-found: error
