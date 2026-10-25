@@ -25,6 +25,7 @@ class MainActivity : FlutterActivity() {
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         registerUpdateChannel(flutterEngine)
+        OrderNotificationSettings.register(this, flutterEngine)
         cancelDaily()
         val alarms = getSystemService(ALARM_SERVICE) as AlarmManager
         for (id in 3100..3102) {

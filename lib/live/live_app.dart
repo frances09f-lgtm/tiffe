@@ -16,6 +16,7 @@ import '../ui/gemini/toast.dart';
 import '../ui/tracking_map.dart';
 import 'bug_report.dart';
 import 'order_alerts.dart';
+import 'notification_settings.dart';
 import 'update_check.dart';
 import '../ui/gemini/auth_screens.dart';
 import '../ui/gemini/home_screen.dart';
@@ -473,6 +474,7 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
       if (widget.role == null) {
         unawaited(_refreshMenuRows());
         unawaited(_alertsForeground(true));
+        unawaited(OrderAlerts.start());
       }
     } else if (widget.role == null &&
         (state == AppLifecycleState.paused ||
@@ -4822,7 +4824,12 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
           name: name.text.trim().isEmpty ? 'Your profile' : name.text.trim(),
           contact: email,
           showAddresses: false,
-          showNotifications: false,
+          showNotifications: true,
+          onNotifications: () => Navigator.of(routeContext).push(
+            MaterialPageRoute<void>(
+              builder: (_) => const NotificationSettingsPage(),
+            ),
+          ),
           onEdit: _editProfilePage,
           onSubscription: _mySubscriptionPage,
           onHelp: _helpPage,

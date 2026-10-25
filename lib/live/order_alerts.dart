@@ -152,7 +152,8 @@ class OrderAlerts {
           importance: Importance.high,
         ),
       );
-      if (requestPermission || prefs.getBool('order_alert_permission_asked') != true) {
+      if (requestPermission ||
+          prefs.getBool('order_alert_permission_asked') != true) {
         await prefs.setBool('order_alert_permission_asked', true);
         await android?.requestNotificationsPermission();
       }
