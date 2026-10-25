@@ -1,22 +1,18 @@
-name: Build APK
+name: Customer v51 notification repair
 on:
   workflow_dispatch:
     inputs:
       publish_release:
-        description: Attach artifacts to an existing reviewed, source-bound release
         type: boolean
         default: false
-  push:
-    branches: [main]
-    paths-ignore:
-      - 'distribution/audits/**'
 permissions:
   contents: write
 concurrency:
-  group: tiffe-build-${{ github.ref }}
+  group: tiffe-customer-v51
   cancel-in-progress: false
 jobs:
   build:
+    if: github.ref == 'refs/heads/feat/customer-v51'
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
@@ -31,36 +27,19 @@ jobs:
         with:
           channel: stable
           flutter-version: '3.47.6'
-      - name: Apply customer v50 patch
-        id: v50
-        if: github.ref == 'refs/heads/feat/customer-v50'
+      - name: Apply scoped customer patch
         run: |
-          set -euo pipefail
-          if [ -f lib/live/order_alerts.dart ]; then
-            echo 'applied=false' >> "$GITHUB_OUTPUT"
-            echo 'v50 patch is already in the source'
-            exit 0
-          fi
-          python3 scripts/patch_v50.py .
-          dart format lib/live/live_app.dart lib/live/order_alerts.dart lib/live/backend.dart lib/ui/gemini/menu_screen.dart test/bhaji_unavailable_test.dart
-          echo 'applied=true' >> "$GITHUB_OUTPUT"
-      - name: Validate matching app version
-        id: version
-        run: |
+          python3 scripts/patch_v51.py .
+          dart format lib/live/order_alerts.dart lib/live/notification_settings.dart lib/live/live_app.dart test/order_alerts_v51_test.dart
           python3 - <<'PY'
-          import os, pathlib, re
-          version = re.search(r'^version:\s*(1\.0\.(\d+)\+\d+)\s*$', pathlib.Path('pubspec.yaml').read_text(), re.M)
-          assert version, 'Invalid pubspec version'
-          full, code = version.group(1), version.group(2)
-          assert full == f'1.0.{code}+{code}', 'Version name/build number mismatch'
-          assert f"'{full}'" in pathlib.Path('lib/live/bug_report.dart').read_text(), 'Bug report version mismatch'
-          with open(os.environ['GITHUB_OUTPUT'], 'a') as out:
-              out.write(f'tag=v{code}\nname=1.0.{code}\ncode={code}\n')
+          from pathlib import Path
+          assert 'version: 1.0.51+51' in Path('pubspec.yaml').read_text()
+          assert "const appVersion = '1.0.51+51';" in Path('lib/live/bug_report.dart').read_text()
           PY
       - run: flutter pub get
       - run: flutter analyze
       - run: flutter test --dart-define=TIFFE_OWNER_EMAIL=frances09f@gmail.com
-      - name: Build connected APK and AAB with permanent signing identity
+      - name: Build signed customer APK and AAB
         env:
           TIFFE_KEYSTORE_BASE64: ${{ secrets.TIFFE_KEYSTORE_BASE64 }}
           TIFFE_KEYSTORE_FILE: ${{ runner.temp }}/tiffe-release.jks
@@ -70,15 +49,9 @@ jobs:
           set -euo pipefail
           umask 077
           : "${TIFFE_KEYSTORE_BASE64:?Missing signing keystore}"
-          : "${TIFFE_KEYSTORE_PASSWORD:?Missing keystore password}"
-          : "${TIFFE_KEY_PASSWORD:?Missing key password}"
           trap 'rm -f "$TIFFE_KEYSTORE_FILE"' EXIT
           printf '%s' "$TIFFE_KEYSTORE_BASE64" | base64 -d > "$TIFFE_KEYSTORE_FILE"
-          flutter clean
-          flutter pub get
-          args=(--release -t lib/connected_main.dart
-            --build-name='${{ steps.version.outputs.name }}'
-            --build-number='${{ steps.version.outputs.code }}'
+          args=(--release -t lib/connected_main.dart --build-name=1.0.51 --build-number=51
             --dart-define=TIFFE_SUPABASE_URL=https://obbtxyjglgivcpusjpcx.supabase.co
             --dart-define=TIFFE_SUPABASE_KEY=sb_publishable__5qR0bvVmwqKykgbQpAtRw_H0eIgl3_
             --dart-define=TIFFE_OWNER_EMAIL=frances09f@gmail.com)
@@ -88,37 +61,36 @@ jobs:
           mv build/app/outputs/flutter-apk/app-release.apk build/app/outputs/flutter-apk/Tiffe.apk
       - uses: actions/upload-artifact@v4
         with:
-          name: tiffe-connected-apk
+          name: tiffe-v51
           if-no-files-found: error
           path: |
             build/app/outputs/flutter-apk/Tiffe.apk
             build/app/outputs/bundle/release/Tiffe.aab
-      - name: Attach artifacts to reviewed release without editing metadata
-        if: github.event_name == 'workflow_dispatch' && inputs.publish_release
-        env:
-          GH_TOKEN: ${{ github.token }}
-          TAG: ${{ steps.version.outputs.tag }}
-        run: |
-          set -euo pipefail
-          gh api "repos/$GITHUB_REPOSITORY/releases/tags/$TAG" > "$RUNNER_TEMP/release.json"
-          gh api "repos/$GITHUB_REPOSITORY/commits/$TAG" > "$RUNNER_TEMP/tag.json"
-          python3 - <<'PY'
-          import json, os
-          root = os.environ['RUNNER_TEMP']
-          release = json.load(open(root + '/release.json'))
-          tag = json.load(open(root + '/tag.json'))
-          assert not release.get('immutable'), 'Immutable release: stop'
-          assert tag['sha'] == os.environ['GITHUB_SHA'], 'Release tag is not this build source'
-          assert not any(a['name'] in ('Tiffe.apk', 'Tiffe.aab') for a in release['assets']), 'Assets already exist: reconcile, do not overwrite'
-          PY
-          gh release upload "$TAG" --repo "$GITHUB_REPOSITORY" build/app/outputs/flutter-apk/Tiffe.apk build/app/outputs/bundle/release/Tiffe.aab
-      - name: Commit patched v50 source after green checks
-        if: success() && steps.v50.outputs.applied == 'true'
+      - name: Commit only checked customer source
+        if: success() && !inputs.publish_release
         run: |
           set -euo pipefail
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add lib test pubspec.yaml pubspec.lock android/app/build.gradle.kts
-          git commit -m 'Customer v50: block unavailable bhajis, closed-app order alerts'
-          git push origin HEAD:feat/customer-v50
-          echo "Customer v50 source commit: $(git rev-parse HEAD). Rerun this workflow on it before releasing." >> "$GITHUB_STEP_SUMMARY"
+          git add lib/live/order_alerts.dart lib/live/live_app.dart lib/live/bug_report.dart pubspec.yaml pubspec.lock lib/live/notification_settings.dart test/order_alerts_v51_test.dart android/app/src/main/kotlin/com/tiffe/tiffe/MainActivity.kt
+          if ! git diff --cached --quiet; then
+            git commit -m 'Apply checked customer v51 notification repairs'
+            git push origin HEAD:feat/customer-v51
+          fi
+      - name: Attach artifacts only to matching reviewed release
+        if: success() && inputs.publish_release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test -z "$(git status --porcelain --untracked-files=no)"
+          gh api "repos/$GITHUB_REPOSITORY/releases/tags/v51" > "$RUNNER_TEMP/release.json"
+          gh api "repos/$GITHUB_REPOSITORY/commits/v51" > "$RUNNER_TEMP/tag.json"
+          python3 - <<'PY'
+          import json, os
+          r=json.load(open(os.environ['RUNNER_TEMP']+'/release.json'))
+          t=json.load(open(os.environ['RUNNER_TEMP']+'/tag.json'))
+          assert t['sha']==os.environ['GITHUB_SHA'], 'Tag/source mismatch'
+          assert not any(a['name'] in ['Tiffe.apk','Tiffe.aab'] for a in r['assets']), 'Reconcile existing assets; do not overwrite'
+          PY
+          gh release upload v51 --repo "$GITHUB_REPOSITORY" build/app/outputs/flutter-apk/Tiffe.apk build/app/outputs/bundle/release/Tiffe.aab
