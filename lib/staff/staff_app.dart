@@ -6,6 +6,7 @@ import 'staff_backend.dart';
 import '../live/live_app.dart';
 import 'staff_policy.dart';
 import 'partner_hub.dart';
+import 'staff_update.dart';
 
 class StaffGate extends StatelessWidget {
   final TiffeBackend backend;
@@ -71,6 +72,9 @@ class _StaffHomeState extends State<StaffHome> {
   void initState() {
     super.initState();
     orders = widget.backend.staffOrders(widget.role);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) maybePromptStaffUpdate(context);
+    });
   }
 
   Future<void> update(Map<String, dynamic> o) async {
@@ -187,6 +191,11 @@ class _StaffHomeState extends State<StaffHome> {
                   });
                 },
           icon: const Icon(Icons.refresh),
+        ),
+        IconButton(
+          onPressed: () => checkStaffUpdateManually(c),
+          tooltip: 'Check for updates',
+          icon: const Icon(Icons.system_update),
         ),
         IconButton(
           onPressed: widget.backend.signOut,

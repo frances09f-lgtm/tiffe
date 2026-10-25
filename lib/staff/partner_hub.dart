@@ -4,6 +4,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../live/backend.dart';
+import 'staff_update.dart';
 
 const _forest = Color(0xFFF4F4F5);
 const _cream = Color(0xFF121212);
@@ -119,11 +120,13 @@ class _PartnerHubState extends State<PartnerHub> {
   String? ordersError;
   bool ordersRefreshing = false;
   int ordersRevision = 0;
-  bool autoAccept = false, autoKnown = false;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) maybePromptStaffUpdate(context);
+    });
     os = widget.backend.orders().listen(
       acceptOrders,
       onError: (Object error, StackTrace stack) => orderLoadFailed(),
@@ -211,12 +214,15 @@ class _PartnerHubState extends State<PartnerHub> {
         );
     } catch (_) {}
     try {
+      // Order status must change only when staff tap it. If the server still
+      // has auto-accept switched on, the owner session switches it off.
       final v = await widget.backend.currentSettings();
-      if (mounted)
-        setState(() {
-          autoAccept = v?['kitchen_auto_accept'] == true;
-          autoKnown = v?.containsKey('kitchen_auto_accept') == true;
-        });
+      if (widget.role == 'owner' && v?['kitchen_auto_accept'] == true) {
+        await widget.backend.client.rpc(
+          'set_kitchen_auto_accept',
+          params: {'p_enabled': false},
+        );
+      }
     } catch (_) {}
     try {
       final r = await Future.wait([
@@ -291,15 +297,6 @@ class _PartnerHubState extends State<PartnerHub> {
         items: items,
         error: itemsError,
         onSync: reload,
-        autoAccept: autoAccept,
-        autoKnown: autoKnown,
-        onAuto: (v) async {
-          await widget.backend.client.rpc(
-            'set_kitchen_auto_accept',
-            params: {'p_enabled': v},
-          );
-          await reload();
-        },
       ),
       _ => _Fleet(d),
     };
@@ -332,7 +329,6 @@ class _PartnerHubState extends State<PartnerHub> {
                 role: widget.role,
                 screen: screen,
                 onTab: (i) => setState(() => screen = i),
-                autoAccept: autoAccept,
                 onSignOut: widget.backend.signOut,
               ),
             ),
@@ -1378,8 +1374,6 @@ class KitchenHub extends StatefulWidget {
   final String role;
   final List<Map<String, dynamic>> items;
   final String? error;
-  final bool autoAccept, autoKnown;
-  final Future<void> Function(bool)? onAuto;
   final Future<void> Function() onSync;
   const KitchenHub({
     super.key,
@@ -1388,9 +1382,6 @@ class KitchenHub extends StatefulWidget {
     this.role = 'owner',
     required this.items,
     this.error,
-    this.autoAccept = false,
-    this.autoKnown = false,
-    this.onAuto,
     required this.onSync,
   });
   @override
@@ -1710,54 +1701,6 @@ class _KitchenHubState extends State<KitchenHub> {
               ),
             ],
           ),
-        ),
-        const SizedBox(height: 12),
-        SwitchListTile(
-          contentPadding: EdgeInsets.zero,
-          title: Text(
-            'Auto-Accept Orders: ${widget.autoAccept ? 'ON' : 'OFF'}',
-            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-          ),
-          subtitle: const Text(
-            'Server setting • new orders only',
-            style: TextStyle(fontSize: 10, color: _muted),
-          ),
-          value: widget.autoAccept,
-          onChanged: widget.role != 'owner' || !widget.autoKnown
-              ? null
-              : (v) async {
-                  final yes = await showDialog<bool>(
-                    context: context,
-                    builder: (c) => AlertDialog(
-                      title: Text(
-                        v ? 'Enable Auto-Accept?' : 'Use manual acceptance?',
-                      ),
-                      content: const Text(
-                        'Applies to new orders only. Existing orders are unchanged.',
-                      ),
-                      actions: [
-                        TextButton(
-                          onPressed: () => Navigator.pop(c, false),
-                          child: const Text('Cancel'),
-                        ),
-                        FilledButton(
-                          onPressed: () => Navigator.pop(c, true),
-                          child: const Text('Confirm'),
-                        ),
-                      ],
-                    ),
-                  );
-                  if (yes == true) {
-                    try {
-                      await widget.onAuto?.call(v);
-                    } catch (_) {
-                      if (mounted)
-                        setState(
-                          () => error = 'Auto-Accept could not be saved.',
-                        );
-                    }
-                  }
-                },
         ),
         if (error != null)
           Text(error!, style: const TextStyle(color: Colors.red)),
@@ -2099,14 +2042,12 @@ class _PartnerHeader extends StatelessWidget {
   final String manager, role;
   final int screen;
   final ValueChanged<int> onTab;
-  final bool autoAccept;
   final VoidCallback onSignOut;
   const _PartnerHeader({
     required this.manager,
     required this.role,
     required this.screen,
     required this.onTab,
-    required this.autoAccept,
     required this.onSignOut,
   });
   @override
@@ -2186,10 +2127,13 @@ class _PartnerHeader extends StatelessWidget {
                   ),
                 ),
                 onSelected: (v) {
-                  if (v == 'logout')
+                  if (v == 'logout') {
                     onSignOut();
-                  else
+                  } else if (v == 'update') {
+                    checkStaffUpdateManually(c);
+                  } else {
                     onTab(int.parse(v));
+                  }
                 },
                 itemBuilder: (_) => [
                   PopupMenuItem(
@@ -2202,6 +2146,10 @@ class _PartnerHeader extends StatelessWidget {
                     const PopupMenuItem(value: '4', child: Text('Customers')),
                   if (role == 'owner')
                     const PopupMenuItem(value: '0', child: Text('Overview')),
+                  const PopupMenuItem(
+                    value: 'update',
+                    child: Text('Check for updates'),
+                  ),
                   const PopupMenuItem(value: 'logout', child: Text('Sign out')),
                 ],
               ),
