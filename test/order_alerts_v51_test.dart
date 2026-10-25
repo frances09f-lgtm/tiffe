@@ -18,7 +18,7 @@ void main() {
     expect(code.contains('ExistingPeriodicWorkPolicy.update'), isTrue);
     expect(code.contains('NetworkType.connected'), isTrue);
     expect(code.contains('DartPluginRegistrant.ensureInitialized()'), isTrue);
-    expect(code.contains('auth.getSession()'), isTrue);
+    expect(code.contains('auth.refreshSession()'), isTrue);
     expect(code.contains('ic_tiffe_notification'), isTrue);
   });
   test('native diagnostics offer settings without scheduled fake messages', () {
