@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../ui/gemini/auth_screens.dart';
-import '../ui/gemini/home_screen.dart';
 import 'order_alerts.dart';
 
 class NotificationSettingsPage extends StatefulWidget {
