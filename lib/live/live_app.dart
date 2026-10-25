@@ -15,6 +15,7 @@ import '../ui/gemini/toast.dart';
 
 import '../ui/tracking_map.dart';
 import 'bug_report.dart';
+import 'order_alerts.dart';
 import 'update_check.dart';
 import '../ui/gemini/auth_screens.dart';
 import '../ui/gemini/home_screen.dart';
@@ -467,7 +468,49 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) retryReports();
+    if (state == AppLifecycleState.resumed) {
+      retryReports();
+      if (widget.role == null) {
+        unawaited(_refreshMenuRows());
+        unawaited(_alertsForeground(true));
+      }
+    } else if (widget.role == null &&
+        (state == AppLifecycleState.paused ||
+            state == AppLifecycleState.hidden ||
+            state == AppLifecycleState.detached)) {
+      unawaited(_alertsForeground(false));
+    }
+  }
+
+  Timer? _alertsBeat;
+
+  /// Tells the background order check whether the app is on screen, so the
+  /// two never refresh the saved login at the same time.
+  Future<void> _alertsForeground(bool on) async {
+    if (!onAndroid) return;
+    _alertsBeat?.cancel();
+    _alertsBeat = null;
+    final prefs = widget.store.prefs;
+    if (on) {
+      await OrderAlerts.adoptSession(widget.backend.client, prefs);
+      await OrderAlerts.heartbeat(prefs, true);
+      _alertsBeat = Timer.periodic(
+        const Duration(seconds: 30),
+        (_) => OrderAlerts.heartbeat(prefs, true),
+      );
+    } else {
+      await OrderAlerts.heartbeat(prefs, false);
+      await OrderAlerts.saveSession(widget.backend.client, prefs);
+    }
+  }
+
+  /// Customer only: re-reads the menu so availability is never stale.
+  Future<void> _refreshMenuRows() async {
+    if (widget.role != null || !onAndroid) return;
+    try {
+      final rows = await widget.backend.menuNow();
+      if (mounted && rows.isNotEmpty) setState(() => menuRows = rows);
+    } catch (_) {}
   }
 
   /// The one active plan Home and Plans both use: a verified kitchen
@@ -557,6 +600,8 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
     UpdateCheck.available.addListener(_onUpdate);
     loadSettings();
     if (widget.role == null) {
+      unawaited(OrderAlerts.start());
+      unawaited(_alertsForeground(true));
       for (final id
           in widget.store.prefs.getStringList('demo_orders') ??
               const <String>[]) {
@@ -589,6 +634,17 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
         SystemSound.play(SystemSoundType.alert);
         HapticFeedback.mediumImpact();
         gToast(routeContext, alerts.join('\n'));
+      }
+      if (widget.role == null) {
+        final life = WidgetsBinding.instance.lifecycleState;
+        unawaited(
+          OrderAlerts.record(
+            widget.store.prefs,
+            widget.backend.userId,
+            rows,
+            notify: life != null && life != AppLifecycleState.resumed,
+          ),
+        );
       }
       if (mounted) setState(() => orderRows = rows);
       if (widget.role == null && mounted) loadItems();
@@ -716,6 +772,7 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     flushTimer?.cancel();
+    _alertsBeat?.cancel();
     menuListener?.cancel();
     UpdateCheck.available.removeListener(_onUpdate);
     orderListener?.cancel();
@@ -4665,6 +4722,10 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
 
   Future<void> _orderBhajis(List<String> names) async {
     if (cfg == null) return;
+    if (onAndroid) {
+      await _refreshMenuRows();
+      if (!mounted) return;
+    }
     final ids = <String>[
       for (final n in names)
         for (final m in menuRows)
@@ -4691,7 +4752,11 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
 
   Widget customerShell() {
     final t = tab.clamp(0, 4);
-    void go(int i) => setState(() => tab = i);
+    void go(int i) {
+      setState(() => tab = i);
+      if (i == 1) unawaited(_refreshMenuRows());
+    }
+
     final avail = menuRows.where((m) => m['available'] == true).toList();
     var email = '';
     try {
@@ -4705,13 +4770,14 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
           categories: const ['Today’s Menu'],
           items: [
             [
-              for (final m in avail)
+              for (final m in menuForPicker(menuRows))
                 GMenuItem(
                   m['name'] as String,
                   (m['description'] as String?) ?? '',
                   '',
                   '',
                   foodImage(m['name'] as String),
+                  unavailable: m['available'] != true,
                 ),
             ],
           ],
@@ -5038,6 +5104,12 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
   }
 }
 
+/// Menu rows for the picker: available first, unavailable last (greyed out).
+List<Map<String, dynamic>> menuForPicker(List<Map<String, dynamic>> rows) => [
+  ...rows.where((m) => m['available'] == true),
+  ...rows.where((m) => m['available'] != true),
+];
+
 class OrderSheet extends StatefulWidget {
   final TiffeBackend backend;
   final Map<String, dynamic> cfg;
@@ -5074,13 +5146,75 @@ class _OrderSheetState extends State<OrderSheet> {
   bool busy = false;
   String? error;
   late final String idempotencyKey = newOrderKey();
+  late List<Map<String, dynamic>> _menu = widget.menuRows;
+
+  /// Fresh read of the menu, so a bhaji switched off a moment ago is caught
+  /// before checkout and not by the server at payment.
+  Future<void> _refreshMenu() async {
+    if (!onAndroid) return;
+    try {
+      final rows = await widget.backend.menuNow();
+      if (rows.isNotEmpty) _menu = rows;
+    } catch (_) {}
+  }
+
+  /// Removes bhajis the menu now shows as unavailable. Returns their names.
+  List<String> _dropUnavailable() {
+    final byId = {for (final m in _menu) m['id']: m};
+    final gone = <String>[];
+    for (final t in tiffins) {
+      for (final id in t.toList()) {
+        final m = byId[id];
+        if (m != null && m['available'] != true) {
+          t.remove(id);
+          final n = (m['name'] as String?) ?? 'A bhaji';
+          if (!gone.contains(n)) gone.add(n);
+        }
+      }
+    }
+    return gone;
+  }
+
+  String _goneMessage(List<String> gone) => gone.isEmpty
+      ? 'A bhaji is unavailable now. Please pick again.'
+      : '${gone.join(', ')} ${gone.length == 1 ? 'is' : 'are'} unavailable now. Please pick again.';
+
+  /// Last check before the order is sent. False means the selection changed.
+  Future<bool> _freshOk() async {
+    await _refreshMenu();
+    if (!mounted) return false;
+    final gone = _dropUnavailable();
+    if (gone.isEmpty) return true;
+    setState(() {
+      busy = false;
+      error = _goneMessage(gone);
+    });
+    gToast(context, _goneMessage(gone));
+    if (_firstIncomplete >= 0) unawaited(_pick(_firstIncomplete));
+    return false;
+  }
+
+  /// The server still refuses an unavailable bhaji: refresh and ask again.
+  Future<void> _afterFail(String e) async {
+    if (!e.contains('Bhaji unavailable')) return;
+    await _refreshMenu();
+    if (!mounted) return;
+    final gone = _dropUnavailable();
+    setState(() => error = _goneMessage(gone));
+    gToast(context, _goneMessage(gone));
+    if (_firstIncomplete >= 0) unawaited(_pick(_firstIncomplete));
+  }
 
   @override
   void initState() {
     super.initState();
+    final gone = _dropUnavailable();
+    if (gone.isNotEmpty) error = _goneMessage(gone);
     // No complete selection yet: send the customer straight to the Menu.
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted && tiffins[0].length < 2) _pick(0);
+      if (!mounted) return;
+      if (gone.isNotEmpty) gToast(context, _goneMessage(gone));
+      if (tiffins[0].length < 2) _pick(0);
     });
   }
 
@@ -5093,7 +5227,13 @@ class _OrderSheetState extends State<OrderSheet> {
 
   /// Bhajis are chosen on the Menu page; checkout only uses the result.
   Future<bool> _pick(int i) async {
-    final avail = widget.menuRows.where((m) => m['available'] == true).toList();
+    if (onAndroid) {
+      await _refreshMenu();
+      if (!mounted) return false;
+      final gone = _dropUnavailable();
+      if (gone.isNotEmpty) gToast(context, _goneMessage(gone));
+    }
+    final avail = menuForPicker(_menu);
     final extraR = ((widget.cfg['extra_bhaji_paise'] as num?) ?? 0) ~/ 100;
     final names = {
       for (final m in avail) m['name'] as String: m['id'] as String,
@@ -5113,6 +5253,7 @@ class _OrderSheetState extends State<OrderSheet> {
                   food.menu.any((f) => f.name == m['name'])
                       ? food.menu.firstWhere((f) => f.name == m['name']).image
                       : 'assets/food/hero.jpg',
+                  unavailable: m['available'] != true,
                 ),
             ],
           ],
@@ -5220,6 +5361,7 @@ class _OrderSheetState extends State<OrderSheet> {
   /// Orders with nothing to pay (covered by a plan) are placed directly.
   Future<void> place() async {
     if (!_valid()) return;
+    if (onAndroid && !await _freshOk()) return;
     setState(() {
       busy = true;
       error = null;
@@ -5233,6 +5375,7 @@ class _OrderSheetState extends State<OrderSheet> {
           busy = false;
           error = _clean(e);
         });
+        unawaited(_afterFail(_clean(e)));
       }
     }
   }
@@ -5242,8 +5385,10 @@ class _OrderSheetState extends State<OrderSheet> {
   /// Same payment flow as the plans: method screen, processing animation,
   /// then the confirmation. The real order is placed during the animation.
   /// A failure returns here with the error and never shows a confirmation.
-  void payAndPlace(String total) {
+  Future<void> payAndPlace(String total) async {
     if (!_valid()) return;
+    if (onAndroid && !await _freshOk()) return;
+    if (!mounted) return;
     setState(() => error = null);
     final nav = Navigator.of(context);
     void finish(String result) {
@@ -5271,7 +5416,10 @@ class _OrderSheetState extends State<OrderSheet> {
                 },
                 onError: (e) {
                   nav.pop();
-                  if (mounted) setState(() => error = e);
+                  if (mounted) {
+                    setState(() => error = e);
+                    unawaited(_afterFail(e));
+                  }
                 },
                 onSecondary: () => finish('track:$_placedId'),
                 onDone: () => finish('home'),
@@ -5284,7 +5432,7 @@ class _OrderSheetState extends State<OrderSheet> {
   }
 
   String _names(Set<String> ids) => [
-    for (final m in widget.menuRows)
+    for (final m in _menu)
       if (ids.contains(m['id'])) m['name'] as String,
   ].join(', ');
 

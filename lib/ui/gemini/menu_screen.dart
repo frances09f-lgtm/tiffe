@@ -6,6 +6,9 @@ import 'home_screen.dart';
 class GMenuItem {
   final String title, blurb, price, tag, image;
   final bool special;
+
+  /// Switched off by the kitchen: shown greyed out and cannot be picked.
+  final bool unavailable;
   const GMenuItem(
     this.title,
     this.blurb,
@@ -13,6 +16,7 @@ class GMenuItem {
     this.tag,
     this.image, {
     this.special = false,
+    this.unavailable = false,
   });
 }
 
@@ -59,7 +63,13 @@ class GMenu extends StatefulWidget {
 class _GMenuState extends State<GMenu> {
   late int _cat = widget.initialCategory;
   late final Map<int, Set<int>> _picks = {
-    widget.initialCategory: {...widget.initialSelected},
+    widget.initialCategory: {
+      for (final i in widget.initialSelected)
+        if (i >= 0 &&
+            i < widget.items[widget.initialCategory].length &&
+            !widget.items[widget.initialCategory][i].unavailable)
+          i,
+    },
   };
   Set<int> get _sel => _picks.putIfAbsent(_cat, () => <int>{});
   List<GMenuItem> get _items => widget.items[_cat];
@@ -67,6 +77,7 @@ class _GMenuState extends State<GMenu> {
   int get _max => widget.maxPick ?? widget.required;
 
   void _toggle(int i) => setState(() {
+    if (_items[i].unavailable) return;
     if (_sel.contains(i)) {
       _sel.remove(i);
     } else if (_sel.length < _max) {
@@ -268,7 +279,9 @@ class _GMenuState extends State<GMenu> {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 13),
               decoration: BoxDecoration(
-                color: ready ? GColors.green : GColors.alt(const Color(0xFFD9DDD9), GColors.chip),
+                color: ready
+                    ? GColors.green
+                    : GColors.alt(const Color(0xFFD9DDD9), GColors.chip),
                 borderRadius: BorderRadius.circular(16),
               ),
               child: Text(
@@ -286,7 +299,11 @@ class _GMenuState extends State<GMenu> {
     );
   }
 
-  Widget _card(int idx, GMenuItem it) => Container(
+  Widget _card(int idx, GMenuItem it) => it.unavailable
+      ? Opacity(opacity: 0.5, child: _cardBody(idx, it))
+      : _cardBody(idx, it);
+
+  Widget _cardBody(int idx, GMenuItem it) => Container(
     padding: const EdgeInsets.all(16),
     decoration: BoxDecoration(
       color: GColors.card,
@@ -362,7 +379,10 @@ class _GMenuState extends State<GMenu> {
                           decoration: BoxDecoration(
                             color: it.special
                                 ? const Color(0x1AE86324)
-                                : GColors.alt(const Color(0xFFE8EBE9), GColors.chip),
+                                : GColors.alt(
+                                    const Color(0xFFE8EBE9),
+                                    GColors.chip,
+                                  ),
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Text(
@@ -390,11 +410,17 @@ class _GMenuState extends State<GMenu> {
     ),
   );
 
-  Widget _gridCard(int idx, GMenuItem it) {
+  Widget _gridCard(int idx, GMenuItem it) => it.unavailable
+      ? Opacity(opacity: 0.5, child: _gridCardBody(idx, it))
+      : _gridCardBody(idx, it);
+
+  Widget _gridCardBody(int idx, GMenuItem it) {
     final on = _sel.contains(idx);
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onTap: (!on && _sel.length >= _max) ? null : () => _toggle(idx),
+      onTap: (it.unavailable || (!on && _sel.length >= _max))
+          ? null
+          : () => _toggle(idx),
       child: Container(
         decoration: BoxDecoration(
           color: GColors.card,
@@ -515,7 +541,8 @@ class _GMenuState extends State<GMenu> {
 
   Widget _selectBtn(int idx, {bool fill = false}) {
     final on = _sel.contains(idx);
-    final locked = !on && _sel.length >= _max;
+    final off = _items[idx].unavailable;
+    final locked = off || (!on && _sel.length >= _max);
     return GestureDetector(
       onTap: locked ? null : () => _toggle(idx),
       child: Container(
@@ -533,7 +560,7 @@ class _GMenuState extends State<GMenu> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(
-              on ? Icons.check : Icons.add,
+              off ? Icons.block : (on ? Icons.check : Icons.add),
               size: 14,
               color: locked ? const Color(0xFF8A908C) : Colors.white,
             ),
@@ -542,7 +569,7 @@ class _GMenuState extends State<GMenu> {
               child: FittedBox(
                 fit: BoxFit.scaleDown,
                 child: Text(
-                  on ? 'Selected' : 'Select',
+                  off ? 'Unavailable' : (on ? 'Selected' : 'Select'),
                   style: gText(
                     12,
                     w: FontWeight.w700,

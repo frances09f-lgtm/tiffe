@@ -55,6 +55,17 @@ class TiffeBackend {
 
   Stream<List<Map<String, dynamic>>> menu() =>
       client.from('menu_items').stream(primaryKey: ['id']).order('sort_order');
+
+  /// One fresh read of the menu. The live stream can lag on a sleeping phone.
+  Future<List<Map<String, dynamic>>> menuNow() async {
+    final rows = await client
+        .from('menu_items')
+        .select()
+        .order('sort_order')
+        .timeout(const Duration(seconds: 10));
+    return List<Map<String, dynamic>>.from(rows);
+  }
+
   Stream<List<Map<String, dynamic>>> settings() =>
       client.from('settings').stream(primaryKey: ['id']);
   Stream<List<Map<String, dynamic>>> orders({bool customer = false}) {
