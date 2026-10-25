@@ -371,11 +371,12 @@ class _UpdateDialogState extends State<_UpdateDialog> {
       final apk = await widget.checker.download(
         widget.info,
         onProgress: (r, t) {
-          if (mounted)
+          if (mounted) {
             setState(() {
               received = r;
               total = t;
             });
+          }
         },
         cancelToken: _cancel.stream,
       );
@@ -463,7 +464,7 @@ class _UpdateDialogState extends State<_UpdateDialog> {
               child: SingleChildScrollView(
                 child: Text(
                   widget.info.notes,
-                  style: const TextStyle(fontSize: 12, color: dim),
+                  style: TextStyle(fontSize: 12, color: dim),
                 ),
               ),
             ),

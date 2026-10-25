@@ -47,8 +47,9 @@ Future<int?> fetchLatestBuild() async {
     if (match == null ||
         uri == null ||
         uri.scheme != 'https' ||
-        !uri.path.endsWith('.apk'))
+        !uri.path.endsWith('.apk')) {
       return null;
+    }
     final notes = (entry['notes'] as String? ?? '').trim();
     UpdateCheck.latestNote = _firstNote(notes);
     UpdateCheck.latestInfo = UpdateInfo(
