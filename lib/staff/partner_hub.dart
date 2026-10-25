@@ -72,6 +72,41 @@ class AdminData {
         if (day != 0) return day;
         return '${b['created_at'] ?? ''}'.compareTo('${a['created_at'] ?? ''}');
       });
+  /// IST calendar day (yyyy-MM-dd) an order was placed on.
+  static String placedDay(Map o) {
+    final t = DateTime.tryParse('${o['created_at'] ?? ''}');
+    if (t == null) return '';
+    return t
+        .toUtc()
+        .add(const Duration(hours: 5, minutes: 30))
+        .toIso8601String()
+        .substring(0, 10);
+  }
+
+  /// All Orders "Today": delivery is today or the order was placed today.
+  List<Map<String, dynamic>> get todayFilterOrders => [
+    for (final o in orders)
+      if (o['delivery_date'] == today || placedDay(o) == today) o,
+  ];
+
+  /// Kitchen queue for one status, whatever the delivery date. Soonest
+  /// delivery first, newest placed first within a day.
+  List<Map<String, dynamic>> queueFor(String status) =>
+      [
+        for (final o in orders)
+          if (o['status'] == status) o,
+      ]..sort((a, b) {
+        final day = '${a['delivery_date']}'.compareTo('${b['delivery_date']}');
+        if (day != 0) return day;
+        return '${b['created_at'] ?? ''}'.compareTo('${a['created_at'] ?? ''}');
+      });
+
+  /// Later-dated orders that are not in a kitchen queue.
+  List<Map<String, dynamic>> get laterOrders => [
+    for (final o in upcomingOrders)
+      if (!const {'Confirmed', 'Preparing', 'Packed'}.contains(o['status'])) o,
+  ];
+
   bool isActive(Map s) =>
       s['verified'] == true &&
       (s['starts_on'] as String).compareTo(today) <= 0 &&
@@ -702,7 +737,7 @@ class _LiveOrdersState extends State<_LiveOrders> {
         for (final o in all)
           if (!closed.contains(o['status'])) o,
       ],
-      'Today' => d.todayOrders,
+      'Today' => d.todayFilterOrders,
       'Delivered' => [
         for (final o in all)
           if (o['status'] == 'Delivered') o,
@@ -1451,7 +1486,7 @@ class _KitchenHubState extends State<KitchenHub> {
   }
 
   Widget upcomingCard(AdminData d) {
-    final rows = d.upcomingOrders;
+    final rows = d.laterOrders;
     return _card(
       pad: const EdgeInsets.all(16),
       child: Column(
@@ -1475,7 +1510,7 @@ class _KitchenHubState extends State<KitchenHub> {
           ),
           const SizedBox(height: 5),
           const Text(
-            'Later delivery dates. Not counted in the totals above.',
+            'Other orders for later delivery dates. Not counted in the totals above.',
             style: TextStyle(fontSize: 9, color: _muted),
           ),
           const Divider(color: _creamMuted, height: 24),
@@ -1728,7 +1763,7 @@ class _KitchenHubState extends State<KitchenHub> {
                             ? 'NEW ORDERS'
                             : state == 'Preparing'
                             ? 'PREPARING'
-                            : 'READY FOR PICKUP'} (${d.todayOrders.where((o) => o['status'] == state).length})',
+                            : 'READY FOR PICKUP'} (${d.queueFor(state).length})',
                         style: TextStyle(
                           color: state == 'Packed'
                               ? const Color(0xFF34D399)
@@ -1750,14 +1785,12 @@ class _KitchenHubState extends State<KitchenHub> {
                   style: const TextStyle(fontSize: 9, color: _muted),
                 ),
                 const Divider(color: _creamMuted, height: 24),
-                if (!d.todayOrders.any((o) => o['status'] == state))
+                if (d.queueFor(state).isEmpty)
                   const Text(
                     'No orders in this queue.',
                     style: TextStyle(fontSize: 12, color: _muted),
                   ),
-                for (final o in d.todayOrders.where(
-                  (o) => o['status'] == state,
-                ))
+                for (final o in d.queueFor(state))
                   Padding(
                     padding: const EdgeInsets.only(bottom: 12),
                     child: _card(
@@ -1789,6 +1822,15 @@ class _KitchenHubState extends State<KitchenHub> {
                                 ? 'One-time'
                                 : 'Monthly Sub',
                             style: const TextStyle(fontSize: 10, color: _muted),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Delivery ${o['delivery_date']}',
+                            style: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                              color: _saffron,
+                            ),
                           ),
                           const SizedBox(height: 12),
                           _card(
@@ -1940,8 +1982,10 @@ class _KitchenHubState extends State<KitchenHub> {
             ),
           ),
         ],
-        const SizedBox(height: 18),
-        upcomingCard(d),
+        if (d.laterOrders.isNotEmpty) ...[
+          const SizedBox(height: 18),
+          upcomingCard(d),
+        ],
       ],
     );
   }
