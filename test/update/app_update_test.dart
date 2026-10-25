@@ -11,9 +11,9 @@ void main() {
     expect(compareVersions('v1.0.20', '1.0.20'), 0);
     expect(compareVersions('22', '1.0.22'), greaterThan(0)); // old tag shape
   });
-  test('fetchLatest parses latest release and compares', () async {
-    const body = '{"tag_name":"v1.0.20","body":"notes here",'
-        '"assets":[{"name":"Tiffe.apk","browser_download_url":"https://x/T.apk"}]}';
+  test('fetchLatest parses Tiffe feed and compares', () async {
+    const body =
+        '{"tiffe":{"version":"1.0.20","notes":"notes here","apk":"https://x/T.apk"}}';
     final c = UpdateChecker(
       client: MockClient((_) async => http.Response(body, 200)),
       currentVersion: () async => '1.0.19',

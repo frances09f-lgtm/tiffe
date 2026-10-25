@@ -10,15 +10,13 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'bug_report.dart';
+import '../update/app_update.dart';
 
-/// Public, key-free update check. Asks GitHub for the newest Tiffe release
-/// tag (v plus build number) and compares it with this app's build number.
-const latestReleaseApi =
-    'https://api.github.com/repos/frances09f-lgtm/tiffe/releases/latest';
+/// Public update feed, shared with Parent and Child.
+const latestReleaseApi = kUpdateFeedUrl;
 
-/// Opens the tester's Firebase App Distribution page for Tiffe.
-const updatePage =
-    'https://appdistribution.firebase.google.com/testerapps/1:509368336413:android:281dab933ae0c01e0a46f4';
+/// Internal update action, never sent to a browser.
+const updatePage = 'tiffe://in-app-update';
 
 int get currentBuild => int.tryParse(appVersion.split('+').last) ?? 0;
 
@@ -26,21 +24,40 @@ int get currentBuild => int.tryParse(appVersion.split('+').last) ?? 0;
 typedef FetchLatest = Future<int?> Function();
 
 Future<int?> fetchLatestBuild() async {
+  UpdateCheck.latestInfo = null;
   final client = HttpClient()..connectionTimeout = const Duration(seconds: 8);
   try {
     final req = await client
         .getUrl(Uri.parse(latestReleaseApi))
         .timeout(const Duration(seconds: 8));
-    req.headers.set('Accept', 'application/vnd.github+json');
     req.headers.set('User-Agent', 'com.ambi.tiffe');
     final res = await req.close().timeout(const Duration(seconds: 8));
     if (res.statusCode != 200) return null;
-    final body = await res.transform(utf8.decoder).join();
+    final body = await res
+        .transform(utf8.decoder)
+        .join()
+        .timeout(const Duration(seconds: 8));
     final json = jsonDecode(body) as Map;
-    final tag = json['tag_name'] as String?;
-    UpdateCheck.latestNote = _firstNote(json['body'] as String?);
-    final m = RegExp(r'^v(\d+)$').firstMatch(tag ?? '');
-    return m == null ? null : int.parse(m.group(1)!);
+    final entry = json[kFeedKey];
+    if (entry is! Map) return null;
+    final version = (entry['version'] as String? ?? '').trim();
+    final apk = (entry['apk'] as String? ?? '').trim();
+    final uri = Uri.tryParse(apk);
+    final match = RegExp(r'^1\.0\.(\d+)$').firstMatch(version);
+    if (match == null ||
+        uri == null ||
+        uri.scheme != 'https' ||
+        !uri.path.endsWith('.apk')) {
+      return null;
+    }
+    final notes = (entry['notes'] as String? ?? '').trim();
+    UpdateCheck.latestNote = _firstNote(notes);
+    UpdateCheck.latestInfo = UpdateInfo(
+      version: version,
+      notes: notes,
+      apkUrl: apk,
+    );
+    return int.parse(match.group(1)!);
   } catch (_) {
     return null;
   } finally {
@@ -66,6 +83,27 @@ class UpdateCheck {
   /// Newer build known to exist, or null. Drives the Home banner.
   static final ValueNotifier<int?> available = ValueNotifier<int?>(null);
   static String? latestNote;
+  static UpdateInfo? latestInfo;
+  static Future<void> Function(BuildContext, UpdateInfo) showUpdate = (
+    context,
+    info,
+  ) => showUpdateDialog(context, info);
+  static Future<void> installLatest([BuildContext? context]) async {
+    final ctx = context ?? appNavigatorKey.currentContext;
+    if (ctx == null || !ctx.mounted) return;
+    final latest = await fetchLatestBuild();
+    if (!ctx.mounted) return;
+    final info = latestInfo;
+    if (latest == null || info == null) {
+      gToast(ctx, 'Could not check for updates. Please try again later.');
+      return;
+    }
+    if (latest <= currentBuild) {
+      gToast(ctx, 'You are up to date (v$currentBuild).');
+      return;
+    }
+    await showUpdate(ctx, info);
+  }
 
   /// Restores the banner from the last check so it stays until updated.
   static void restore(SharedPreferences prefs) {
@@ -78,6 +116,10 @@ class UpdateCheck {
   static const every = Duration(hours: 6);
   static const snooze = Duration(hours: 12);
   static Future<void> Function(Uri) opener = (u) async {
+    if (u.toString() == updatePage) {
+      await installLatest();
+      return;
+    }
     await launchUrl(u, mode: LaunchMode.externalApplication);
   };
 

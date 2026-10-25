@@ -125,10 +125,7 @@ void main() {
     await t.pumpAndSettle();
     // The switch turns dark mode on and the choice is saved.
     expect(TiffeStore(s.prefs).darkMode, isTrue);
-    expect(
-      Theme.of(t.element(find.byType(Shell))).brightness,
-      Brightness.dark,
-    );
+    expect(Theme.of(t.element(find.byType(Shell))).brightness, Brightness.dark);
     await capture(t, 'profile-dark-toggle');
     for (final tab in ['Home', 'Menu', 'Orders', 'Plan']) {
       await t.tap(find.text(tab).last);
@@ -153,65 +150,49 @@ void main() {
     expect(t.takeException(), isNull);
     await t.pumpWidget(const SizedBox());
   });
-  testWidgets(
-    'daily notification tap opens tracker and plan removal cancels alarms',
-    (t) async {
-      const channel = MethodChannel('tiffe/delivery_notifications');
-      final calls = <String>[];
-      bool pendingTap = true;
-      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-          .setMockMethodCallHandler(channel, (call) async {
-            calls.add(call.method);
-            if (call.method == 'consumeDailyTap') {
-              final tapped = pendingTap;
-              pendingTap = false;
-              return tapped;
-            }
-            return true;
-          });
-      final s = await store();
-      t.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
-      await open(t, s);
-      await t.pump(const Duration(seconds: 1));
-      await t.pumpAndSettle();
-      expect(calls, contains('scheduleDaily'));
-      expect(find.byType(ScheduledTracking), findsOneWidget);
-      await t.tap(find.text('Back to my Tiffe'));
-      await t.pumpAndSettle();
-      s.plan = Plan.none;
-      await s.save();
-      await t.pump();
-      expect(calls, contains('cancelDaily'));
-      await t.pumpWidget(const SizedBox());
-      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-          .setMockMethodCallHandler(channel, null);
-    },
-  );
-  test('daily schedule uses Pune 8 PM across device zones', () {
-    expect(
-      DeliverySchedule.status(DateTime.utc(2026, 10, 9, 14, 29, 59)),
-      'Scheduled',
-    );
-    expect(
-      DeliverySchedule.status(DateTime.utc(2026, 10, 9, 14, 30)),
-      'Tiffe left',
-    );
-    expect(
-      DeliverySchedule.status(DateTime.utc(2026, 10, 9, 14, 36)),
-      'On the way',
-    );
-    expect(
-      DeliverySchedule.status(DateTime.utc(2026, 10, 9, 14, 54)),
-      'Tiffe arrived',
-    );
-    expect(
-      DeliverySchedule.remainingMinutes(DateTime.utc(2026, 10, 9, 14, 40)),
-      14,
-    );
-    expect(
-      DeliverySchedule.status(DateTime.utc(2026, 10, 10, 14, 30)),
-      'Tiffe left',
-    );
+  testWidgets('legacy alarms are cancelled and no clock opens tracking', (
+    t,
+  ) async {
+    const channel = MethodChannel('tiffe/delivery_notifications');
+    final calls = <String>[];
+    bool pendingTap = true;
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, (call) async {
+          calls.add(call.method);
+          if (call.method == 'consumeDailyTap') {
+            final tapped = pendingTap;
+            pendingTap = false;
+            return tapped;
+          }
+          return true;
+        });
+    final s = await store();
+    t.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await open(t, s);
+    await t.pump(const Duration(seconds: 1));
+    await t.pumpAndSettle();
+    expect(calls, isNot(contains('scheduleDaily')));
+    expect(calls, contains('cancelDaily'));
+    expect(find.byType(ScheduledTracking), findsNothing);
+    s.plan = Plan.none;
+    await s.save();
+    await t.pump();
+    expect(calls, contains('cancelDaily'));
+    await t.pumpWidget(const SizedBox());
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, null);
+  });
+  test('clock alone never changes delivery status', () {
+    for (final now in [
+      DateTime.utc(2026, 10, 9, 14, 29),
+      DateTime.utc(2026, 10, 9, 14, 30),
+      DateTime.utc(2026, 10, 9, 14, 54),
+      DateTime.utc(2026, 10, 10, 14, 30),
+    ]) {
+      expect(DeliverySchedule.status(now), 'Waiting for staff update');
+      expect(DeliverySchedule.inJourney(now), isFalse);
+      expect(DeliverySchedule.progress(now), 0);
+    }
   });
   testWidgets('daily scheduled tracking screenshots', (t) async {
     final s = await store();
@@ -372,15 +353,18 @@ void main() {
     await capture(t, 'tracking-preview');
     await t.pump(const Duration(seconds: 2));
     await t.pumpAndSettle();
-    expect(find.text('Tiffin left'), findsWidgets);
+    expect(find.text('Tiffin left'), findsNothing);
+    expect(find.text('Waiting for staff update'), findsOneWidget);
     await capture(t, 'delivery-left-preview');
     await t.pump(const Duration(seconds: 4));
     await t.pumpAndSettle();
-    expect(find.text('Tiffin is coming'), findsWidgets);
+    expect(find.text('Tiffin is coming'), findsNothing);
+    expect(find.text('Waiting for staff update'), findsOneWidget);
     await capture(t, 'delivery-coming-preview');
     await t.pump(const Duration(seconds: 24));
     await t.pumpAndSettle();
-    expect(find.text('Tiffin arrived'), findsWidgets);
+    expect(find.text('Tiffin arrived'), findsNothing);
+    expect(find.text('Waiting for staff update'), findsOneWidget);
     await capture(t, 'delivery-arrived-preview');
     expect(t.takeException(), isNull);
     await t.pumpWidget(const SizedBox());
