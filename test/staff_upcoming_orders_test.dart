@@ -42,7 +42,11 @@ Future<void> open(WidgetTester t, RowsBackend b, String role) async {
   t.view.devicePixelRatio = 1;
   addTearDown(t.view.resetPhysicalSize);
   addTearDown(t.view.resetDevicePixelRatio);
-  await t.pumpWidget(MaterialApp(home: PartnerHub(backend: b, role: role)));
+  await t.pumpWidget(
+    MaterialApp(
+      home: PartnerHub(backend: b, role: role),
+    ),
+  );
   await t.pumpAndSettle();
 }
 

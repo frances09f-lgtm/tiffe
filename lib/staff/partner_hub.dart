@@ -52,6 +52,25 @@ class AdminData {
     for (final o in orders)
       if (o['delivery_date'] == today) o,
   ];
+
+  /// Open orders dated after today. The customer app dates orders placed after
+  /// the daily cut-off for tomorrow, so the kitchen must see them early.
+  List<Map<String, dynamic>> get upcomingOrders =>
+      [
+        for (final o in orders)
+          if ('${o['delivery_date']}'.compareTo(today) > 0 &&
+              !const {
+                'Delivered',
+                'Cancelled',
+                'Failed',
+                'Refunded',
+              }.contains(o['status']))
+            o,
+      ]..sort((a, b) {
+        final day = '${a['delivery_date']}'.compareTo('${b['delivery_date']}');
+        if (day != 0) return day;
+        return '${b['created_at'] ?? ''}'.compareTo('${a['created_at'] ?? ''}');
+      });
   bool isActive(Map s) =>
       s['verified'] == true &&
       (s['starts_on'] as String).compareTo(today) <= 0 &&
@@ -694,9 +713,14 @@ class _LiveOrdersState extends State<_LiveOrders> {
       ],
       _ => all,
     };
+    // Newest order first, so a fresh order is the top card.
     return [...rows]..sort((a, b) {
-      final c = '${a['delivery_date']}'.compareTo('${b['delivery_date']}');
-      if (c != 0) return filter == 'Open' ? c : -c;
+      final newest = '${b['created_at'] ?? ''}'.compareTo(
+        '${a['created_at'] ?? ''}',
+      );
+      if (newest != 0) return newest;
+      final c = '${b['delivery_date']}'.compareTo('${a['delivery_date']}');
+      if (c != 0) return c;
       return (a['meal'] == 'dinner' ? 1 : 0).compareTo(
         b['meal'] == 'dinner' ? 1 : 0,
       );
@@ -1435,6 +1459,109 @@ class _KitchenHubState extends State<KitchenHub> {
     return '${n < 0 ? 0 : n} min elapsed';
   }
 
+  Widget upcomingCard(AdminData d) {
+    final rows = d.upcomingOrders;
+    return _card(
+      pad: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.circle, size: 10, color: _muted),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'UPCOMING ORDERS (${rows.length})',
+                  style: const TextStyle(
+                    color: _saffron,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 5),
+          const Text(
+            'Later delivery dates. Not counted in the totals above.',
+            style: TextStyle(fontSize: 9, color: _muted),
+          ),
+          const Divider(color: _creamMuted, height: 24),
+          if (rows.isEmpty)
+            const Text(
+              'No upcoming orders.',
+              style: TextStyle(fontSize: 12, color: _muted),
+            ),
+          for (final o in rows)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: _card(
+                pad: const EdgeInsets.all(14),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '#${'${o['id']}'.substring(0, 6).toUpperCase()} • ${_slot(o)}',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 12,
+                        color: Colors.white,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Delivery ${o['delivery_date']} • ${o['status']}',
+                      style: const TextStyle(fontSize: 10, color: _muted),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      d.nameOf(o),
+                      style: const TextStyle(fontSize: 12, color: _muted),
+                    ),
+                    const SizedBox(height: 5),
+                    Text(
+                      'Qty: ${o['quantity'] ?? 0} Tiffin (${((o['quantity'] as num?)?.toInt() ?? 0) * 3} Chapatis, ${o['quantity'] ?? 0} Rice)',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 5,
+                      runSpacing: 5,
+                      children: [
+                        for (final name
+                            in widget.items
+                                .where((i) => i['order_id'] == o['id'])
+                                .map((i) => '${i['item_name']}')
+                                .toSet())
+                          _chip(name, _saffron, const Color(0xFF4A2D17)),
+                      ],
+                    ),
+                    if ('${o['instructions'] ?? ''}'.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: Text(
+                          'Note: ${o['instructions']}',
+                          style: const TextStyle(
+                            fontSize: 10,
+                            fontStyle: FontStyle.italic,
+                            color: _muted,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final d = widget.d;
@@ -1870,6 +1997,8 @@ class _KitchenHubState extends State<KitchenHub> {
             ),
           ),
         ],
+        const SizedBox(height: 18),
+        upcomingCard(d),
       ],
     );
   }
