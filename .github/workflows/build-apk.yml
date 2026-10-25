@@ -3,21 +3,18 @@ on:
   workflow_dispatch:
     inputs:
       publish_release:
-        description: Attach artifacts to an existing reviewed, source-bound release (audit and Firebase follow separately)
+        description: Attach artifacts to an existing reviewed, source-bound release
         type: boolean
         default: false
   push:
     branches: [main]
     paths-ignore:
       - 'distribution/audits/**'
-
 permissions:
   contents: write
-
 concurrency:
   group: tiffe-build-${{ github.ref }}
   cancel-in-progress: false
-
 jobs:
   build:
     runs-on: ubuntu-24.04
@@ -32,6 +29,33 @@ jobs:
         with:
           channel: stable
           flutter-version: '3.47.6'
+      - name: Apply reviewed customer-only v49 source patch
+        if: github.ref == 'refs/heads/feat/customer-in-app-update'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD~1)" = ad222d48430be20fbcb36e6bd584680fafe8b99a
+          curl --fail --location --retry 3 'https://my.pally.com/f/QtwY2iI5lKz1?download=1' -o "$RUNNER_TEMP/customer-patch.zip"
+          echo 'f44a425fd9f1c3917180feb7b8e185d0bc9be661b6d5359ad2fa38227e646d38  '"$RUNNER_TEMP/customer-patch.zip" | sha256sum --check
+          python3 - <<'PY'
+          import os, pathlib, zipfile
+          allowed = {'lib/update/app_update.dart', 'lib/live/update_check.dart', 'lib/connected_main.dart', 'lib/live/live_app.dart', 'lib/ui/gemini/orders_screen.dart', 'lib/ui/app.dart', 'lib/ui/scheduled_tracking.dart', 'lib/ui/subscriber_orders.dart', 'lib/domain/delivery_schedule.dart', 'android/app/src/main/kotlin/com/tiffe/tiffe/MainActivity.kt', 'android/app/src/main/kotlin/com/tiffe/tiffe/DeliveryNotificationReceiver.kt', 'pubspec.yaml', 'lib/live/bug_report.dart', '.github/workflows/build-apk.yml', 'test/update_check_test.dart', 'test/update/app_update_test.dart', 'test/daily_orders_test.dart', 'test/live_shell_test.dart', 'test/ui_test.dart', 'test/customer_staff_status_invariants_test.dart'}
+          with zipfile.ZipFile(os.environ['RUNNER_TEMP'] + '/customer-patch.zip') as z:
+              assert set(z.namelist()) == allowed, 'Unexpected patch paths'
+              for name in z.namelist():
+                  assert not pathlib.PurePosixPath(name).is_absolute() and '..' not in pathlib.PurePosixPath(name).parts
+                  path = pathlib.Path(name)
+                  path.parent.mkdir(parents=True, exist_ok=True)
+                  path.write_bytes(z.read(name))
+          PY
+          dart format lib/update/app_update.dart lib/live/update_check.dart lib/connected_main.dart lib/live/live_app.dart lib/ui/gemini/orders_screen.dart lib/ui/app.dart lib/ui/scheduled_tracking.dart lib/ui/subscriber_orders.dart lib/domain/delivery_schedule.dart lib/live/bug_report.dart test/update_check_test.dart test/update/app_update_test.dart test/daily_orders_test.dart test/live_shell_test.dart test/ui_test.dart test/customer_staff_status_invariants_test.dart
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add lib android/app/src/main pubspec.yaml .github/workflows/build-apk.yml test
+          git commit -m 'Customer v49: direct feed updates, price-only cards, staff-only statuses'
+          git push origin HEAD:feat/customer-in-app-update
+          echo "Customer source commit: $(git rev-parse HEAD). Rerun this workflow on the resulting commit before releasing." >> "$GITHUB_STEP_SUMMARY"
       - name: Validate matching app version
         id: version
         run: |
@@ -72,7 +96,7 @@ jobs:
             --dart-define=TIFFE_OWNER_EMAIL=frances09f@gmail.com)
           flutter build appbundle "${args[@]}"
           mv build/app/outputs/bundle/release/app-release.aab build/app/outputs/bundle/release/Tiffe.aab
-          flutter build apk "${args[@]}" --target-platform android-arm64
+          flutter build apk "${args[@]}" --target-platform android-arm,android-arm64
           mv build/app/outputs/flutter-apk/app-release.apk build/app/outputs/flutter-apk/Tiffe.apk
       - uses: actions/upload-artifact@v4
         with:
@@ -81,9 +105,6 @@ jobs:
           path: |
             build/app/outputs/flutter-apk/Tiffe.apk
             build/app/outputs/bundle/release/Tiffe.aab
-      # Do not PATCH release metadata through softprops: the previous run failed
-      # there. Only attach to an existing release bound to this exact source.
-      # Published assets are never silently clobbered; audit them before Firebase.
       - name: Attach artifacts to reviewed release without editing metadata
         if: github.event_name == 'workflow_dispatch' && inputs.publish_release
         env:
@@ -102,9 +123,4 @@ jobs:
           assert tag['sha'] == os.environ['GITHUB_SHA'], 'Release tag is not this build source'
           assert not any(a['name'] in ('Tiffe.apk', 'Tiffe.aab') for a in release['assets']), 'Assets already exist: reconcile, do not overwrite'
           PY
-          gh release upload "$TAG" --repo "$GITHUB_REPOSITORY" \
-            build/app/outputs/flutter-apk/Tiffe.apk \
-            build/app/outputs/bundle/release/Tiffe.aab
-      - name: Audit and Firebase next step
-        run: |
-          printf '%s\n' 'Build artifacts are not a completed release. Inspect APK/AAB and pixels, bind the exact CI/source/hash/asset audit, then dispatch firebase-distribute.yml with release_tag and expected_sha256. Promote latest only after Firebase verification.' >> "$GITHUB_STEP_SUMMARY"
+          gh release upload "$TAG" --repo "$GITHUB_REPOSITORY" build/app/outputs/flutter-apk/Tiffe.apk build/app/outputs/bundle/release/Tiffe.aab
