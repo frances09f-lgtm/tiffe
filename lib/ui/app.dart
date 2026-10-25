@@ -1,4 +1,5 @@
 import '../update/app_update.dart';
+
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -13,7 +14,6 @@ import '../data/store.dart';
 import '../domain/tiffin.dart';
 import 'subscriber_orders.dart';
 import 'scheduled_tracking.dart';
-import '../domain/delivery_schedule.dart';
 
 const cream = Color(0xFFFAF8F0),
     green = Color(0xFF285A3F),
@@ -515,19 +515,14 @@ class Shell extends StatefulWidget {
 class _ShellState extends TiffeState<Shell> {
   int tab = 0;
   bool tomorrow = false;
-  Timer? dailyTimer;
-  String? openedJourney;
   Plan? scheduledPlan;
   Future<void> syncDailyReminders() async {
     if (scheduledPlan == widget.store.plan) return;
     scheduledPlan = widget.store.plan;
     try {
-      await MethodChannel('tiffe/delivery_notifications').invokeMethod<bool>(
-        widget.store.plan == Plan.none ? 'cancelDaily' : 'scheduleDaily',
-      );
-    } catch (_) {
-      /* Device reminders are unavailable on non-Android builds. */
-    }
+      await MethodChannel('tiffe/delivery_notifications')
+          .invokeMethod<bool>('cancelDaily');
+    } catch (_) {}
   }
 
   @override
@@ -535,49 +530,11 @@ class _ShellState extends TiffeState<Shell> {
     super.initState();
     widget.store.addListener(syncDailyReminders);
     syncDailyReminders();
-    dailyTimer = Timer.periodic(
-      Duration(seconds: 1),
-      (_) => checkDailyJourney(),
-    );
-  }
-
-  bool checkingJourney = false;
-  Future<void> checkDailyJourney() async {
-    if (checkingJourney ||
-        !mounted ||
-        WidgetsBinding.instance.lifecycleState != AppLifecycleState.resumed ||
-        ModalRoute.of(context)?.isCurrent != true ||
-        widget.store.plan == Plan.none) {
-      return;
-    }
-    checkingJourney = true;
-    bool tapped = false;
-    try {
-      tapped =
-          await MethodChannel('tiffe/delivery_notifications')
-              .invokeMethod<bool>('consumeDailyTap') ??
-          false;
-    } catch (_) {}
-    checkingJourney = false;
-    final now = DateTime.now();
-    final key = DeliverySchedule.departure(now).toIso8601String();
-    if (mounted &&
-        (tapped || (DeliverySchedule.inJourney(now) && openedJourney != key)) &&
-        ModalRoute.of(context)?.isCurrent == true) {
-      openedJourney = key;
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => ScheduledTracking(plan: widget.store.plan),
-        ),
-      );
-    }
   }
 
   @override
   void dispose() {
     widget.store.removeListener(syncDailyReminders);
-    dailyTimer?.cancel();
     super.dispose();
   }
 
@@ -2041,224 +1998,8 @@ class DeliveryTrackingPreview extends StatefulWidget {
 
 class _DeliveryTrackingPreviewState
     extends TiffeState<DeliveryTrackingPreview> {
-  Timer? timer;
-  bool? notificationsEnabled;
-  int minutes = 24;
-  Future<void> startNotifications() async {
-    try {
-      final enabled = await MethodChannel('tiffe/delivery_notifications')
-          .invokeMethod<bool>('start');
-      if (mounted) setState(() => notificationsEnabled = enabled == true);
-    } catch (_) {
-      if (mounted) setState(() => notificationsEnabled = false);
-    }
-  }
-
-  String get status => minutes == 0
-      ? 'Tiffin arrived'
-      : minutes <= 18
-      ? 'Tiffin is coming'
-      : minutes <= 22
-      ? 'Tiffin left'
-      : 'Getting your Tiffe ready';
   @override
-  void initState() {
-    super.initState();
-    startNotifications();
-    timer = Timer.periodic(Duration(seconds: 1), (_) {
-      if (!mounted) return;
-      if (minutes > 0) {
-        setState(() => minutes--);
-      } else {
-        timer?.cancel();
-      }
-    });
-  }
-
-  @override
-  void dispose() {
-    timer?.cancel();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) => Scaffold(
-    body: SafeArea(
-      child: SingleChildScrollView(
-        padding: EdgeInsets.all(24),
-        child: Column(
-          children: [
-            SizedBox(height: 8),
-            Logo(size: 42),
-            SizedBox(height: 20),
-            Container(
-              width: 72,
-              height: 72,
-              decoration: BoxDecoration(
-                color: Color(0xFFE3EEDB),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(Icons.check_rounded, size: 44, color: tgreen),
-            ),
-            SizedBox(height: 18),
-            Text(
-              'Your Tiffe journey',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 29,
-                fontWeight: FontWeight.w800,
-                color: tink,
-                letterSpacing: -.8,
-              ),
-            ),
-            SizedBox(height: 8),
-            Text(
-              'Your daily dabba is on its way.',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: tmuted, fontSize: 15),
-            ),
-            SizedBox(height: 20),
-            panel(
-              color: Color(0xFFEFF3E8),
-              child: Column(
-                children: [
-                  Text(
-                    minutes == 0
-                        ? 'Your Tiffin has arrived!'
-                        : 'Will deliver in a few minutes',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w700,
-                      color: tink,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                  SizedBox(height: 8),
-                  Text(
-                    minutes == 0 ? 'Enjoy your meal.' : '$minutes min',
-                    style: TextStyle(
-                      fontSize: 38,
-                      fontWeight: FontWeight.w800,
-                      color: tgreen,
-                    ),
-                  ),
-                  SizedBox(height: 6),
-                  Text(
-                    status,
-                    style: TextStyle(
-                      color: tgreen,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  SizedBox(height: 12),
-                  LinearProgressIndicator(
-                    value: (24 - minutes) / 24,
-                    color: tgreen,
-                    backgroundColor: Color(0xFFD7E4CD),
-                    borderRadius: BorderRadius.circular(10),
-                    minHeight: 5,
-                  ),
-                  SizedBox(height: 10),
-                  Text(
-                    'Simulated delivery · 1 second = 1 minute',
-                    style: TextStyle(color: tmuted, fontSize: 11),
-                  ),
-                ],
-              ),
-            ),
-            if (notificationsEnabled == false)
-              Padding(
-                padding: EdgeInsets.only(top: 10),
-                child: Text(
-                  'Phone notifications are off. Allow notifications in App settings for delivery alerts.',
-                  style: TextStyle(color: tmuted, fontSize: 12),
-                  textAlign: TextAlign.center,
-                ),
-              ),
-            SizedBox(height: 14),
-            AnimatedSwitcher(
-              duration: Duration(milliseconds: 200),
-              child: Container(
-                key: ValueKey(status),
-                padding: EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: surface,
-                  border: Border.all(color: Color(0xFFE0E7D8)),
-                  borderRadius: BorderRadius.circular(18),
-                ),
-                child: Row(
-                  children: [
-                    Icon(
-                      minutes == 0
-                          ? Icons.notifications_active_outlined
-                          : Icons.delivery_dining,
-                      color: tgreen,
-                      size: 30,
-                    ),
-                    SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            status,
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                          Text(
-                            minutes == 0
-                                ? 'Your Tiffe is here. Enjoy your meal!'
-                                : minutes <= 18
-                                ? 'A warm meal is getting closer.'
-                                : minutes <= 22
-                                ? 'Your dabba has left the kitchen.'
-                                : 'The kitchen is getting your dabba ready.',
-                            style: TextStyle(color: tmuted, fontSize: 12),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            SizedBox(height: 14),
-            panel(
-              child: Column(
-                children: [
-                  Text(
-                    widget.plan == Plan.none
-                        ? 'Your Tiffe'
-                        : widget.plan == Plan.daily
-                        ? 'Daily Tiffe'
-                        : 'Double Tiffe',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
-                  ),
-                  SizedBox(height: 6),
-                  Text(
-                    '3 chapatis · Rice · Your chosen bhajis',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: tgreen, fontSize: 13),
-                  ),
-                ],
-              ),
-            ),
-            SizedBox(height: 20),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton(
-                onPressed: () => Navigator.pop(context),
-                child: Text('Back to Tiffe'),
-              ),
-            ),
-            SizedBox(height: 10),
-          ],
-        ),
-      ),
-    ),
-  );
+  Widget build(BuildContext context) => ScheduledTracking(plan: widget.plan);
 }
 
 class PaymentSuccessPreview extends StatelessWidget {

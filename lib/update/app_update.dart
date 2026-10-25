@@ -7,6 +7,8 @@ import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../ui/gemini/auth_screens.dart' show GColors;
+
 /// In-app self-update: checks for a newer release, shows a
 /// "Software Update" dialog with release notes, downloads the APK in-app
 /// with a progress bar, and hands it to the Android package installer.
@@ -19,8 +21,9 @@ const kAppName = 'Tiffe';
 const kUpdateRepo = 'frances09f-lgtm/tiffe';
 // Feed mode (for apps whose source repo is private): public JSON file with
 // {"<kFeedKey>": {"version": "...", "notes": "...", "apk": "..."}}.
-const kUpdateFeedUrl = ''; // empty = GitHub releases mode
-const kFeedKey = '';
+const kUpdateFeedUrl =
+    'https://raw.githubusercontent.com/frances09f-lgtm/child-safety-updates/main/version.json';
+const kFeedKey = 'tiffe';
 // -------------------------------------------------------------------------
 
 const kAutoCheckInterval = Duration(hours: 6);
@@ -230,16 +233,30 @@ class UpdateChecker {
     );
     final sink = file.openWrite();
     var received = 0;
-    final sub = cancelToken?.listen((_) => res.stream.listen(null).cancel());
+    var cancelled = false;
+    final sub = cancelToken?.listen((_) {
+      cancelled = true;
+    });
     try {
-      await for (final chunk in res.stream) {
+      await for (final chunk in res.stream.timeout(
+        const Duration(seconds: 30),
+      )) {
+        if (cancelled) throw StateError('Download cancelled');
         sink.add(chunk);
         received += chunk.length;
         onProgress?.call(received, res.contentLength);
       }
+      if (cancelled) throw StateError('Download cancelled');
+      if (received == 0 ||
+          (res.contentLength != null && received != res.contentLength)) {
+        throw StateError('Incomplete APK download');
+      }
+    } catch (_) {
+      await sink.close();
+      if (await file.exists()) await file.delete();
+      rethrow;
     } finally {
       await sub?.cancel();
-      await sink.flush();
       await sink.close();
     }
     return file;
@@ -288,9 +305,8 @@ Future<void> checkUpdateManually(
   final info = await c.fetchLatest();
   if (!context.mounted) return;
   if (info == null) {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('No update available')));
+    ScaffoldMessenger.of(context)
+        .showSnackBar(const SnackBar(content: Text('No update available')));
     return;
   }
   await showUpdateDialog(context, info, checker: c);
@@ -335,7 +351,9 @@ class _UpdateDialogState extends State<_UpdateDialog> {
   Future<void> _start() async {
     // The one Android requirement we cannot skip: "install unknown apps"
     // for this app. Ask once, explain inside the dialog, then continue.
-    if (!await widget.checker.canInstall()) {
+    final allowed = await widget.checker.canInstall();
+    if (!mounted) return;
+    if (!allowed) {
       setState(() => phase = _Phase.needsPermission);
       return;
     }
@@ -352,10 +370,13 @@ class _UpdateDialogState extends State<_UpdateDialog> {
     try {
       final apk = await widget.checker.download(
         widget.info,
-        onProgress: (r, t) => setState(() {
-          received = r;
-          total = t;
-        }),
+        onProgress: (r, t) {
+          if (mounted)
+            setState(() {
+              received = r;
+              total = t;
+            });
+        },
         cancelToken: _cancel.stream,
       );
       if (!mounted) return;
@@ -375,13 +396,13 @@ class _UpdateDialogState extends State<_UpdateDialog> {
 
   @override
   Widget build(BuildContext context) {
-    const dim = Color(0xFF8A93A6);
+    final dim = GColors.grey;
     final v = widget.info.version;
     final progress = total != null && total! > 0
         ? (received / total!).clamp(0.0, 1.0)
         : null;
     return AlertDialog(
-      backgroundColor: const Color(0xFF151A24),
+      backgroundColor: GColors.card,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       title: const Text('Software Update', textAlign: TextAlign.center),
       content: Column(
@@ -389,16 +410,13 @@ class _UpdateDialogState extends State<_UpdateDialog> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Center(
-            child: Text(
-              switch (phase) {
-                _Phase.available => '$kAppName $v is available',
-                _Phase.downloading => 'Downloading $kAppName $v...',
-                _Phase.needsPermission => 'One permission needed',
-                _Phase.installing => 'Opening installer...',
-                _Phase.error => 'Update failed',
-              },
-              style: const TextStyle(color: dim, fontSize: 13),
-            ),
+            child: Text(switch (phase) {
+              _Phase.available => '$kAppName $v is available',
+              _Phase.downloading => 'Downloading $kAppName $v...',
+              _Phase.needsPermission => 'One permission needed',
+              _Phase.installing => 'Opening installer...',
+              _Phase.error => 'Update failed',
+            }, style: TextStyle(color: dim, fontSize: 13)),
           ),
           if (phase == _Phase.downloading) ...[
             const SizedBox(height: 12),
@@ -408,7 +426,7 @@ class _UpdateDialogState extends State<_UpdateDialog> {
               total != null
                   ? '${(received / 1e6).toStringAsFixed(1)} / ${(total! / 1e6).toStringAsFixed(1)} MB'
                   : '${(received / 1e6).toStringAsFixed(1)} MB',
-              style: const TextStyle(color: dim, fontSize: 11),
+              style: TextStyle(color: dim, fontSize: 11),
             ),
           ],
           if (phase == _Phase.needsPermission)
@@ -426,7 +444,10 @@ class _UpdateDialogState extends State<_UpdateDialog> {
               padding: const EdgeInsets.only(top: 12),
               child: Text(
                 error ?? 'Something went wrong.',
-                style: const TextStyle(color: Color(0xFFE0654F), fontSize: 12),
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.error,
+                  fontSize: 12,
+                ),
               ),
             ),
           if (widget.info.notes.isNotEmpty &&
@@ -477,6 +498,7 @@ class _UpdateDialogState extends State<_UpdateDialog> {
             },
             child: const Text('Open settings'),
           ),
+          FilledButton(onPressed: _start, child: const Text('Update')),
         ],
         if (phase == _Phase.error) ...[
           TextButton(

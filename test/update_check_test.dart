@@ -26,22 +26,27 @@ void main() {
 
   manualTests();
 
-  testWidgets('newer release shows popup; Update opens Firebase page', (
-    t,
-  ) async {
-    SharedPreferences.setMockInitialValues({});
-    final prefs = await SharedPreferences.getInstance();
-    Uri? opened;
-    UpdateCheck.opener = (u) async => opened = u;
-    final ctx = await host(t);
-    final f = UpdateCheck.run(ctx, prefs, fetch: () async => currentBuild + 1);
-    await t.pumpAndSettle();
-    expect(find.text('New version available'), findsOneWidget);
-    await t.tap(find.text('Update'));
-    await t.pumpAndSettle();
-    await f;
-    expect(opened.toString(), updatePage);
-  });
+  testWidgets(
+    'newer release shows popup; Update invokes internal in-app action',
+    (t) async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      Uri? opened;
+      UpdateCheck.opener = (u) async => opened = u;
+      final ctx = await host(t);
+      final f = UpdateCheck.run(
+        ctx,
+        prefs,
+        fetch: () async => currentBuild + 1,
+      );
+      await t.pumpAndSettle();
+      expect(find.text('New version available'), findsOneWidget);
+      await t.tap(find.text('Update'));
+      await t.pumpAndSettle();
+      await f;
+      expect(opened.toString(), updatePage);
+    },
+  );
 
   testWidgets('known newer build drives the Home banner until updated', (
     t,

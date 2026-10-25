@@ -25,6 +25,12 @@ class MainActivity : FlutterActivity() {
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         registerUpdateChannel(flutterEngine)
+        cancelDaily()
+        val alarms = getSystemService(ALARM_SERVICE) as AlarmManager
+        for (id in 3100..3102) {
+            val pending = PendingIntent.getBroadcast(this, id, Intent(this, DeliveryNotificationReceiver::class.java), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+            alarms.cancel(pending)
+        }
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "tiffe/delivery_notifications")
             .setMethodCallHandler { call, result ->
                 if (call.method == "consumeDailyTap") { val open = intent.getBooleanExtra("open_daily_tracker", false); intent.removeExtra("open_daily_tracker"); result.success(open); return@setMethodCallHandler }
@@ -61,23 +67,7 @@ class MainActivity : FlutterActivity() {
     }
     /** Demo order: four phone notifications, 2.5 minutes apart (Delivered at 10 minutes). */
     private fun scheduleOrder(code: String, label: String): Boolean {
-        val manager = getSystemService(NOTIFICATION_SERVICE) as android.app.NotificationManager
-        if (!manager.areNotificationsEnabled()) return false
-        DeliveryNotificationReceiver.createChannel(this)
-        val alarm = getSystemService(ALARM_SERVICE) as AlarmManager
-        val bodies = listOf("Meal is being prepared in the kitchen", "Packed and ready for dispatch", "Out for delivery", "Delivered")
-        val base = SystemClock.elapsedRealtime()
-        bodies.forEachIndexed { i, body ->
-            val id = orderBase(code) + i
-            val intent = Intent(this, DeliveryNotificationReceiver::class.java).putExtra("title", "Order #" + label).putExtra("body", body).putExtra("id", id)
-            val pending = PendingIntent.getBroadcast(this, id, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
-            alarm.cancel(pending)
-            val at = base + (i + 1) * 150000L
-            // Exact when Android allows it, otherwise the closest allowed (works in doze).
-            if (Build.VERSION.SDK_INT < 31 || alarm.canScheduleExactAlarms()) alarm.setExactAndAllowWhileIdle(AlarmManager.ELAPSED_REALTIME_WAKEUP, at, pending)
-            else alarm.setAndAllowWhileIdle(AlarmManager.ELAPSED_REALTIME_WAKEUP, at, pending)
-        }
-        return true
+        return false // Timer-based notifications disabled.
     }
     private fun cancelDaily() {
         val alarm = getSystemService(ALARM_SERVICE) as AlarmManager
@@ -88,41 +78,10 @@ class MainActivity : FlutterActivity() {
         }
     }
     private fun scheduleDaily(): Boolean {
-        val manager = getSystemService(NOTIFICATION_SERVICE) as android.app.NotificationManager
-        if (!manager.areNotificationsEnabled()) return false
-        DeliveryNotificationReceiver.createChannel(this)
-        val alarm = getSystemService(ALARM_SERVICE) as AlarmManager
-        val titles = listOf("Tiffe left", "On the way", "Tiffe arrived")
-        val bodies = listOf("Your dabba has left the kitchen.", "A warm meal is on its way to you.", "Your Tiffe is here. Enjoy your meal!")
-        val offsets = listOf(0, 6, 24)
-        titles.forEachIndexed { index, title ->
-            val time = java.util.Calendar.getInstance(java.util.TimeZone.getTimeZone("Asia/Kolkata")).apply {
-                set(java.util.Calendar.HOUR_OF_DAY, 20); set(java.util.Calendar.MINUTE, offsets[index]); set(java.util.Calendar.SECOND, 0); set(java.util.Calendar.MILLISECOND, 0)
-                if (timeInMillis <= System.currentTimeMillis()) add(java.util.Calendar.DAY_OF_YEAR, 1)
-            }
-            val intent = Intent(this, DeliveryNotificationReceiver::class.java).putExtra("title", title).putExtra("body", bodies[index]).putExtra("id", 3200 + index).putExtra("daily", true)
-            val pending = PendingIntent.getBroadcast(this, 3200 + index, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
-            alarm.cancel(pending)
-            alarm.setInexactRepeating(AlarmManager.RTC_WAKEUP, time.timeInMillis, AlarmManager.INTERVAL_DAY, pending)
-        }
-        return true
+        return false // Timer-based notifications disabled.
     }
     private fun scheduleJourney(): Boolean {
-        val manager = getSystemService(NOTIFICATION_SERVICE) as android.app.NotificationManager
-        if (!manager.areNotificationsEnabled()) return false
-        DeliveryNotificationReceiver.createChannel(this)
-        val alarm = getSystemService(ALARM_SERVICE) as AlarmManager
-        val stages = listOf(Triple(2L, "Tiffin left", "Your dabba has left the kitchen."), Triple(6L, "Tiffin is coming", "A warm meal is getting closer."), Triple(24L, "Tiffin arrived", "Your Tiffe is here. Enjoy your meal!"))
-        val base = SystemClock.elapsedRealtime()
-        stages.forEachIndexed { index, stage ->
-            val intent = Intent(this, DeliveryNotificationReceiver::class.java)
-                .putExtra("title", stage.second).putExtra("body", stage.third).putExtra("id", 3100 + index)
-            val pending = PendingIntent.getBroadcast(this, 3100 + index, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
-            alarm.cancel(pending)
-            // No exact-alarm special access required. Android may delay while idle.
-            alarm.set(AlarmManager.ELAPSED_REALTIME_WAKEUP, base + stage.first * 1000L, pending)
-        }
-        return true
+        return false // Timer-based notifications disabled.
     }
     // In-app update: APK is downloaded over HTTP in Dart and handed to the
     // Android package installer here. The only system steps are the one-time

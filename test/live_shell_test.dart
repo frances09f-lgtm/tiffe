@@ -463,9 +463,7 @@ void main() {
     });
   }
 
-  testWidgets('demo: Confirmed order advances on its own and alerts', (
-    t,
-  ) async {
+  testWidgets('Confirmed order stays unchanged with elapsed time', (t) async {
     t.view.physicalSize = const Size(360, 800);
     t.view.devicePixelRatio = 1;
     addTearDown(t.view.resetPhysicalSize);
@@ -542,12 +540,12 @@ void main() {
     await t.runAsync(() => Future<void>.delayed(const Duration(seconds: 6)));
     await t.pump(const Duration(seconds: 6));
     await t.pump(const Duration(milliseconds: 400));
-    expect(find.textContaining('Meal being prepared'), findsWidgets);
+    expect(find.textContaining('Meal being prepared'), findsNothing);
     expect(
       find.textContaining('Meal is being prepared in the kitchen'),
-      findsOneWidget,
+      findsNothing,
     );
-    expect(find.textContaining('Order #EEEEEE: Meal'), findsOneWidget);
+    expect(find.textContaining('Order #EEEEEE: Meal'), findsNothing);
     expect(find.textContaining('Order #FFFFFF'), findsNothing);
     await shot(t, 'sim_track');
     t.view.physicalSize = const Size(320, 700);
@@ -576,7 +574,7 @@ void main() {
           'id': 'aaaaaaaa-9',
           'delivery_date': day,
           'quantity': 1,
-          'status': 'Confirmed',
+          'status': 'Out for Delivery',
           'total_paise': 10000,
           'payment_status': 'verified',
           'eta_at': null,

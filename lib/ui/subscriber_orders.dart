@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 import 'scheduled_tracking.dart';
-import '../domain/delivery_schedule.dart';
 
 import '../data/store.dart';
 import '../domain/tiffin.dart';
@@ -148,13 +147,7 @@ class _SubscriberOrdersState extends TiffeState<SubscriberOrders> {
                 style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
               ),
             ),
-            pill(
-              future
-                  ? 'Scheduled'
-                  : DeliverySchedule.status(now) == 'Scheduled'
-                  ? 'Preparing'
-                  : DeliverySchedule.status(now),
-            ),
+            pill('Waiting for staff update'),
           ],
         ),
         SizedBox(height: 4),
@@ -273,7 +266,7 @@ class _SubscriberOrdersState extends TiffeState<SubscriberOrders> {
             ),
           ),
           icon: Icon(Icons.delivery_dining),
-          label: Text('Track daily delivery · 8 PM'),
+          label: Text('Track daily delivery'),
         ),
         label('Today'),
         dayCard(c, today, future: false),
@@ -299,7 +292,7 @@ class _SubscriberOrdersState extends TiffeState<SubscriberOrders> {
                           ),
                         ),
                       ),
-                      pill('Delivered'),
+                      pill('Waiting for staff update'),
                     ],
                   ),
                   SizedBox(height: 12),

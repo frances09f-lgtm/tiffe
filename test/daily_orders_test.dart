@@ -241,40 +241,37 @@ void main() {
     expect(find.textContaining('2 Tiffins'), findsOneWidget);
   });
 
-  testWidgets(
-    'payment words: Paid, being verified, in your plan, never unpaid',
-    (t) async {
-      await open(
-        t,
-        rows: [
-          {
-            ...order('a1', '2026-10-10', '', 'Confirmed', sub: false),
-            'payment_status': 'verified',
-            'total_paise': 12000,
-          },
-          {
-            ...order('a2', '2026-10-10', '', 'Confirmed', sub: false),
-            'payment_status': 'unpaid',
-            'total_paise': 12000,
-          },
-          {
-            ...order('a3', '2026-10-10', '', 'Preparing'),
-            'payment_status': 'unpaid',
-            'meal': null,
-            'delivery_date': '2026-10-09',
-          },
-        ],
-      );
-      expect(find.textContaining('₹120 · Paid'), findsOneWidget);
-      expect(find.textContaining('₹120 · Payment pending'), findsOneWidget);
-      expect(find.textContaining('₹0 · In your plan'), findsOneWidget);
-      expect(find.textContaining('unpaid'), findsNothing);
-    },
-  );
-
-  testWidgets('order the demo walk shows as Delivered goes to Completed', (
+  testWidgets('order cards show price only regardless of payment state', (
     t,
   ) async {
+    await open(
+      t,
+      rows: [
+        {
+          ...order('a1', '2026-10-10', '', 'Confirmed', sub: false),
+          'payment_status': 'verified',
+          'total_paise': 12000,
+        },
+        {
+          ...order('a2', '2026-10-10', '', 'Confirmed', sub: false),
+          'payment_status': 'unpaid',
+          'total_paise': 12000,
+        },
+        {
+          ...order('a3', '2026-10-10', '', 'Preparing'),
+          'payment_status': 'unpaid',
+          'meal': null,
+          'delivery_date': '2026-10-09',
+        },
+      ],
+    );
+    expect(find.text('₹120'), findsNWidgets(2));
+    expect(find.text('₹0'), findsOneWidget);
+    expect(find.textContaining('Payment pending'), findsNothing);
+    expect(find.textContaining('unpaid'), findsNothing);
+  });
+
+  testWidgets('only actual Delivered status goes to Completed', (t) async {
     t.view.physicalSize = const Size(390, 900);
     t.view.devicePixelRatio = 1;
     addTearDown(t.view.resetPhysicalSize);
@@ -286,10 +283,10 @@ void main() {
             GOrder(
               '#A',
               'One-time',
-              'Confirmed',
+              'Delivered',
               'x, y',
               'Today',
-              '₹100 · Payment pending',
+              '₹100',
               demoStatus: 'Delivered',
             ),
             GOrder(
@@ -298,7 +295,7 @@ void main() {
               'Confirmed',
               'x, y',
               'Today',
-              '₹100 · Payment pending',
+              '₹100',
               demoStatus: 'Packed',
             ),
           ],
@@ -307,7 +304,8 @@ void main() {
     );
     await t.pumpAndSettle();
     expect(find.text('Completed'), findsOneWidget);
-    expect(find.text('Packed'), findsOneWidget);
+    expect(find.text('Packed'), findsNothing);
+    expect(find.text('Confirmed'), findsOneWidget);
     expect(find.text('Delivered'), findsNothing);
     await t.tap(find.text('Completed'));
     await t.pumpAndSettle();

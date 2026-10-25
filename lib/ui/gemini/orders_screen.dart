@@ -9,12 +9,12 @@ class GOrder {
   final bool live;
   final String? placed, due;
 
-  /// Simulated status for a demo order. `status` stays the true one.
+  /// Legacy field, ignored. Only the staff-provided status is displayed.
   final String? demoStatus;
-  bool get demo => demoStatus != null;
+  bool get demo => false;
 
-  /// The status the card shows (the demo walk when there is one).
-  String get shown => demoStatus ?? status;
+  /// Backend status only, never a timed value.
+  String get shown => status;
   const GOrder(
     this.id,
     this.kind,
@@ -66,7 +66,7 @@ class GOrderCard extends StatelessWidget {
             ),
             const SizedBox(width: 8),
             Text(
-              o.demoStatus ?? o.status,
+              o.status,
               style: gText(
                 11.5,
                 w: FontWeight.w700,
