@@ -1,0 +1,326 @@
+name: Customer v52
+on:
+  workflow_dispatch:
+    inputs:
+      publish_release:
+        type: boolean
+        default: false
+permissions:
+  contents: write
+concurrency:
+  group: tiffe-customer-v52
+  cancel-in-progress: false
+jobs:
+  build:
+    if: github.ref == 'refs/heads/feat/customer-v52'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 3
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: '3.47.6'
+      - name: Patch customer source
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import os
+          def rd(p): return Path(p).read_text()
+          def wr(p,s): Path(p).write_text(s)
+          def rep(p,o,n):
+              s=rd(p)
+              assert s.count(o)==1,(p,o[:40])
+              wr(p,s.replace(o,n))
+          rep('lib/live/order_alerts.dart',r'''import 'package:flutter/widgets.dart';
+          ''',r'''import 'package:flutter/services.dart' show PlatformException;
+          import 'package:flutter/widgets.dart';
+          ''')
+          rep('lib/live/order_alerts.dart',r'''/// Short, private error label that is safe to show on the diagnostics page.
+          ''',r'''/// Full error text for the diagnostics page: type, code and message.
+          String orderAlertErrorDetail(Object e) {
+            String text;
+            if (e is PlatformException) {
+              text =
+                  'PlatformException code=${e.code} message=${e.message} details=${e.details}';
+            } else if (e is PostgrestException) {
+              text = 'PostgrestException code=${e.code} message=${e.message}';
+            } else {
+              text = '${e.runtimeType}: $e';
+            }
+            text = text.replaceAll(RegExp(r'\s+'), ' ').trim();
+            return text.length > 500 ? '${text.substring(0, 500)}...' : text;
+          }
+
+          /// Short, private error label that is safe to show on the diagnostics page.
+          ''')
+          rep('lib/live/order_alerts.dart',r''''Retry: ${orderAlertErrorKind(e)}',''',r''''Retry: ${orderAlertErrorDetail(e)}',''')
+          rep('lib/live/order_alerts.dart',r'''  static const _resultKey = 'order_alert_last_result';
+          ''',r'''  static const _resultKey = 'order_alert_last_result';
+            static const _setupKey = 'order_alert_setup_result';
+            static Future<void>? _starting;
+          ''')
+          rep('lib/live/order_alerts.dart',r'''      priority: Priority.high,
+                icon: 'ic_tiffe_notification',
+          ''',r'''      priority: Priority.high,
+          ''')
+          rep('lib/live/order_alerts.dart',r'''  static Future<void> _init() async {
+              if (_ready) return;
+              await _plugin.initialize(
+                settings: const InitializationSettings(
+                  android: AndroidInitializationSettings('ic_tiffe_notification'),
+                ),
+              );
+              _ready = true;
+            }
+          ''',r'''  /// The first small icon Android accepts wins: the Tiffe icon, then the
+            /// launcher icon that v50 used. A missing icon used to stop the setup.
+            static const _icons = ['ic_tiffe_notification', '@mipmap/ic_launcher'];
+
+            static Future<void> _init() async {
+              if (_ready) return;
+              Object? firstError;
+              for (final icon in _icons) {
+                try {
+                  await _plugin.initialize(
+                    settings: InitializationSettings(
+                      android: AndroidInitializationSettings(icon),
+                    ),
+                  );
+                  _ready = true;
+                  return;
+                } catch (e) {
+                  firstError ??= e;
+                }
+              }
+              throw firstError ?? StateError('Notification init failed');
+            }
+          ''')
+          rep('lib/live/order_alerts.dart',r'''            var shown = 0;
+          ''',r'''            var shown = 0;
+                      String? showError;
+          ''')
+          rep('lib/live/order_alerts.dart',r'''              } catch (_) {
+                          next[id] = before[id] ?? now[id]!;
+                        }
+                      }
+                      await prefs.setString(_resultKey, 'Showed $shown alert(s)');''',r'''              } catch (e) {
+                          showError ??= orderAlertErrorDetail(e);
+                          next[id] = before[id] ?? now[id]!;
+                        }
+                      }
+                      await prefs.setString(
+                        _resultKey,
+                        showError == null
+                            ? 'Showed $shown alert(s)'
+                            : 'Showed $shown alert(s). Show failed: $showError',
+                      );''')
+          rep('lib/live/order_alerts.dart',r''''Alert error: ${orderAlertErrorKind(e)}',''',r''''Alert error: ${orderAlertErrorDetail(e)}',''')
+          s=rd('lib/live/order_alerts.dart')
+          a=s.index(r'''  /// Schedules the background check, creates the channel and asks for the''')
+          b=s.index(r'''  /// The app writes this while it is on screen.''')
+          wr('lib/live/order_alerts.dart',s[:a]+r'''  /// Schedules the background check, creates the channel and asks for the
+            /// notification permission (Android 13+). Scheduling never waits for the
+            /// permission dialog. The permission is asked once on its own and again
+            /// only when the customer taps the repair button. Calls run one at a
+            /// time, and each step reports its own full error on the diagnostics page.
+            static Future<void> start({bool requestPermission = false}) async {
+              if (!onAndroid) return;
+              while (_starting != null) {
+                try {
+                  await _starting;
+                } catch (_) {}
+              }
+              final run = _start(requestPermission);
+              _starting = run;
+              try {
+                await run;
+              } finally {
+                if (identical(_starting, run)) _starting = null;
+              }
+            }
+
+            static Future<void> _start(bool requestPermission) async {
+              final prefs = await SharedPreferences.getInstance();
+              try {
+                await Workmanager().initialize(orderAlertsDispatcher);
+                await Workmanager().registerPeriodicTask(
+                  'tiffe-order-alerts',
+                  'tiffe.order.alerts',
+                  frequency: const Duration(minutes: 15),
+                  constraints: Constraints(networkType: NetworkType.connected),
+                  existingWorkPolicy: ExistingPeriodicWorkPolicy.update,
+                );
+                await prefs.setInt(
+                  'order_alert_scheduled_at',
+                  DateTime.now().millisecondsSinceEpoch,
+                );
+                await prefs.remove('order_alert_schedule_error');
+              } catch (e) {
+                await prefs.setString(
+                  'order_alert_schedule_error',
+                  orderAlertErrorDetail(e),
+                );
+              }
+              final problems = <String>[];
+              try {
+                await _init();
+              } catch (e) {
+                problems.add('init: ${orderAlertErrorDetail(e)}');
+              }
+              if (_ready) {
+                final android = _android;
+                try {
+                  await android?.createNotificationChannel(
+                    const AndroidNotificationChannel(
+                      _channelId,
+                      'Order updates',
+                      description: 'Status changes for your Tiffe orders',
+                      importance: Importance.high,
+                    ),
+                  );
+                } catch (e) {
+                  problems.add('channel: ${orderAlertErrorDetail(e)}');
+                }
+                try {
+                  final allowed = await android?.areNotificationsEnabled();
+                  if (allowed != true &&
+                      (requestPermission ||
+                          prefs.getBool('order_alert_permission_asked') != true)) {
+                    await prefs.setBool('order_alert_permission_asked', true);
+                    await android?.requestNotificationsPermission();
+                  }
+                } catch (e) {
+                  problems.add('permission: ${orderAlertErrorDetail(e)}');
+                }
+              }
+              try {
+                final old = prefs.getString(_resultKey) ?? '';
+                if (old.startsWith('Notification setup:')) await prefs.remove(_resultKey);
+                if (problems.isEmpty) {
+                  await prefs.setString(_setupKey, 'OK');
+                } else {
+                  await prefs.setString(_setupKey, problems.join(' | '));
+                }
+              } catch (_) {}
+            }
+
+          '''+s[b:])
+          rep('lib/live/notification_settings.dart',r'''  String result = 'Checking…', scheduled = 'Unknown', lastRun = 'Not run yet';
+          ''',r'''  String result = 'Checking…', scheduled = 'Unknown', lastRun = 'Not run yet';
+            String setup = 'Not run yet', statusError = '';
+          ''')
+          rep('lib/live/notification_settings.dart',r'''    try {
+                info = await channel.invokeMethod<Map<dynamic, dynamic>>('status') ?? {};
+              } catch (_) {}
+              if (!mounted) return;''',r'''    String readError = '';
+              try {
+                info = await channel.invokeMethod<Map<dynamic, dynamic>>('status') ?? {};
+              } catch (e) {
+                readError = orderAlertErrorDetail(e);
+              }
+              if (!mounted) return;''')
+          rep('lib/live/notification_settings.dart',r'''      device = info;
+          ''',r'''      device = info;
+                statusError = readError;
+                setup = prefs.getString('order_alert_setup_result') ?? 'Not run yet';
+          ''')
+          rep('lib/live/notification_settings.dart',r'''    try {
+                await channel.invokeMethod<void>(method);
+              } catch (_) {}
+              await refresh();''',r'''    try {
+                await channel.invokeMethod<void>(method);
+              } catch (e) {
+                if (mounted) setState(() => statusError = orderAlertErrorDetail(e));
+                return;
+              }
+              await refresh();''')
+          rep('lib/live/notification_settings.dart',r'''        Text(
+                    'Android API: ''',r'''        SelectableText(
+                    'Android API: ''')
+          rep('lib/live/notification_settings.dart',r'''Last background run: $lastRun\nResult: $result',''',r'''Last background run: $lastRun\nSetup: $setup\nResult: $result${statusError.isEmpty ? '' : '\nSettings read: $statusError'}',''')
+          rep('android/app/src/main/kotlin/com/tiffe/tiffe/OrderNotificationSettings.kt',r'''result.error("settings_unavailable", e.javaClass.simpleName, null)''',r'''result.error("settings_unavailable", e.javaClass.simpleName + ": " + (e.message ?: ""), null)''')
+          rep('pubspec.yaml',r'''version: 1.0.51+51''',r'''version: 1.0.52+52''')
+          rep('lib/live/bug_report.dart',r'''const appVersion = '1.0.51+51';''',r'''const appVersion = '1.0.52+52';''')
+          T='test/order_alerts_v51_test.dart'
+          s=rd(T).replace("import 'package:flutter_test/flutter_test.dart';","import 'package:flutter/services.dart' show PlatformException;\nimport 'package:flutter_test/flutter_test.dart';").rstrip()
+          assert s.endswith('}')
+          wr(T,s[:-1]+r'''  test('setup errors show code and message and the icon cannot be shrunk', () {
+              final code = File('lib/live/order_alerts.dart').readAsStringSync();
+              expect(code.contains('PlatformException code=\${e.code}'), isTrue);
+              expect(code.contains('@mipmap/ic_launcher'), isTrue);
+              expect(code.contains('order_alert_setup_result'), isTrue);
+              final keep = File('android/app/src/main/res/raw/keep.xml').readAsStringSync();
+              expect(keep.contains('@drawable/ic_tiffe_notification'), isTrue);
+              final page = File('lib/live/notification_settings.dart').readAsStringSync();
+              expect(page.contains('Setup: \$setup'), isTrue);
+            });
+            test('error detail keeps the plugin code and message', () {
+              final text = orderAlertErrorDetail(
+                PlatformException(code: 'invalid_icon', message: 'no such icon'),
+              );
+              expect(text.contains('invalid_icon'), isTrue);
+              expect(text.contains('no such icon'), isTrue);
+            });
+          '''+'}\n')
+          os.makedirs('android/app/src/main/res/raw',exist_ok=True)
+          wr('android/app/src/main/res/raw/keep.xml','<?xml version="1.0" encoding="utf-8"?>\n<resources xmlns:tools="http://schemas.android.com/tools" tools:keep="@drawable/ic_tiffe_notification,@mipmap/ic_launcher" />\n')
+
+          PY
+      - run: flutter pub get
+      - run: flutter analyze
+      - run: flutter test --dart-define=TIFFE_OWNER_EMAIL=frances09f@gmail.com
+      - name: Build signed customer APK and AAB
+        env:
+          TIFFE_KEYSTORE_BASE64: ${{ secrets.TIFFE_KEYSTORE_BASE64 }}
+          TIFFE_KEYSTORE_FILE: ${{ runner.temp }}/tiffe-release.jks
+          TIFFE_KEYSTORE_PASSWORD: ${{ secrets.TIFFE_KEYSTORE_PASSWORD }}
+          TIFFE_KEY_PASSWORD: ${{ secrets.TIFFE_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          umask 077
+          : "${TIFFE_KEYSTORE_BASE64:?Missing signing keystore}"
+          trap 'rm -f "$TIFFE_KEYSTORE_FILE"' EXIT
+          printf '%s' "$TIFFE_KEYSTORE_BASE64" | base64 -d > "$TIFFE_KEYSTORE_FILE"
+          args=(--release -t lib/connected_main.dart --build-name=1.0.52 --build-number=52
+            --dart-define=TIFFE_SUPABASE_URL=https://obbtxyjglgivcpusjpcx.supabase.co
+            --dart-define=TIFFE_SUPABASE_KEY=sb_publishable__5qR0bvVmwqKykgbQpAtRw_H0eIgl3_
+            --dart-define=TIFFE_OWNER_EMAIL=frances09f@gmail.com)
+          flutter build appbundle "${args[@]}"
+          mv build/app/outputs/bundle/release/app-release.aab build/app/outputs/bundle/release/Tiffe.aab
+          flutter build apk "${args[@]}" --target-platform android-arm,android-arm64
+          mv build/app/outputs/flutter-apk/app-release.apk build/app/outputs/flutter-apk/Tiffe.apk
+      - name: Check the notification icon is inside the APK
+        run: |
+          set -euo pipefail
+          SDK="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          AAPT2="$(ls "$SDK"/build-tools/*/aapt2 | sort -V | tail -1)"
+          "$AAPT2" dump resources build/app/outputs/flutter-apk/Tiffe.apk > "$RUNNER_TEMP/res.txt"
+          grep -E 'ic_tiffe_notification|mipmap/ic_launcher' "$RUNNER_TEMP/res.txt" | sed -n '1,8p'
+          grep -q 'drawable/ic_tiffe_notification' "$RUNNER_TEMP/res.txt"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tiffe-v52
+          if-no-files-found: error
+          path: |
+            build/app/outputs/flutter-apk/Tiffe.apk
+            build/app/outputs/bundle/release/Tiffe.aab
+      - name: Publish release after green build
+        if: success() && inputs.publish_release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if gh release view v52 --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then exit 1; fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add lib/live/order_alerts.dart lib/live/notification_settings.dart lib/live/bug_report.dart pubspec.yaml test/order_alerts_v51_test.dart android/app/src/main/res/raw/keep.xml android/app/src/main/kotlin/com/tiffe/tiffe/OrderNotificationSettings.kt
+          git commit -m 'Customer v52 checked source'
+          git push origin HEAD:feat/customer-v52
+          gh release create v52 --repo "$GITHUB_REPOSITORY" --target "$(git rev-parse HEAD)" --title 'Tiffe customer v52' --notes 'Fixes the closed-app order alert setup error and shows full error details on Profile > Notifications.' build/app/outputs/flutter-apk/Tiffe.apk build/app/outputs/bundle/release/Tiffe.aab
