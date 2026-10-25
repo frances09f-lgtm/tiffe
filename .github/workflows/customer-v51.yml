@@ -1,0 +1,96 @@
+name: Customer v51 notification repair
+on:
+  workflow_dispatch:
+    inputs:
+      publish_release:
+        type: boolean
+        default: false
+permissions:
+  contents: write
+concurrency:
+  group: tiffe-customer-v51
+  cancel-in-progress: false
+jobs:
+  build:
+    if: github.ref == 'refs/heads/feat/customer-v51'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 3
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: '3.47.6'
+      - name: Apply scoped customer patch
+        run: |
+          python3 scripts/patch_v51.py .
+          dart format lib/live/order_alerts.dart lib/live/notification_settings.dart lib/live/live_app.dart test/order_alerts_v51_test.dart
+          python3 - <<'PY'
+          from pathlib import Path
+          assert 'version: 1.0.51+51' in Path('pubspec.yaml').read_text()
+          assert "const appVersion = '1.0.51+51';" in Path('lib/live/bug_report.dart').read_text()
+          PY
+      - run: flutter pub get
+      - run: flutter analyze
+      - run: flutter test --dart-define=TIFFE_OWNER_EMAIL=frances09f@gmail.com
+      - name: Build signed customer APK and AAB
+        env:
+          TIFFE_KEYSTORE_BASE64: ${{ secrets.TIFFE_KEYSTORE_BASE64 }}
+          TIFFE_KEYSTORE_FILE: ${{ runner.temp }}/tiffe-release.jks
+          TIFFE_KEYSTORE_PASSWORD: ${{ secrets.TIFFE_KEYSTORE_PASSWORD }}
+          TIFFE_KEY_PASSWORD: ${{ secrets.TIFFE_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          umask 077
+          : "${TIFFE_KEYSTORE_BASE64:?Missing signing keystore}"
+          trap 'rm -f "$TIFFE_KEYSTORE_FILE"' EXIT
+          printf '%s' "$TIFFE_KEYSTORE_BASE64" | base64 -d > "$TIFFE_KEYSTORE_FILE"
+          args=(--release -t lib/connected_main.dart --build-name=1.0.51 --build-number=51
+            --dart-define=TIFFE_SUPABASE_URL=https://obbtxyjglgivcpusjpcx.supabase.co
+            --dart-define=TIFFE_SUPABASE_KEY=sb_publishable__5qR0bvVmwqKykgbQpAtRw_H0eIgl3_
+            --dart-define=TIFFE_OWNER_EMAIL=frances09f@gmail.com)
+          flutter build appbundle "${args[@]}"
+          mv build/app/outputs/bundle/release/app-release.aab build/app/outputs/bundle/release/Tiffe.aab
+          flutter build apk "${args[@]}" --target-platform android-arm,android-arm64
+          mv build/app/outputs/flutter-apk/app-release.apk build/app/outputs/flutter-apk/Tiffe.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tiffe-v51
+          if-no-files-found: error
+          path: |
+            build/app/outputs/flutter-apk/Tiffe.apk
+            build/app/outputs/bundle/release/Tiffe.aab
+      - name: Commit only checked customer source
+        if: success() && !inputs.publish_release
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add lib/live/order_alerts.dart lib/live/live_app.dart lib/live/bug_report.dart pubspec.yaml pubspec.lock lib/live/notification_settings.dart test/order_alerts_v51_test.dart android/app/src/main/kotlin/com/tiffe/tiffe/MainActivity.kt
+          if ! git diff --cached --quiet; then
+            git commit -m 'Apply checked customer v51 notification repairs'
+            git push origin HEAD:feat/customer-v51
+          fi
+      - name: Attach artifacts only to matching reviewed release
+        if: success() && inputs.publish_release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test -z "$(git status --porcelain --untracked-files=no)"
+          gh api "repos/$GITHUB_REPOSITORY/releases/tags/v51" > "$RUNNER_TEMP/release.json"
+          gh api "repos/$GITHUB_REPOSITORY/commits/v51" > "$RUNNER_TEMP/tag.json"
+          python3 - <<'PY'
+          import json, os
+          r=json.load(open(os.environ['RUNNER_TEMP']+'/release.json'))
+          t=json.load(open(os.environ['RUNNER_TEMP']+'/tag.json'))
+          assert t['sha']==os.environ['GITHUB_SHA'], 'Tag/source mismatch'
+          assert not any(a['name'] in ['Tiffe.apk','Tiffe.aab'] for a in r['assets']), 'Reconcile existing assets; do not overwrite'
+          PY
+          gh release upload v51 --repo "$GITHUB_REPOSITORY" build/app/outputs/flutter-apk/Tiffe.apk build/app/outputs/bundle/release/Tiffe.aab

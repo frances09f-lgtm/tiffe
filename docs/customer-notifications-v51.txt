@@ -1,0 +1,19 @@
+Customer v51 closed-app notification repair
+
+Known v50 code failures: all setup, work and notification errors were swallowed; the worker always reported success, so Android could not retry. Permission-blocked notifications could be silently discarded and then the new status was saved as already seen. Notification initialization used an adaptive launcher icon instead of the existing monochrome notification drawable. Supabase v2 initialization returns before expired-session refresh, so an immediate read can use an expired session. Scheduling used KEEP and could retain stale task configuration. These are code risks, not proof of which one occurred on the owner's phone.
+
+v51 schedules independently of the permission dialog, updates existing work with a network constraint, initializes background plugins, waits for the notification reader's saved session to be ready, retries transient errors, uses ic_tiffe_notification, checks app permission and channel, and keeps a local last-run/result diagnostic. No payment/login/role methods or Staff files are modified. Polling reads server statuses; it never writes status or emits a status based on elapsed time. Legacy alarm receivers remain disabled.
+
+Open Profile > Notifications. Allow notifications, enable the Order updates channel, and set Tiffe battery use to Unrestricted if phone settings restrict it. Manufacturer auto-start/background activity controls may also need enabling. Android cannot be forced by app code to grant permission, unblock a channel, or execute after Force stop. Reopen after Force stop. Swiping away normally does not cancel WorkManager, but some manufacturers kill background work. WorkManager interval is minimum 15 minutes, not a promised delivery time; Doze and battery restrictions can delay it further. First observation baselines existing orders. Physical phone behavior and the exact owner-device blocker remain untested.
+
+Instant push prerequisites, not applied by installing this APK:
+1. Register the customer package com.ambi.tiffe in the owner's Firebase project and supply its google-services.json (or the matching FirebaseOptions). This is client project configuration, not an FCM server key.
+2. Enable Firebase Cloud Messaging API v1. Give the server a Firebase Admin service-account JSON with permission to send messages for that project. Store it as a protected server secret, never in the APK, public GitHub code or chat.
+3. Deploy a token-registration table/API scoped by Supabase auth.uid() and RLS to the signed-in customer, then a server handler/queue which sends only for an orders.status UPDATE made by an authenticated staff_members user with an allowed role. Check OLD.status IS DISTINCT FROM NEW.status and validate order ownership. Deduplicate by order and event id, retry failed sends and remove invalid tokens. Do not send for INSERT, payment changes, cron jobs or time-based status changes. Do not accept actor/customer identity supplied by a client.
+4. Add firebase_core/firebase_messaging initialization, token registration and rotation, Android background entry point, default Order updates channel and notification-payload handling to the customer app in a follow-up credential-enabled build. Verify both on-screen and closed-app behavior with real staff taps. No instant push is claimed in v51.
+
+Official references:
+https://developer.android.com/reference/androidx/work/PeriodicWorkRequest
+https://developer.android.com/develop/background-work/background-tasks/persistent
+https://supabase.com/docs/reference/dart/auth-currentsession
+https://firebase.google.com/docs/cloud-messaging/auth-server
