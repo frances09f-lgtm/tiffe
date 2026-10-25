@@ -3,9 +3,13 @@ on:
   workflow_dispatch:
     inputs:
       publish:
-        description: Publish staff-v6 only after analyze, full tests and signed builds pass
+        description: Publish the Staff release (and update the feed) only after analyze, full tests and signed builds pass
         type: boolean
         default: false
+env:
+  # Edit these two values and distribution/staff-release-notes.md for each Staff release.
+  STAFF_VERSION: '1.0.7'
+  STAFF_BUILD: '7'
 permissions:
   contents: read
 jobs:
@@ -26,17 +30,16 @@ jobs:
         with:
           channel: stable
           flutter-version: '3.47.6'
-      - name: Apply and commit the reviewed Staff-only Upcoming and newest-first patch
+      - name: Apply and commit the reviewed Staff update-button patch
         id: patch
         run: |
           set -euo pipefail
-          python3 scripts/patch_staff_upcoming.py
-          dart format lib/staff/partner_hub.dart test/staff_upcoming_orders_test.dart
+          python3 scripts/patch_staff_update.py
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add lib/staff/partner_hub.dart pubspec.yaml lib/live/bug_report.dart test/staff_upcoming_orders_test.dart
+          git add lib android pubspec.yaml
           if ! git diff --cached --quiet; then
-            git commit -m 'Staff v6: Upcoming list in Live Kitchen, newest-first All Orders, paired version bump'
+            git commit -m 'Staff 1.0.7: in-app Update button, no automatic order status, paired version bump'
             git push origin HEAD:${{ github.ref_name }}
           fi
           echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
@@ -53,7 +56,7 @@ jobs:
           set -euo pipefail
           trap 'rm -f "$TIFFE_KEYSTORE_FILE"' EXIT
           printf '%s' "$TIFFE_KEYSTORE_BASE64" | base64 -d > "$TIFFE_KEYSTORE_FILE"
-          FLAGS=(--release -t lib/staff_main.dart --build-name=1.0.6 --build-number=6 --dart-define=TIFFE_SUPABASE_URL=https://obbtxyjglgivcpusjpcx.supabase.co --dart-define=TIFFE_SUPABASE_KEY=sb_publishable__5qR0bvVmwqKykgbQpAtRw_H0eIgl3_ --dart-define=TIFFE_OWNER_EMAIL=frances09f@gmail.com)
+          FLAGS=(--release -t lib/staff_main.dart --build-name="$STAFF_VERSION" --build-number="$STAFF_BUILD" --dart-define=TIFFE_SUPABASE_URL=https://obbtxyjglgivcpusjpcx.supabase.co --dart-define=TIFFE_SUPABASE_KEY=sb_publishable__5qR0bvVmwqKykgbQpAtRw_H0eIgl3_ --dart-define=TIFFE_OWNER_EMAIL=frances09f@gmail.com)
           flutter build apk --target-platform android-arm,android-arm64 "${FLAGS[@]}"
           flutter build appbundle --target-platform android-arm,android-arm64 "${FLAGS[@]}"
           mkdir staff-build
@@ -74,11 +77,14 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.build.outputs.sha }}
       - uses: actions/download-artifact@v4
         with:
           name: tiffe-staff-apk
           path: staff-build
-      - name: Publish green-CI Staff v6
+      - name: Publish green-CI Staff release
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
@@ -86,53 +92,50 @@ jobs:
           set -euo pipefail
           SHA256=$(sha256sum staff-build/Tiffe-Staff.apk | cut -d' ' -f1)
           SIZE=$(stat -c %s staff-build/Tiffe-Staff.apk)
-          cat > notes.md <<EOF
-          Tiffe Staff v6, version 1.0.6 (6), com.ambi.tiffe.staff
-
-          Live Kitchen now has an Upcoming Orders list for open orders dated after today, for the owner and kitchen roles. The customer app dates orders placed after its daily cut-off for tomorrow, so these orders were hidden from Live Kitchen until that day. Upcoming orders are shown separately and are not counted in today's tiffin, chapati, rice or bhaji totals.
-
-          All Orders now lists the newest order first.
-
-          Payment, login, roles, order creation and order actions are unchanged. This build does not add push notifications: a new order shows when the app is open, refreshed every 15 seconds.
-
-          Flutter analyze, the full test suite, and signed APK/AAB builds passed in CI ${GITHUB_RUN_ID} before publication.
-
-          APK: ${SIZE} bytes. SHA256: ${SHA256}
-          Not tested on a phone. No live Supabase, payment, login or real-order end-to-end test was performed. It cannot override database row-access rules.
-          EOF
-          gh release create staff-v6 staff-build/Tiffe-Staff.apk staff-build/Tiffe-Staff.aab --target '${{ needs.build.outputs.sha }}' --title 'Tiffe Staff v6 - Upcoming orders and newest-first All Orders' --notes-file notes.md --prerelease
-  firebase:
+          {
+            echo "Tiffe Staff ${STAFF_VERSION} (${STAFF_BUILD}), com.ambi.tiffe.staff"
+            echo
+            cat distribution/staff-release-notes.md
+            echo
+            echo "CI run ${GITHUB_RUN_ID}. APK: ${SIZE} bytes. SHA256: ${SHA256}"
+          } > notes.md
+          gh release create "staff-v${STAFF_BUILD}" staff-build/Tiffe-Staff.apk staff-build/Tiffe-Staff.aab --target '${{ needs.build.outputs.sha }}' --title "Tiffe Staff ${STAFF_VERSION}" --notes-file notes.md --prerelease
+  feed:
     needs: [build, release]
     if: ${{ inputs.publish }}
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ needs.build.outputs.sha }}
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22.16.0'
-      - run: npm ci --prefix distribution/tooling --ignore-scripts --no-audit --no-fund
-      - uses: actions/download-artifact@v4
-        with:
-          name: tiffe-staff-apk
-          path: staff-build
-      - name: Upload identical Staff APK to existing Firebase app without adding testers
+      - name: Update update-feed (child-safety-updates)
         env:
-          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
-          APK_PATH: staff-build/Tiffe-Staff.apk
+          FEED_TOKEN: ${{ secrets.UPDATES_FEED_TOKEN }}
+          REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
-          umask 077
-          export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/firebase-staff.json"
-          trap 'rm -f "$GOOGLE_APPLICATION_CREDENTIALS"' EXIT
-          printf '%s' "$FIREBASE_SERVICE_ACCOUNT_JSON" > "$GOOGLE_APPLICATION_CREDENTIALS"
-          unset FIREBASE_SERVICE_ACCOUNT_JSON
-          export EXPECTED_SHA256=$(sha256sum "$APK_PATH" | cut -d' ' -f1)
-          node scripts/firebase_staff_v6.cjs
-      - uses: actions/upload-artifact@v4
-        with:
-          name: firebase-staff-v6-result
-          path: ${{ runner.temp }}/firebase-staff-v6-result.json
-          if-no-files-found: error
+          if [ -z "$FEED_TOKEN" ]; then
+            echo "::warning::UPDATES_FEED_TOKEN secret is not set in this repo, so version.json in child-safety-updates was not updated"
+            exit 0
+          fi
+          git clone "https://x-access-token:${FEED_TOKEN}@github.com/frances09f-lgtm/child-safety-updates.git" "$RUNNER_TEMP/feed"
+          NOTES_FILE="$PWD/distribution/staff-release-notes.md"
+          cd "$RUNNER_TEMP/feed"
+          NOTES_FILE="$NOTES_FILE" python3 - <<'PY'
+          import json, os
+          p = 'version.json'
+          d = json.load(open(p))
+          v = os.environ['STAFF_VERSION']
+          d['tiffe_staff'] = {
+              'version': v,
+              'notes': open(os.environ['NOTES_FILE']).read().strip(),
+              'apk': 'https://github.com/%s/releases/download/staff-v%s/Tiffe-Staff.apk' % (os.environ['REPO'], os.environ['STAFF_BUILD']),
+          }
+          open(p, 'w').write(json.dumps(d, indent=2, ensure_ascii=False) + '\n')
+          PY
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          if git diff --quiet; then echo "feed already current"; exit 0; fi
+          git commit -am "tiffe_staff ${STAFF_VERSION}: update feed from release"
+          git push origin HEAD:main
