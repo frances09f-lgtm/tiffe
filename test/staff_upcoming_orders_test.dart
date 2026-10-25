@@ -51,37 +51,58 @@ Future<void> open(WidgetTester t, RowsBackend b, String role) async {
 }
 
 void main() {
-  testWidgets(
-    'kitchen sees tomorrow orders under Upcoming without inflating today',
-    (t) async {
-      final b = RowsBackend([
-        order('aaaaaa01', day(1), 'Confirmed', '2026-10-24T05:00:00Z'),
-        order('bbbbbb02', day(0), 'Confirmed', '2026-10-24T04:00:00Z'),
-        order('cccccc03', day(1), 'Delivered', '2026-10-24T03:00:00Z'),
-      ]);
-      await open(t, b, 'kitchen');
-      expect(find.text('UPCOMING ORDERS (1)'), findsOneWidget);
-      expect(find.text('NEW ORDERS (1)'), findsOneWidget);
-      expect(find.textContaining('#AAAAAA'), findsOneWidget);
-      expect(find.textContaining('#BBBBBB'), findsOneWidget);
-      expect(find.textContaining('#CCCCCC'), findsNothing);
-      expect(find.textContaining('Delivery ${day(1)}'), findsOneWidget);
-      expect(find.text('Accept Order'), findsOneWidget);
-      expect(find.text('6 Pcs'), findsOneWidget);
-      expect(t.takeException(), isNull);
-      await t.pumpWidget(const SizedBox());
-    },
-  );
-
-  testWidgets('kitchen with no later orders shows an empty Upcoming list', (
+  testWidgets('kitchen sees tomorrow orders in New Orders with delivery date', (
     t,
   ) async {
     final b = RowsBackend([
+      order('aaaaaa01', day(1), 'Confirmed', '2026-10-24T05:00:00Z'),
       order('bbbbbb02', day(0), 'Confirmed', '2026-10-24T04:00:00Z'),
+      order('cccccc03', day(1), 'Delivered', '2026-10-24T03:00:00Z'),
     ]);
     await open(t, b, 'kitchen');
-    expect(find.text('UPCOMING ORDERS (0)'), findsOneWidget);
-    expect(find.text('No upcoming orders.'), findsOneWidget);
+    expect(find.text('NEW ORDERS (2)'), findsOneWidget);
+    expect(find.textContaining('UPCOMING ORDERS'), findsNothing);
+    expect(find.textContaining('#AAAAAA'), findsOneWidget);
+    expect(find.textContaining('#BBBBBB'), findsOneWidget);
+    expect(find.textContaining('#CCCCCC'), findsNothing);
+    expect(find.text('Delivery ${day(1)}'), findsOneWidget);
+    expect(find.text('Delivery ${day(0)}'), findsOneWidget);
+    expect(find.text('Accept Order'), findsNWidgets(2));
+    expect(t.takeException(), isNull);
+    await t.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('accepted tomorrow order shows under Preparing, not Upcoming', (
+    t,
+  ) async {
+    final b = RowsBackend([
+      order('aaaaaa01', day(1), 'Preparing', '2026-10-24T05:00:00Z'),
+    ]);
+    await open(t, b, 'kitchen');
+    expect(find.text('PREPARING (1)'), findsOneWidget);
+    expect(find.text('NEW ORDERS (0)'), findsOneWidget);
+    expect(find.textContaining('UPCOMING ORDERS'), findsNothing);
+    expect(find.textContaining('#AAAAAA'), findsOneWidget);
+    expect(find.text('Delivery ${day(1)}'), findsOneWidget);
+    expect(t.takeException(), isNull);
+    await t.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('All Orders Today shows an order placed today for a later date', (
+    t,
+  ) async {
+    final placedNow = DateTime.now().toUtc().toIso8601String();
+    final b = RowsBackend([
+      order('aaaaaa01', day(1), 'Confirmed', placedNow),
+      order('bbbbbb02', day(1), 'Confirmed', '2020-01-01T05:00:00Z'),
+    ]);
+    await open(t, b, 'owner');
+    await t.tap(find.text('All Orders'));
+    await t.pumpAndSettle();
+    await t.tap(find.text('Today'));
+    await t.pumpAndSettle();
+    expect(find.textContaining('#AAAAAA'), findsOneWidget);
+    expect(find.textContaining('#BBBBBB'), findsNothing);
     expect(t.takeException(), isNull);
     await t.pumpWidget(const SizedBox());
   });
