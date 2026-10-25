@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:flutter/services.dart' show PlatformException;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:tiffe/live/order_alerts.dart';
 
@@ -45,5 +46,22 @@ void main() {
     expect(code.contains('isIgnoringBatteryOptimizations'), isTrue);
     expect(code.contains('ACTION_CHANNEL_NOTIFICATION_SETTINGS'), isTrue);
     expect(code.contains('.notify('), isFalse);
+  });
+  test('setup errors show code and message and the icon cannot be shrunk', () {
+    final code = File('lib/live/order_alerts.dart').readAsStringSync();
+    expect(code.contains('PlatformException code=\${e.code}'), isTrue);
+    expect(code.contains('@mipmap/ic_launcher'), isTrue);
+    expect(code.contains('order_alert_setup_result'), isTrue);
+    final keep = File('android/app/src/main/res/raw/keep.xml').readAsStringSync();
+    expect(keep.contains('@drawable/ic_tiffe_notification'), isTrue);
+    final page = File('lib/live/notification_settings.dart').readAsStringSync();
+    expect(page.contains('Setup: \$setup'), isTrue);
+  });
+  test('error detail keeps the plugin code and message', () {
+    final text = orderAlertErrorDetail(
+      PlatformException(code: 'invalid_icon', message: 'no such icon'),
+    );
+    expect(text.contains('invalid_icon'), isTrue);
+    expect(text.contains('no such icon'), isTrue);
   });
 }

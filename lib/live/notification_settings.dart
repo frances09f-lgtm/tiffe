@@ -17,6 +17,7 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage>
   static const channel = MethodChannel('tiffe/order_notification_settings');
   Map<dynamic, dynamic> device = {};
   String result = 'Checking…', scheduled = 'Unknown', lastRun = 'Not run yet';
+  String setup = 'Not run yet', statusError = '';
   bool busy = false;
   @override
   void initState() {
@@ -47,12 +48,17 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage>
     final prefs = await SharedPreferences.getInstance();
     await prefs.reload();
     Map<dynamic, dynamic> info = {};
+    String readError = '';
     try {
       info = await channel.invokeMethod<Map<dynamic, dynamic>>('status') ?? {};
-    } catch (_) {}
+    } catch (e) {
+      readError = orderAlertErrorDetail(e);
+    }
     if (!mounted) return;
     setState(() {
       device = info;
+      statusError = readError;
+      setup = prefs.getString('order_alert_setup_result') ?? 'Not run yet';
       result =
           prefs.getString('order_alert_last_result') ??
           'No background result yet';
@@ -66,7 +72,10 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage>
   Future<void> action(String method) async {
     try {
       await channel.invokeMethod<void>(method);
-    } catch (_) {}
+    } catch (e) {
+      if (mounted) setState(() => statusError = orderAlertErrorDetail(e));
+      return;
+    }
     await refresh();
   }
 
@@ -101,8 +110,8 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage>
           style: gText(14, c: GColors.charcoal, height: 1.4),
         ),
         const SizedBox(height: 16),
-        Text(
-          'Android API: ${device['sdk'] ?? 'Unknown'}\nPhone: ${device['manufacturer'] ?? 'Unknown'}\nApp notifications: ${device['enabled'] == true ? 'Allowed' : 'Blocked or unknown'}\nOrder channel: ${device['channelEnabled'] == true ? 'Allowed' : 'Blocked or not created'}\nBattery: ${device['batteryExempt'] == true ? 'Unrestricted' : 'Optimized or unknown'}\nBackground scheduled: $scheduled\nLast background run: $lastRun\nResult: $result',
+        SelectableText(
+          'Android API: ${device['sdk'] ?? 'Unknown'}\nPhone: ${device['manufacturer'] ?? 'Unknown'}\nApp notifications: ${device['enabled'] == true ? 'Allowed' : 'Blocked or unknown'}\nOrder channel: ${device['channelEnabled'] == true ? 'Allowed' : 'Blocked or not created'}\nBattery: ${device['batteryExempt'] == true ? 'Unrestricted' : 'Optimized or unknown'}\nBackground scheduled: $scheduled\nLast background run: $lastRun\nSetup: $setup\nResult: $result${statusError.isEmpty ? '' : '\nSettings read: $statusError'}',
           style: gText(14, c: GColors.ink, height: 1.6),
         ),
         const SizedBox(height: 16),

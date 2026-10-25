@@ -46,7 +46,7 @@ object OrderNotificationSettings {
                     }
                     else -> result.notImplemented()
                 }
-            } catch (e: Exception) { result.error("settings_unavailable", e.javaClass.simpleName, null) }
+            } catch (e: Exception) { result.error("settings_unavailable", e.javaClass.simpleName + ": " + (e.message ?: ""), null) }
         }
     }
 }

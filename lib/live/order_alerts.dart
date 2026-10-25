@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io' show Platform;
 import 'dart:ui' show DartPluginRegistrant;
 
+import 'package:flutter/services.dart' show PlatformException;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -26,6 +27,21 @@ const orderAlertText = {
   'Delivered': 'Your order was delivered',
 };
 
+/// Full error text for the diagnostics page: type, code and message.
+String orderAlertErrorDetail(Object e) {
+  String text;
+  if (e is PlatformException) {
+    text =
+        'PlatformException code=${e.code} message=${e.message} details=${e.details}';
+  } else if (e is PostgrestException) {
+    text = 'PostgrestException code=${e.code} message=${e.message}';
+  } else {
+    text = '${e.runtimeType}: $e';
+  }
+  text = text.replaceAll(RegExp(r'\s+'), ' ').trim();
+  return text.length > 500 ? '${text.substring(0, 500)}...' : text;
+}
+
 /// Short, private error label that is safe to show on the diagnostics page.
 String orderAlertErrorKind(Object e) {
   if (e is PostgrestException) return 'Server ${e.code ?? 'error'}';
@@ -47,7 +63,7 @@ void orderAlertsDispatcher() {
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString(
           'order_alert_last_result',
-          'Retry: ${orderAlertErrorKind(e)}',
+          'Retry: ${orderAlertErrorDetail(e)}',
         );
       } catch (_) {}
       return false; // Android retries transient failures with backoff.
@@ -68,6 +84,8 @@ class OrderAlerts {
   static const _tokenKey = 'order_alert_rt';
   static const _tokenByKey = 'order_alert_rt_by';
   static const _resultKey = 'order_alert_last_result';
+  static const _setupKey = 'order_alert_setup_result';
+  static Future<void>? _starting;
   static final _plugin = FlutterLocalNotificationsPlugin();
   static bool _ready = false;
 
@@ -78,18 +96,30 @@ class OrderAlerts {
       channelDescription: 'Status changes for your Tiffe orders',
       importance: Importance.high,
       priority: Priority.high,
-      icon: 'ic_tiffe_notification',
     ),
   );
 
+  /// The first small icon Android accepts wins: the Tiffe icon, then the
+  /// launcher icon that v50 used. A missing icon used to stop the setup.
+  static const _icons = ['ic_tiffe_notification', '@mipmap/ic_launcher'];
+
   static Future<void> _init() async {
     if (_ready) return;
-    await _plugin.initialize(
-      settings: const InitializationSettings(
-        android: AndroidInitializationSettings('ic_tiffe_notification'),
-      ),
-    );
-    _ready = true;
+    Object? firstError;
+    for (final icon in _icons) {
+      try {
+        await _plugin.initialize(
+          settings: InitializationSettings(
+            android: AndroidInitializationSettings(icon),
+          ),
+        );
+        _ready = true;
+        return;
+      } catch (e) {
+        firstError ??= e;
+      }
+    }
+    throw firstError ?? StateError('Notification init failed');
   }
 
   static AndroidFlutterLocalNotificationsPlugin? get _android => _plugin
@@ -117,9 +147,25 @@ class OrderAlerts {
   /// Schedules the background check, creates the channel and asks for the
   /// notification permission (Android 13+). Scheduling never waits for the
   /// permission dialog. The permission is asked once on its own and again
-  /// only when the customer taps the repair button.
+  /// only when the customer taps the repair button. Calls run one at a
+  /// time, and each step reports its own full error on the diagnostics page.
   static Future<void> start({bool requestPermission = false}) async {
     if (!onAndroid) return;
+    while (_starting != null) {
+      try {
+        await _starting;
+      } catch (_) {}
+    }
+    final run = _start(requestPermission);
+    _starting = run;
+    try {
+      await run;
+    } finally {
+      if (identical(_starting, run)) _starting = null;
+    }
+  }
+
+  static Future<void> _start(bool requestPermission) async {
     final prefs = await SharedPreferences.getInstance();
     try {
       await Workmanager().initialize(orderAlertsDispatcher);
@@ -138,31 +184,50 @@ class OrderAlerts {
     } catch (e) {
       await prefs.setString(
         'order_alert_schedule_error',
-        orderAlertErrorKind(e),
+        orderAlertErrorDetail(e),
       );
     }
+    final problems = <String>[];
     try {
       await _init();
-      final android = _android;
-      await android?.createNotificationChannel(
-        const AndroidNotificationChannel(
-          _channelId,
-          'Order updates',
-          description: 'Status changes for your Tiffe orders',
-          importance: Importance.high,
-        ),
-      );
-      if (requestPermission ||
-          prefs.getBool('order_alert_permission_asked') != true) {
-        await prefs.setBool('order_alert_permission_asked', true);
-        await android?.requestNotificationsPermission();
-      }
     } catch (e) {
-      await prefs.setString(
-        _resultKey,
-        'Notification setup: ${orderAlertErrorKind(e)}',
-      );
+      problems.add('init: ${orderAlertErrorDetail(e)}');
     }
+    if (_ready) {
+      final android = _android;
+      try {
+        await android?.createNotificationChannel(
+          const AndroidNotificationChannel(
+            _channelId,
+            'Order updates',
+            description: 'Status changes for your Tiffe orders',
+            importance: Importance.high,
+          ),
+        );
+      } catch (e) {
+        problems.add('channel: ${orderAlertErrorDetail(e)}');
+      }
+      try {
+        final allowed = await android?.areNotificationsEnabled();
+        if (allowed != true &&
+            (requestPermission ||
+                prefs.getBool('order_alert_permission_asked') != true)) {
+          await prefs.setBool('order_alert_permission_asked', true);
+          await android?.requestNotificationsPermission();
+        }
+      } catch (e) {
+        problems.add('permission: ${orderAlertErrorDetail(e)}');
+      }
+    }
+    try {
+      final old = prefs.getString(_resultKey) ?? '';
+      if (old.startsWith('Notification setup:')) await prefs.remove(_resultKey);
+      if (problems.isEmpty) {
+        await prefs.setString(_setupKey, 'OK');
+      } else {
+        await prefs.setString(_setupKey, problems.join(' | '));
+      }
+    } catch (_) {}
   }
 
   /// The app writes this while it is on screen. The background check skips
@@ -259,6 +324,7 @@ class OrderAlerts {
             );
           } else {
             var shown = 0;
+            String? showError;
             for (final e in pending.entries) {
               final id = e.key;
               final short = (id.length > 6 ? id.substring(0, 6) : id)
@@ -271,11 +337,17 @@ class OrderAlerts {
                   notificationDetails: _details,
                 );
                 shown++;
-              } catch (_) {
+              } catch (e) {
+                showError ??= orderAlertErrorDetail(e);
                 next[id] = before[id] ?? now[id]!;
               }
             }
-            await prefs.setString(_resultKey, 'Showed $shown alert(s)');
+            await prefs.setString(
+              _resultKey,
+              showError == null
+                  ? 'Showed $shown alert(s)'
+                  : 'Showed $shown alert(s). Show failed: $showError',
+            );
           }
         }
       }
@@ -284,7 +356,7 @@ class OrderAlerts {
       try {
         await prefs.setString(
           _resultKey,
-          'Alert error: ${orderAlertErrorKind(e)}',
+          'Alert error: ${orderAlertErrorDetail(e)}',
         );
       } catch (_) {}
     }
