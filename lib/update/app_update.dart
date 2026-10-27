@@ -8,6 +8,7 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../ui/gemini/auth_screens.dart' show GColors;
+import 'update_download.dart';
 
 /// In-app self-update: checks for a newer release, shows a
 /// "Software Update" dialog with release notes, downloads the APK in-app
@@ -24,6 +25,11 @@ const kUpdateRepo = 'frances09f-lgtm/tiffe';
 const kUpdateFeedUrl =
     'https://raw.githubusercontent.com/frances09f-lgtm/child-safety-updates/main/version.json';
 const kFeedKey = 'tiffe';
+// Second feed, written by the release CI (APK mirror workflow) on the
+// apk-mirror branch of this repo. The newest version across both feeds wins.
+const kMirrorFeedUrl =
+    'https://raw.githubusercontent.com/frances09f-lgtm/tiffe/apk-mirror/version.json';
+const kUpdateFeedUrls = [kUpdateFeedUrl, kMirrorFeedUrl];
 // -------------------------------------------------------------------------
 
 const kAutoCheckInterval = Duration(hours: 6);
@@ -33,11 +39,69 @@ class UpdateInfo {
   final String version;
   final String notes;
   final String apkUrl;
+
+  /// Every address this APK can be downloaded from, best first. Always
+  /// contains [apkUrl].
+  final List<String> apkUrls;
+
+  /// Exact APK size in bytes when the feed states it.
+  final int? size;
   const UpdateInfo({
     required this.version,
     required this.notes,
     required this.apkUrl,
-  });
+    List<String>? apkUrls,
+    this.size,
+  }) : apkUrls = apkUrls ?? const [];
+
+  /// Download addresses in the order the updater tries them.
+  List<Uri> get downloadUrls => orderDownloadUrls([apkUrl, ...apkUrls]);
+}
+
+/// One feed entry ({"version", "notes", "apk", "mirrors", "size"}) or null.
+UpdateInfo? parseFeedEntry(Object? e) {
+  if (e is! Map) return null;
+  final v = (e['version'] is String ? e['version'] as String : '').trim();
+  final apk = (e['apk'] is String ? e['apk'] as String : '').trim();
+  if (v.isEmpty || apk.isEmpty) return null;
+  final mirrors = <String>[
+    for (final m in (e['mirrors'] is List ? e['mirrors'] as List : const []))
+      if (m is String && m.trim().isNotEmpty) m.trim(),
+  ];
+  final size = e['size'] is int ? e['size'] as int : null;
+  return UpdateInfo(
+    version: v,
+    notes: (e['notes'] is String ? e['notes'] as String : '').trim(),
+    apkUrl: apk,
+    apkUrls: [apk, ...mirrors],
+    size: size != null && size > 0 ? size : null,
+  );
+}
+
+/// Newest entry across feeds; download addresses of every feed that lists
+/// that same version are combined (mirror and GitHub alike).
+UpdateInfo? pickNewest(Iterable<UpdateInfo?> entries) {
+  final list = entries.whereType<UpdateInfo>().toList();
+  if (list.isEmpty) return null;
+  var best = list.first;
+  for (final e in list.skip(1)) {
+    if (compareVersions(e.version, best.version) > 0) best = e;
+  }
+  final same = list.where((e) => compareVersions(e.version, best.version) == 0);
+  final urls = orderDownloadUrls([
+    for (final e in same) ...[e.apkUrl, ...e.apkUrls],
+  ]).map((u) => u.toString()).toList();
+  final notes = same
+      .map((e) => e.notes)
+      .firstWhere((n) => n.isNotEmpty, orElse: () => best.notes);
+  final size = same.map((e) => e.size).whereType<int>().firstOrNull;
+  return UpdateInfo(
+    version: best.version,
+    notes: notes,
+    apkUrl: urls.first,
+    apkUrls: urls,
+    size: size,
+  );
 }
 
 /// Numeric semver-ish compare: >0 when a > b. Ignores a leading v and any
@@ -70,6 +134,7 @@ class UpdateChecker {
     DateTime Function()? clock,
     this._downloader,
   }) : _client = client ?? http.Client(),
+       _injectedClient = client,
        _currentVersion = currentVersion ?? _nativeVersion,
        _installer = installer ?? _nativeInstall,
        _canInstall = canInstall ?? _nativeCanInstall,
@@ -79,6 +144,7 @@ class UpdateChecker {
 
   static const _channel = MethodChannel('app/update');
   final http.Client _client;
+  final http.Client? _injectedClient;
   final Future<String> Function() _currentVersion;
   final Future<void> Function(String) _installer;
   final Future<bool> Function() _canInstall;
@@ -174,24 +240,23 @@ class UpdateChecker {
   }
 
   Future<UpdateInfo?> _fetchFromFeed() async {
-    final res = await _client
-        .get(
-          Uri.parse(kUpdateFeedUrl),
-          headers: {'User-Agent': '$kAppName-app'},
-        )
-        .timeout(const Duration(seconds: 8));
-    if (res.statusCode != 200) return null;
-    final j = jsonDecode(res.body) as Map<String, dynamic>;
-    final e = j[kFeedKey];
-    if (e is! Map) return null;
-    final v = (e['version'] as String? ?? '').trim();
-    final apk = (e['apk'] as String? ?? '').trim();
-    if (v.isEmpty || apk.isEmpty) return null;
-    return UpdateInfo(
-      version: v,
-      notes: (e['notes'] as String? ?? '').trim(),
-      apkUrl: apk,
+    // Both feeds at once; a feed that fails (blocked, offline, missing) is
+    // skipped, so either one alone is enough.
+    final entries = await Future.wait(
+      kUpdateFeedUrls.map((url) async {
+        try {
+          final res = await _client
+              .get(Uri.parse(url), headers: {'User-Agent': '$kAppName-app'})
+              .timeout(const Duration(seconds: 8));
+          if (res.statusCode != 200) return null;
+          final j = jsonDecode(res.body);
+          return j is Map ? parseFeedEntry(j[kFeedKey]) : null;
+        } catch (_) {
+          return null;
+        }
+      }),
     );
+    return pickNewest(entries);
   }
 
   /// Auto check on app start: at most once per [kAutoCheckInterval].
@@ -212,17 +277,12 @@ class UpdateChecker {
   Future<File> download(
     UpdateInfo info, {
     void Function(int received, int? total)? onProgress,
+    void Function(int source, Uri url)? onSourceChange,
     Stream<void>? cancelToken,
   }) async {
     final dl = _downloader;
     if (dl != null) {
       return dl(info, onProgress: onProgress, cancelToken: cancelToken);
-    }
-    final req = http.Request('GET', Uri.parse(info.apkUrl));
-    req.headers['User-Agent'] = '$kAppName-app';
-    final res = await _client.send(req).timeout(const Duration(seconds: 30));
-    if (res.statusCode != 200) {
-      throw StateError('download failed (HTTP ${res.statusCode})');
     }
     final dir = Directory(
       '${(await _cacheDir()).path}${Platform.pathSeparator}updates',
@@ -231,35 +291,18 @@ class UpdateChecker {
     final file = File(
       '${dir.path}${Platform.pathSeparator}$kAppName-${info.version}.apk',
     );
-    final sink = file.openWrite();
-    var received = 0;
-    var cancelled = false;
-    final sub = cancelToken?.listen((_) {
-      cancelled = true;
-    });
-    try {
-      await for (final chunk in res.stream.timeout(
-        const Duration(seconds: 30),
-      )) {
-        if (cancelled) throw StateError('Download cancelled');
-        sink.add(chunk);
-        received += chunk.length;
-        onProgress?.call(received, res.contentLength);
-      }
-      if (cancelled) throw StateError('Download cancelled');
-      if (received == 0 ||
-          (res.contentLength != null && received != res.contentLength)) {
-        throw StateError('Incomplete APK download');
-      }
-    } catch (_) {
-      await sink.close();
-      if (await file.exists()) await file.delete();
-      rethrow;
-    } finally {
-      await sub?.cancel();
-      await sink.close();
-    }
-    return file;
+    final injected = _injectedClient;
+    return downloadApkWithFallback(
+      urls: info.downloadUrls,
+      target: file,
+      clientFactory: injected != null ? () => injected : http.Client.new,
+      closeClients: injected == null,
+      userAgent: '$kAppName-app',
+      expectedSize: info.size,
+      onProgress: (r, t, _) => onProgress?.call(r, t),
+      onSourceChange: onSourceChange,
+      cancelToken: cancelToken,
+    );
   }
 
   Future<void> install(File apk) => _installer(apk.path);
@@ -340,7 +383,8 @@ class _UpdateDialogState extends State<_UpdateDialog> {
   int received = 0;
   int? total;
   String? error;
-  final _cancel = StreamController<void>();
+  String? source;
+  final _cancel = StreamController<void>.broadcast();
 
   @override
   void dispose() {
@@ -366,6 +410,7 @@ class _UpdateDialogState extends State<_UpdateDialog> {
       received = 0;
       total = null;
       error = null;
+      source = null;
     });
     try {
       final apk = await widget.checker.download(
@@ -375,6 +420,14 @@ class _UpdateDialogState extends State<_UpdateDialog> {
             setState(() {
               received = r;
               total = t;
+            });
+          }
+        },
+        onSourceChange: (i, url) {
+          if (mounted) {
+            setState(() {
+              received = 0;
+              source = 'Trying the ${downloadSourceName(url)}...';
             });
           }
         },
@@ -390,7 +443,9 @@ class _UpdateDialogState extends State<_UpdateDialog> {
       if (!mounted) return;
       setState(() {
         phase = _Phase.error;
-        error = e.toString();
+        error = e is UpdateDownloadException
+            ? e.message
+            : "Couldn't update: $e";
       });
     }
   }
@@ -429,6 +484,8 @@ class _UpdateDialogState extends State<_UpdateDialog> {
                   : '${(received / 1e6).toStringAsFixed(1)} MB',
               style: TextStyle(color: dim, fontSize: 11),
             ),
+            if (source != null)
+              Text(source!, style: TextStyle(color: dim, fontSize: 11)),
           ],
           if (phase == _Phase.needsPermission)
             const Padding(

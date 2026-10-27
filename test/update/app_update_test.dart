@@ -39,6 +39,7 @@ void main() {
     );
     expect(await c.autoCheck(), isNull);
     expect(await c.autoCheck(), isNull);
-    expect(calls, 1);
+    // One check reads both feeds (main feed + APK mirror feed), once.
+    expect(calls, kUpdateFeedUrls.length);
   });
 }

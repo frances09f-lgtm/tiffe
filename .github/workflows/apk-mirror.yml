@@ -1,0 +1,105 @@
+name: APK mirror
+# Copies a published release APK to the apk-mirror branch, served at
+#   https://raw.githubusercontent.com/frances09f-lgtm/tiffe/apk-mirror/<app>/<version>/<file>
+#   https://frances09f-lgtm.github.io/tiffe/<app>/<version>/<file>   (GitHub Pages, when enabled)
+# Why: some networks (Indian ISPs) cannot download GitHub release assets
+# (release-assets.githubusercontent.com), while raw.githubusercontent.com,
+# which already serves the update feed, works. Also writes the mirror feed
+# apk-mirror/version.json that Tiffe 1.0.58+ / Staff 1.0.11+ read.
+# Called by the customer/staff release workflows after publishing, or by hand.
+on:
+  workflow_dispatch:
+    inputs:
+      tag: {description: 'Release tag, e.g. v57 or staff-v10', required: true, type: string}
+      feed_key: {description: 'tiffe (customer) or tiffe_staff', required: true, type: string}
+      version: {description: 'Version name, e.g. 1.0.57', required: true, type: string}
+      asset: {description: 'APK asset name, e.g. Tiffe.apk', required: true, type: string}
+  workflow_call:
+    inputs:
+      tag: {required: true, type: string}
+      feed_key: {required: true, type: string}
+      version: {required: true, type: string}
+      asset: {required: true, type: string}
+permissions:
+  contents: write
+concurrency:
+  group: tiffe-apk-mirror
+  cancel-in-progress: false
+jobs:
+  mirror:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Mirror the release APK and update the mirror feed
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+          FEED_KEY: ${{ inputs.feed_key }}
+          VERSION: ${{ inputs.version }}
+          ASSET: ${{ inputs.asset }}
+        run: |
+          set -euo pipefail
+          case "$FEED_KEY" in tiffe) APP=customer ;; tiffe_staff) APP=staff ;; *) echo "bad feed_key"; exit 1 ;; esac
+          export APP
+          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "bad version"; exit 1; }
+          [[ "$ASSET" =~ ^[A-Za-z0-9._-]+\.apk$ ]] || { echo "bad asset"; exit 1; }
+          work="$RUNNER_TEMP/m"; mkdir -p "$work"; cd "$work"
+          git init -q .
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          if git fetch -q --depth 1 origin apk-mirror; then git checkout -q FETCH_HEAD -- . ; fi
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern "$ASSET" --dir "$RUNNER_TEMP/dl" --clobber
+          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json body --jq .body > "$RUNNER_TEMP/notes.txt"
+          mkdir -p "$APP/$VERSION"
+          cp "$RUNNER_TEMP/dl/$ASSET" "$APP/$VERSION/$ASSET"
+          ( cd "$APP/$VERSION" && sha256sum "$ASSET" > "$ASSET.sha256" )
+          # Keep only the two newest versions per app so the branch stays small.
+          ls -1 "$APP" | sort -V | head -n -2 | while read -r old; do rm -rf "$APP/$old"; done
+          python3 - <<'PY'
+          import json, os, pathlib
+          key, app, ver, asset, tag = (os.environ[k] for k in ("FEED_KEY", "APP", "VERSION", "ASSET", "TAG"))
+          repo = os.environ["GITHUB_REPOSITORY"]; owner, name = repo.split("/")
+          p = pathlib.Path("version.json")
+          feed = json.loads(p.read_text()) if p.exists() else {}
+          path = f"{app}/{ver}/{asset}"
+          feed[key] = {
+              "version": ver,
+              "notes": pathlib.Path(os.environ["RUNNER_TEMP"], "notes.txt").read_text().strip(),
+              "apk": f"https://raw.githubusercontent.com/{repo}/apk-mirror/{path}",
+              "mirrors": [
+                  f"https://{owner}.github.io/{name}/{path}",
+                  f"https://github.com/{repo}/releases/download/{tag}/{asset}",
+              ],
+              "size": os.path.getsize(path),
+              "sha256": pathlib.Path(path + ".sha256").read_text().split()[0],
+          }
+          p.write_text(json.dumps(feed, indent=2, ensure_ascii=False) + "\n")
+          print(json.dumps(feed[key], indent=2)[:1500])
+          PY
+          touch .nojekyll
+          printf '%s\n' 'APK mirror for Tiffe in-app updates. Written by the APK mirror workflow; do not edit by hand.' > README.md
+          # One orphan commit, force-pushed: old APKs do not pile up in history.
+          git symbolic-ref HEAD refs/heads/publish
+          git rm -rq --cached . >/dev/null 2>&1 || true
+          git add -A
+          git commit -q -m "Mirror $TAG ($FEED_KEY $VERSION)"
+          git push -q -f origin publish:apk-mirror
+          echo "Mirrored: https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/apk-mirror/$APP/$VERSION/$ASSET"
+      - name: Check the mirror serves the same bytes anonymously
+        env:
+          FEED_KEY: ${{ inputs.feed_key }}
+          VERSION: ${{ inputs.version }}
+          ASSET: ${{ inputs.asset }}
+        run: |
+          set -euo pipefail
+          case "$FEED_KEY" in tiffe) APP=customer ;; *) APP=staff ;; esac
+          want="$(cut -d' ' -f1 "$RUNNER_TEMP/m/$APP/$VERSION/$ASSET.sha256")"
+          url="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/apk-mirror/$APP/$VERSION/$ASSET"
+          for i in 1 2 3 4 5 6; do
+            if curl -fsSL "$url" -o "$RUNNER_TEMP/check.apk" && [ "$(sha256sum "$RUNNER_TEMP/check.apk" | cut -d' ' -f1)" = "$want" ]; then
+              echo "OK $url $want"; exit 0
+            fi
+            sleep 20
+          done
+          echo "Mirror check failed for $url"; exit 1
