@@ -61,11 +61,8 @@ void main() {
       ),
     );
     await t.pumpAndSettle();
-    // The v9 surfaces must actually be on screen before the pixels count.
-    expect(find.text('Assign delivery partner'), findsOneWidget);
-    expect(find.text('Confirm Handover'), findsOneWidget);
-    expect(find.text('Auto-confirm new orders'), findsOneWidget);
-    expect(find.byType(Switch), findsOneWidget);
+    // Capture pixels first so the visual evidence is written even if an
+    // assertion below regresses.
     await t.runAsync(() async {
       final boundary =
           t.renderObject<RenderRepaintBoundary>(find.byKey(const Key('shot')));
@@ -74,5 +71,12 @@ void main() {
       await File('/tmp/staff-v9-kitchen.png')
           .writeAsBytes(data!.buffer.asUint8List());
     });
+    // The v9 surfaces must actually be on screen before the pixels count.
+    // Two Ready cards legitimately render two rider labels and two handover
+    // buttons, so these are findsWidgets, not findsOneWidget.
+    expect(find.text('Assign delivery partner'), findsWidgets);
+    expect(find.text('Confirm Handover'), findsWidgets);
+    expect(find.text('Auto-confirm new orders'), findsOneWidget);
+    expect(find.byType(Switch), findsOneWidget);
   });
 }
