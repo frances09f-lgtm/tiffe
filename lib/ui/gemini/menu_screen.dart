@@ -36,6 +36,10 @@ class GMenu extends StatefulWidget {
 
   /// Most bhajis one tiffin may hold; null means exactly [required].
   final int? maxPick;
+
+  /// No portion cap at all: the customer buys as many portions as they want.
+  /// Portions beyond [required] stay chargeable extras.
+  final bool unlimited;
   final bool showWeekly;
   final int extraRupees;
   final List<int> initialSelected;
@@ -50,6 +54,7 @@ class GMenu extends StatefulWidget {
     this.grid = true,
     this.required = 2,
     this.maxPick,
+    this.unlimited = false,
     this.showWeekly = true,
     this.extraRupees = 0,
     this.initialSelected = const [],
@@ -62,18 +67,16 @@ class GMenu extends StatefulWidget {
 
 class _GMenuState extends State<GMenu> {
   late int _cat = widget.initialCategory;
-  /// Portions picked per item index, so a tiffin can hold two of the same
-  /// bhaji. Tapping cycles 0 → 1 → 2 → 0 portions. Unavailable items can
-  /// not be picked.
+  /// Portions picked per item index, so a tiffin can hold several of the
+  /// same bhaji. The + / − stepper on a selected card changes the count.
+  /// Unavailable items can not be picked.
   late final Map<int, Map<int, int>> _picks = {
     widget.initialCategory: {
       for (final i in widget.initialSelected.toSet())
         if (i >= 0 &&
             i < widget.items[widget.initialCategory].length &&
             !widget.items[widget.initialCategory][i].unavailable)
-          i: widget.initialSelected.where((x) => x == i).length > 2
-              ? 2
-              : widget.initialSelected.where((x) => x == i).length,
+          i: widget.initialSelected.where((x) => x == i).length,
     },
   };
   Map<int, int> get _sel => _picks.putIfAbsent(_cat, () => <int, int>{});
@@ -81,15 +84,20 @@ class _GMenuState extends State<GMenu> {
   int _count(int i) => _sel[i] ?? 0;
   List<GMenuItem> get _items => widget.items[_cat];
 
-  int get _max => widget.maxPick ?? widget.required;
+  int get _max =>
+      widget.unlimited ? 1 << 30 : (widget.maxPick ?? widget.required);
 
-  void _toggle(int i) => setState(() {
+  void _add(int i) => setState(() {
     if (_items[i].unavailable) return;
+    if (_portions < _max) _sel[i] = _count(i) + 1;
+  });
+
+  void _remove(int i) => setState(() {
     final n = _count(i);
-    if (n >= 2) {
+    if (n <= 1) {
       _sel.remove(i);
-    } else if (_portions < _max) {
-      _sel[i] = n + 1;
+    } else {
+      _sel[i] = n - 1;
     }
   });
 
@@ -429,9 +437,9 @@ class _GMenuState extends State<GMenu> {
     final on = _count(idx) > 0;
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onTap: (it.unavailable || (!on && _portions >= _max))
+      onTap: (it.unavailable || on || _portions >= _max)
           ? null
-          : () => _toggle(idx),
+          : () => _add(idx),
       child: Container(
         decoration: BoxDecoration(
           color: GColors.card,
@@ -554,8 +562,47 @@ class _GMenuState extends State<GMenu> {
     final on = _count(idx) > 0;
     final off = _items[idx].unavailable;
     final locked = off || (!on && _portions >= _max);
+    if (on && !off) {
+      // Selected: − / count / + stepper; no portion ceiling.
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: GColors.saffron,
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Row(
+          mainAxisSize: fill ? MainAxisSize.max : MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () => _remove(idx),
+              child: const Padding(
+                padding: EdgeInsets.all(6),
+                child: Icon(Icons.remove, size: 16, color: Colors.white),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 6),
+              child: Text(
+                'x${_count(idx)}',
+                style: gText(12, w: FontWeight.w700, c: Colors.white),
+              ),
+            ),
+            GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () => _add(idx),
+              child: const Padding(
+                padding: EdgeInsets.all(6),
+                child: Icon(Icons.add, size: 16, color: Colors.white),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
     return GestureDetector(
-      onTap: locked ? null : () => _toggle(idx),
+      onTap: locked ? null : () => _add(idx),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         decoration: BoxDecoration(
