@@ -8,8 +8,8 @@ on:
         default: false
 env:
   # Edit these two values and distribution/staff-release-notes.md for each Staff release.
-  STAFF_VERSION: '1.0.9'
-  STAFF_BUILD: '9'
+  STAFF_VERSION: '1.0.10'
+  STAFF_BUILD: '10'
 permissions:
   contents: read
 jobs:
