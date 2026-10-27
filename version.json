@@ -1,0 +1,24 @@
+{
+  "tiffe": {
+    "version": "1.0.58",
+    "notes": "In-app updates now download reliably. The update downloads from a mirror that works on networks that block GitHub downloads, with GitHub as a backup. If a download stops moving for 15 seconds the app switches to the next address, and if every address fails it shows the reason and a Retry button instead of sitting at 0.0 MB. Order alerts at every step with the app closed, from 1.0.57, are unchanged. Not phone-tested.",
+    "apk": "https://raw.githubusercontent.com/frances09f-lgtm/tiffe/apk-mirror/customer/1.0.58/Tiffe.apk",
+    "mirrors": [
+      "https://frances09f-lgtm.github.io/tiffe/customer/1.0.58/Tiffe.apk",
+      "https://github.com/frances09f-lgtm/tiffe/releases/download/v58/Tiffe.apk"
+    ],
+    "size": 39775709,
+    "sha256": "302cd4cf6ec0d3fd773c50e84c3c507defeda43c0aa13f7cac3f8224b7a70bf5"
+  },
+  "tiffe_staff": {
+    "version": "1.0.11",
+    "notes": "Tiffe Staff 1.0.11 (11), com.ambi.tiffe.staff\n\nTiffe Staff 1.0.11: in-app updates that finish.\nUpdates now download from a mirror that works on networks that block GitHub downloads, with GitHub as a backup. If a download stops moving for 15 seconds, the app switches to the next address. If every address fails, it shows the reason and a Retry button instead of sitting at 0.0 MB.\nEverything from 1.0.10 is unchanged: light mode, the Updates button next to Sync, readable handover, Accept Order and Remove bhaji.\nNot tested on a phone. Analyze, the full test suite and the signed build passed in CI before publishing.\n\nCI run 40530270484. APK: 37692196 bytes. SHA256: abe8d804286552731d07ca17c40b4480a70cddc6da930e64bc582315ae814713",
+    "apk": "https://raw.githubusercontent.com/frances09f-lgtm/tiffe/apk-mirror/staff/1.0.11/Tiffe-Staff.apk",
+    "mirrors": [
+      "https://frances09f-lgtm.github.io/tiffe/staff/1.0.11/Tiffe-Staff.apk",
+      "https://github.com/frances09f-lgtm/tiffe/releases/download/staff-v11/Tiffe-Staff.apk"
+    ],
+    "size": 37692196,
+    "sha256": "abe8d804286552731d07ca17c40b4480a70cddc6da930e64bc582315ae814713"
+  }
+}
