@@ -7,6 +7,8 @@ import 'package:tiffe/data/store.dart';
 import 'package:tiffe/live/live_app.dart';
 import 'package:tiffe/ui/app.dart';
 
+import 'package:tiffe/ui/gemini/home_screen.dart' show GBottomNav;
+
 import 'live_shell_test.dart' show DataBackend;
 
 class TrackBackend extends DataBackend {
@@ -53,7 +55,7 @@ void main() {
     await t.pumpAndSettle();
     await t.tap(
       find.descendant(
-        of: find.byType(NavigationBar),
+        of: find.byType(GBottomNav),
         matching: find.text('Orders'),
       ),
     );
