@@ -128,14 +128,23 @@ void main() {
     await t.tap(find.text('Select').first);
     await t.pump();
     expect(find.text('1 of 2 selected'), findsOneWidget);
-    // Plus on the same card cannot push past the required total.
+    // A second portion of the same bhaji is allowed (v53 behavior) and
+    // fills the tiffin.
     await t.tap(find.byIcon(Icons.add).first);
     await t.pump();
-    expect(find.text('1 of 2 selected'), findsOneWidget);
-    await t.tap(find.text('Select').first);
+    expect(find.text('2 of 2 selected'), findsOneWidget);
+    // Plus cannot push past the required total.
+    await t.tap(find.byIcon(Icons.add).first);
     await t.pump();
     expect(find.text('2 of 2 selected'), findsOneWidget);
     // A third bhaji stays locked once the tiffin is full.
+    await t.tap(find.text('Select').first);
+    await t.pump();
+    expect(find.text('2 of 2 selected'), findsOneWidget);
+    // Remove the extra portion and pick a different second bhaji.
+    await t.tap(find.byIcon(Icons.remove).first);
+    await t.pump();
+    expect(find.text('1 of 2 selected'), findsOneWidget);
     await t.tap(find.text('Select').first);
     await t.pump();
     expect(find.text('2 of 2 selected'), findsOneWidget);
