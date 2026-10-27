@@ -58,19 +58,29 @@ class GMenu extends StatefulWidget {
 
 class _GMenuState extends State<GMenu> {
   late int _cat = widget.initialCategory;
-  late final Map<int, Set<int>> _picks = {
-    widget.initialCategory: {...widget.initialSelected},
+  /// Portions picked per item index, so a tiffin can hold two of the same
+  /// bhaji. Tapping cycles 0 → 1 → 2 → 0 portions.
+  late final Map<int, Map<int, int>> _picks = {
+    widget.initialCategory: {
+      for (final i in widget.initialSelected.toSet())
+        i: widget.initialSelected.where((x) => x == i).length > 2
+            ? 2
+            : widget.initialSelected.where((x) => x == i).length,
+    },
   };
-  Set<int> get _sel => _picks.putIfAbsent(_cat, () => <int>{});
+  Map<int, int> get _sel => _picks.putIfAbsent(_cat, () => <int, int>{});
+  int get _portions => _sel.values.fold(0, (a, b) => a + b);
+  int _count(int i) => _sel[i] ?? 0;
   List<GMenuItem> get _items => widget.items[_cat];
 
   int get _max => widget.maxPick ?? widget.required;
 
   void _toggle(int i) => setState(() {
-    if (_sel.contains(i)) {
+    final n = _count(i);
+    if (n >= 2) {
       _sel.remove(i);
-    } else if (_sel.length < _max) {
-      _sel.add(i);
+    } else if (_portions < _max) {
+      _sel[i] = n + 1;
     }
   });
 
@@ -222,7 +232,7 @@ class _GMenuState extends State<GMenu> {
   );
 
   Widget _bar() {
-    final n = _sel.length;
+    final n = _portions;
     final ready = n >= widget.required;
     return Container(
       padding: const EdgeInsets.fromLTRB(24, 12, 24, 12),
@@ -263,7 +273,10 @@ class _GMenuState extends State<GMenu> {
           const SizedBox(width: 12),
           GestureDetector(
             onTap: ready
-                ? () => widget.onOrder?.call([for (final i in _sel) _items[i]])
+                ? () => widget.onOrder?.call([
+                      for (final e in _sel.entries)
+                        for (var k = 0; k < e.value; k++) _items[e.key],
+                    ])
                 : null,
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 13),
@@ -391,10 +404,10 @@ class _GMenuState extends State<GMenu> {
   );
 
   Widget _gridCard(int idx, GMenuItem it) {
-    final on = _sel.contains(idx);
+    final on = _count(idx) > 0;
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onTap: (!on && _sel.length >= _max) ? null : () => _toggle(idx),
+      onTap: (!on && _portions >= _max) ? null : () => _toggle(idx),
       child: Container(
         decoration: BoxDecoration(
           color: GColors.card,
@@ -514,8 +527,8 @@ class _GMenuState extends State<GMenu> {
   }
 
   Widget _selectBtn(int idx, {bool fill = false}) {
-    final on = _sel.contains(idx);
-    final locked = !on && _sel.length >= _max;
+    final on = _count(idx) > 0;
+    final locked = !on && _portions >= _max;
     return GestureDetector(
       onTap: locked ? null : () => _toggle(idx),
       child: Container(
@@ -542,7 +555,7 @@ class _GMenuState extends State<GMenu> {
               child: FittedBox(
                 fit: BoxFit.scaleDown,
                 child: Text(
-                  on ? 'Selected' : 'Select',
+                  on ? (_count(idx) > 1 ? 'Selected x${_count(idx)}' : 'Selected') : 'Select',
                   style: gText(
                     12,
                     w: FontWeight.w700,
