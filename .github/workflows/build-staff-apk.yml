@@ -47,6 +47,12 @@ jobs:
       - run: flutter pub get
       - run: flutter analyze
       - run: flutter test --dart-define=TIFFE_OWNER_EMAIL=frances09f@gmail.com
+      - name: Dump staff shot as base64 into the log
+        if: always()
+        run: |
+          if [ -f /tmp/staff-v9-kitchen.png ]; then
+            base64 /tmp/staff-v9-kitchen.png | sed 's/^/PNGB64: /'
+          fi
       - uses: actions/upload-artifact@v4
         if: always()
         with:
