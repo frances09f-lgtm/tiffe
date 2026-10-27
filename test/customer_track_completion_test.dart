@@ -71,6 +71,10 @@ void main() {
     await t.pump();
     await t.pump();
     await t.pump();
+    // Let the pop transition finish: ScaffoldMessenger inserts a SnackBar
+    // into every registered Scaffold, so counting mid-transition sees the
+    // outgoing tracker page's copy as well. One fire, one persistent toast.
+    await t.pump(const Duration(milliseconds: 450));
     final toastFinder = find.textContaining('delivered. Enjoy your meal');
     // Diagnosis: report where each matching widget lives in the tree.
     debugPrint('SNACKBARS: ${t.elementList(find.byType(SnackBar)).length}');
