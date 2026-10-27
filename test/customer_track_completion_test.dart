@@ -79,7 +79,7 @@ void main() {
         chain.add(a.widget.runtimeType.toString());
         return chain.length < 14;
       });
-      print('TOASTPATH: ${chain.join(' < ')}');
+      debugPrint('TOASTPATH: ${chain.join(' < ')}');
     }
     expect(toastFinder, findsOneWidget);
     await t.pumpAndSettle();
