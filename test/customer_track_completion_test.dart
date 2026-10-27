@@ -42,6 +42,7 @@ void main() {
         };
     final b = TrackBackend();
     addTearDown(b.controller.close);
+    await store.prefs.setBool('profile_complete_${b.userId}', true);
     await t.pumpWidget(
       TiffeApp(
         store: store,
