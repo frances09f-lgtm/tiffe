@@ -4499,6 +4499,8 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
       return null;
     }
 
+    var deliveredHandled = false;
+    String? firstSeen;
     final nav = Navigator.of(routeContext);
     nav.push(
       MaterialPageRoute<void>(
@@ -4506,6 +4508,24 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
           valueListenable: _rev,
           builder: (c2, _, _) {
             final row = mounted ? find() : null;
+            final seen = row?['status'] as String?;
+            if (seen != null) {
+              firstSeen ??= seen;
+              // Delivery completed while this page is open: leave the tracker
+              // and land on the Orders tab with the completion message. An
+              // already-delivered order opened from history stays put.
+              if (!deliveredHandled &&
+                  firstSeen != 'Delivered' &&
+                  seen == 'Delivered') {
+                deliveredHandled = true;
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (!mounted) return;
+                  if (nav.canPop()) nav.pop();
+                  setState(() => tab = 3);
+                  gToast(context, 'Order $id delivered. Enjoy your meal!');
+                });
+              }
+            }
             if (row == null) {
               return GTrack(
                 orderId: id,
