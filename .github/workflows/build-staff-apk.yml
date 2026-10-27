@@ -8,8 +8,8 @@ on:
         default: false
 env:
   # Edit these two values and distribution/staff-release-notes.md for each Staff release.
-  STAFF_VERSION: '1.0.10'
-  STAFF_BUILD: '10'
+  STAFF_VERSION: '1.0.11'
+  STAFF_BUILD: '11'
 permissions:
   contents: read
 jobs:
@@ -113,8 +113,19 @@ jobs:
             echo "CI run ${GITHUB_RUN_ID}. APK: ${SIZE} bytes. SHA256: ${SHA256}"
           } > notes.md
           gh release create "staff-v${STAFF_BUILD}" staff-build/Tiffe-Staff.apk staff-build/Tiffe-Staff.aab --target '${{ needs.build.outputs.sha }}' --title "Tiffe Staff ${STAFF_VERSION}" --notes-file notes.md --prerelease
-  feed:
+  mirror:
+    # Copy the APK to the apk-mirror branch (raw.githubusercontent.com) and
+    # update the mirror feed Staff 1.0.11+ reads. Uses only this repo's token.
     needs: [build, release]
+    if: ${{ inputs.publish }}
+    uses: ./.github/workflows/apk-mirror.yml
+    with:
+      tag: staff-v11
+      feed_key: tiffe_staff
+      version: '1.0.11'
+      asset: Tiffe-Staff.apk
+  feed:
+    needs: [build, release, mirror]
     if: ${{ inputs.publish }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -143,7 +154,11 @@ jobs:
           d['tiffe_staff'] = {
               'version': v,
               'notes': open(os.environ['NOTES_FILE']).read().strip(),
-              'apk': 'https://github.com/%s/releases/download/staff-v%s/Tiffe-Staff.apk' % (os.environ['REPO'], os.environ['STAFF_BUILD']),
+              # Mirror first: GitHub release downloads are blocked on some networks.
+              'apk': 'https://raw.githubusercontent.com/%s/apk-mirror/staff/%s/Tiffe-Staff.apk' % (os.environ['REPO'], v),
+              'mirrors': [
+                  'https://github.com/%s/releases/download/staff-v%s/Tiffe-Staff.apk' % (os.environ['REPO'], os.environ['STAFF_BUILD']),
+              ],
           }
           open(p, 'w').write(json.dumps(d, indent=2, ensure_ascii=False) + '\n')
           PY

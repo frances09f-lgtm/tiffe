@@ -1,7 +1,4 @@
-Tiffe Staff 1.0.10: light mode, Updates button, clearer kitchen cards, accept step and Remove bhaji.
-Light mode: the sun/moon button in the hub header switches between light and dark, and the choice is remembered. Every screen repaints when you switch, including the kitchen totals, which were white-on-white in light mode before. Dark mode is still available.
-Updates: a labelled Updates button sits next to Sync in the kitchen summary. It says Checking… while it looks, then shows either "You have the latest version" or the in-app update window (download inside the app, then the Android installer). Sync and Updates text is now bright in both themes.
-Ready for Pickup: a disabled Confirm Handover button now has readable text. The hint under it no longer sends you to All Orders for rider assignment; it says to assign the delivery partner on the same card, and only points to All Orders when payment still needs verifying.
-New orders: once the owner runs the one-time database update (tiffe-v56 SQL), new orders arrive as "Order placed" and the customer sees "Confirmed" only after you tap Accept Order. Then tap Start Preparing. Existing orders are unchanged and show Start Preparing straight away.
-Menu: each bhaji has a Remove button, separate from the availability switch, with a confirmation. A removed bhaji leaves every menu but stays in old orders' history. Needs the same database update.
+Tiffe Staff 1.0.11: in-app updates that finish.
+Updates now download from a mirror that works on networks that block GitHub downloads, with GitHub as a backup. If a download stops moving for 15 seconds, the app switches to the next address. If every address fails, it shows the reason and a Retry button instead of sitting at 0.0 MB.
+Everything from 1.0.10 is unchanged: light mode, the Updates button next to Sync, readable handover, Accept Order and Remove bhaji.
 Not tested on a phone. Analyze, the full test suite and the signed build passed in CI before publishing.

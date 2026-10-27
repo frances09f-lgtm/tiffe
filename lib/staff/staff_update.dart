@@ -4,6 +4,9 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:http/http.dart' as http;
+
+import '../update/update_download.dart';
 
 /// In-app update for Tiffe Staff. It reads the public update feed, shows the
 /// current and latest version with release notes, downloads the APK inside the
@@ -15,17 +18,60 @@ const kStaffAppName = 'Tiffe Staff';
 const kStaffFeedUrl =
     'https://raw.githubusercontent.com/frances09f-lgtm/child-safety-updates/main/version.json';
 const kStaffFeedKey = 'tiffe_staff';
+// Second feed, written by the release CI (APK mirror workflow) on the
+// apk-mirror branch. The newest version across both feeds wins.
+const kStaffMirrorFeedUrl =
+    'https://raw.githubusercontent.com/frances09f-lgtm/tiffe/apk-mirror/version.json';
+const kStaffFeedUrls = [kStaffFeedUrl, kStaffMirrorFeedUrl];
 const kStaffAutoCheckInterval = Duration(hours: 6);
 
 class StaffUpdateInfo {
   final String version;
   final String notes;
   final String apkUrl;
+
+  /// Every address this APK can be downloaded from (mirror, GitHub).
+  final List<String> apkUrls;
+
+  /// Exact APK size in bytes when the feed states it.
+  final int? size;
   const StaffUpdateInfo({
     required this.version,
     required this.notes,
     required this.apkUrl,
+    this.apkUrls = const [],
+    this.size,
   });
+
+  /// Download addresses in the order the updater tries them: mirror first,
+  /// GitHub's release file host last.
+  List<Uri> get downloadUrls => orderDownloadUrls([apkUrl, ...apkUrls]);
+}
+
+/// Newest entry across feeds; addresses of every feed listing that same
+/// version are combined.
+StaffUpdateInfo? pickNewestStaff(Iterable<StaffUpdateInfo?> entries) {
+  final list = entries.whereType<StaffUpdateInfo>().toList();
+  if (list.isEmpty) return null;
+  var best = list.first;
+  for (final e in list.skip(1)) {
+    if (compareStaffVersions(e.version, best.version) > 0) best = e;
+  }
+  final same = list
+      .where((e) => compareStaffVersions(e.version, best.version) == 0)
+      .toList();
+  final urls = orderDownloadUrls([
+    for (final e in same) ...[e.apkUrl, ...e.apkUrls],
+  ]).map((u) => u.toString()).toList();
+  return StaffUpdateInfo(
+    version: best.version,
+    notes: same
+        .map((e) => e.notes)
+        .firstWhere((n) => n.isNotEmpty, orElse: () => best.notes),
+    apkUrl: urls.first,
+    apkUrls: urls,
+    size: same.map((e) => e.size).whereType<int>().firstOrNull,
+  );
 }
 
 class StaffUpdateResult {
@@ -83,7 +129,18 @@ StaffUpdateInfo? parseStaffFeed(String body) {
   final uri = Uri.tryParse(apk);
   if (uri == null || uri.scheme != 'https' || uri.host.isEmpty) return null;
   final notes = (e['notes'] is String ? e['notes'] as String : '').trim();
-  return StaffUpdateInfo(version: v, notes: notes, apkUrl: apk);
+  final mirrors = <String>[
+    for (final m in (e['mirrors'] is List ? e['mirrors'] as List : const []))
+      if (m is String && m.trim().isNotEmpty) m.trim(),
+  ];
+  final size = e['size'] is int ? e['size'] as int : null;
+  return StaffUpdateInfo(
+    version: v,
+    notes: notes,
+    apkUrl: apk,
+    apkUrls: [apk, ...mirrors],
+    size: size != null && size > 0 ? size : null,
+  );
 }
 
 class StaffUpdateChecker {
@@ -95,6 +152,7 @@ class StaffUpdateChecker {
     Future<void> Function()? openInstallSettings,
     Future<Directory> Function()? cacheDir,
     DateTime Function()? clock,
+    http.Client Function()? clientFactory,
     Future<File> Function(
       StaffUpdateInfo info, {
       void Function(int received, int? total)? onProgress,
@@ -108,10 +166,14 @@ class StaffUpdateChecker {
        _openInstallSettings = openInstallSettings ?? _nativeOpenSettings,
        _cacheDir = cacheDir ?? _nativeCacheDir,
        _downloader = downloader,
+       _clientFactory = clientFactory ?? http.Client.new,
+       _closeClients = true,
        _clock = clock ?? DateTime.now;
 
   static const _channel = MethodChannel('app/update');
   final Future<String> Function(Uri uri) _fetchText;
+  final http.Client Function() _clientFactory;
+  final bool _closeClients;
   final Future<String> Function() _currentVersion;
   final Future<void> Function(String) _installer;
   final Future<bool> Function() _canInstall;
@@ -185,8 +247,17 @@ class StaffUpdateChecker {
     String current = '0.0.0';
     try {
       current = await _currentVersion();
-      final body = await _fetchText(Uri.parse(kStaffFeedUrl));
-      final info = parseStaffFeed(body);
+      // Both feeds at once; either one alone is enough.
+      final entries = await Future.wait(
+        kStaffFeedUrls.map((url) async {
+          try {
+            return parseStaffFeed(await _fetchText(Uri.parse(url)));
+          } catch (_) {
+            return null;
+          }
+        }),
+      );
+      final info = pickNewestStaff(entries);
       if (info == null) {
         return StaffUpdateResult(info: null, failed: true, current: current);
       }
@@ -219,56 +290,37 @@ class StaffUpdateChecker {
   Future<File> download(
     StaffUpdateInfo info, {
     void Function(int received, int? total)? onProgress,
+    void Function(int source, Uri url)? onSourceChange,
     StaffUpdateCancel? cancel,
   }) async {
     final dl = _downloader;
     if (dl != null) {
       return dl(info, onProgress: onProgress, cancel: cancel);
     }
-    final uri = Uri.parse(info.apkUrl);
-    if (uri.scheme != 'https') {
-      throw StateError('update address is not https');
-    }
-    final client = HttpClient()
-      ..connectionTimeout = const Duration(seconds: 30);
-    try {
-      final req = await client.getUrl(uri);
-      req.headers.set('User-Agent', 'Tiffe-Staff-app');
-      req.followRedirects = true;
-      req.maxRedirects = 8;
-      final res = await req.close().timeout(const Duration(seconds: 30));
-      if (res.statusCode != 200) {
-        await res.drain<void>();
-        throw StateError('download failed (HTTP ${res.statusCode})');
-      }
-      final dir = Directory(
-        '${(await _cacheDir()).path}${Platform.pathSeparator}updates',
-      );
-      await dir.create(recursive: true);
-      final file = File(
-        '${dir.path}${Platform.pathSeparator}Tiffe-Staff-${info.version}.apk',
-      );
-      final total = res.contentLength > 0 ? res.contentLength : null;
-      final sink = file.openWrite();
-      var received = 0;
-      try {
-        await for (final chunk in res) {
-          if (cancel?.cancelled == true) throw StateError('cancelled');
-          sink.add(chunk);
-          received += chunk.length;
-          onProgress?.call(received, total);
-        }
-      } finally {
-        await sink.flush();
-        await sink.close();
-      }
-      if (total != null && received != total) {
-        throw StateError('download incomplete ($received of $total bytes)');
-      }
-      return file;
-    } finally {
-      client.close(force: true);
-    }
+    final dir = Directory(
+      '${(await _cacheDir()).path}${Platform.pathSeparator}updates',
+    );
+    await dir.create(recursive: true);
+    final file = File(
+      '${dir.path}${Platform.pathSeparator}Tiffe-Staff-${info.version}.apk',
+    );
+    // StaffUpdateCancel is a flag; turn it into the cancel signal.
+    final cancelTicks = cancel == null
+        ? null
+        : Stream<void>.periodic(
+            const Duration(milliseconds: 200),
+          ).where((_) => cancel.cancelled);
+    return downloadApkWithFallback(
+      urls: info.downloadUrls,
+      target: file,
+      clientFactory: _clientFactory,
+      closeClients: _closeClients,
+      userAgent: 'Tiffe-Staff-app',
+      expectedSize: info.size,
+      onProgress: (r, t, _) => onProgress?.call(r, t),
+      onSourceChange: onSourceChange,
+      cancelToken: cancelTicks,
+    );
   }
 
   Future<void> install(File apk) => _installer(apk.path);
@@ -383,6 +435,7 @@ class _StaffUpdateDialogState extends State<_StaffUpdateDialog> {
   int received = 0;
   int? total;
   String? error;
+  String? source;
   final cancel = StaffUpdateCancel();
 
   @override
@@ -405,6 +458,7 @@ class _StaffUpdateDialogState extends State<_StaffUpdateDialog> {
       received = 0;
       total = null;
       error = null;
+      source = null;
     });
     try {
       final apk = await widget.checker.download(
@@ -414,6 +468,14 @@ class _StaffUpdateDialogState extends State<_StaffUpdateDialog> {
             setState(() {
               received = r;
               total = t;
+            });
+          }
+        },
+        onSourceChange: (i, url) {
+          if (mounted) {
+            setState(() {
+              received = 0;
+              source = 'Trying the ${downloadSourceName(url)}...';
             });
           }
         },
@@ -427,7 +489,9 @@ class _StaffUpdateDialogState extends State<_StaffUpdateDialog> {
       if (!mounted) return;
       setState(() {
         phase = _Phase.error;
-        error = e.toString();
+        error = e is UpdateDownloadException
+            ? e.message
+            : "Couldn't update: $e";
       });
     }
   }
@@ -479,6 +543,8 @@ class _StaffUpdateDialogState extends State<_StaffUpdateDialog> {
                   : '${(received / 1e6).toStringAsFixed(1)} MB',
               style: TextStyle(color: dim, fontSize: 11),
             ),
+            if (source != null)
+              Text(source!, style: TextStyle(color: dim, fontSize: 11)),
           ],
           if (phase == _Phase.needsPermission)
             const Padding(

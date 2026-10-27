@@ -71,16 +71,16 @@ void main() {
     expect(empty.failed, isTrue);
   });
 
-  test('check reads only the update feed address', () async {
-    Uri? seen;
+  test('check reads only the two update feed addresses', () async {
+    final seen = <String>{};
     await StaffUpdateChecker(
       fetchText: (u) async {
-        seen = u;
+        seen.add(u.toString());
         return _feed;
       },
       currentVersion: () async => '1.0.6',
     ).check();
-    expect(seen.toString(), kStaffFeedUrl);
+    expect(seen, {kStaffFeedUrl, kStaffMirrorFeedUrl});
     expect(kStaffFeedUrl, contains('child-safety-updates'));
     expect(kStaffFeedKey, 'tiffe_staff');
   });
