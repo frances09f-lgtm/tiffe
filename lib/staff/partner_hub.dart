@@ -34,17 +34,17 @@ const _saffron = Color(0xFFFC8019);
 Color get _muted =>
     staffDark.value ? const Color(0xFFA1A1AA) : const Color(0xFF71717A);
 Color get _surface =>
-    staffDark.value ? _surface : const Color(0xFFFFFFFF);
+    staffDark.value ? const Color(0xFF262626) : const Color(0xFFFFFFFF);
 Color get _headerBg =>
-    staffDark.value ? _headerBg : const Color(0xFFFFFFFF);
+    staffDark.value ? const Color(0xFF1F1F1F) : const Color(0xFFFFFFFF);
 Color get _okBright =>
-    staffDark.value ? _okBright : const Color(0xFF059669);
+    staffDark.value ? const Color(0xFF34D399) : const Color(0xFF059669);
 Color get _dangerBg =>
-    staffDark.value ? _dangerBg : const Color(0xFFFEE2E2);
+    staffDark.value ? const Color(0xFF4C2424) : const Color(0xFFFEE2E2);
 Color get _dangerFg =>
-    staffDark.value ? _dangerFg : const Color(0xFFB91C1C);
+    staffDark.value ? const Color(0xFFF87171) : const Color(0xFFB91C1C);
 Color get _liveBg =>
-    staffDark.value ? _liveBg : const Color(0xFFD1FAE5);
+    staffDark.value ? const Color(0xFF14372A) : const Color(0xFFD1FAE5);
 const _font = 'PlusJakartaSans';
 
 /// Snapshot of everything the admin website shows. Built from the same
