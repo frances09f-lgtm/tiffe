@@ -118,6 +118,8 @@ jobs:
     # update the mirror feed Staff 1.0.11+ reads. Uses only this repo's token.
     needs: [build, release]
     if: ${{ inputs.publish }}
+    permissions:
+      contents: write
     uses: ./.github/workflows/apk-mirror.yml
     with:
       tag: staff-v11
