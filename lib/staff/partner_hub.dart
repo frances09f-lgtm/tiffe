@@ -668,7 +668,7 @@ Widget _orderTable(AdminData d, List<Map<String, dynamic>> rows) =>
     );
 
 Widget _orderTableBody(AdminData d, List<Map<String, dynamic>> rows) {
-  const head = TextStyle(
+  final head = TextStyle(
     color: _muted,
     fontSize: 11,
     fontWeight: FontWeight.w800,
