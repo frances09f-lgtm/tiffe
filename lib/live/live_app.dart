@@ -4521,7 +4521,7 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
                 WidgetsBinding.instance.addPostFrameCallback((_) {
                   if (!mounted) return;
                   if (nav.canPop()) nav.pop();
-                  setState(() => tab = 3);
+                  setState(() => tab = 2);
                   gToast(context, 'Order $id delivered. Enjoy your meal!');
                 });
               }
