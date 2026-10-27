@@ -1,4 +1,4 @@
-�name: Customer v55
+name: Customer v55
 on:
   workflow_dispatch:
     inputs:
