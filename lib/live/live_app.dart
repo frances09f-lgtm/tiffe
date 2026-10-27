@@ -16,6 +16,7 @@ import '../ui/gemini/toast.dart';
 import '../ui/tracking_map.dart';
 import 'bug_report.dart';
 import 'order_alerts.dart';
+import 'order_tracking.dart';
 import 'order_status.dart';
 import 'notification_settings.dart';
 import 'update_check.dart';
@@ -476,6 +477,7 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
         unawaited(_refreshMenuRows());
         unawaited(_alertsForeground(true));
         unawaited(OrderAlerts.start());
+        unawaited(_syncTracking(orderRows));
       }
     } else if (widget.role == null &&
         (state == AppLifecycleState.paused ||
@@ -507,6 +509,48 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
       // Outside the foreground: one extra background check ~5 min later.
       await OrderAlerts.checkSoon();
     }
+  }
+
+  bool _batteryAsking = false;
+
+  /// Starts or stops live order tracking (a quiet "Tracking your order"
+  /// notification while an order is open), and asks once to let Tiffe run
+  /// in the background, because many phones close background apps.
+  Future<void> _syncTracking(List<Map<String, dynamic>> rows) async {
+    if (!onAndroid || widget.role != null) return;
+    await OrderTracking.sync(widget.backend.client, rows);
+    if (!mounted || _batteryAsking) return;
+    final prefs = widget.store.prefs;
+    final ask = shouldAskBattery(
+      exempt: await OrderTracking.batteryExempt(),
+      alreadyAsked: prefs.getBool(kBatteryAskedKey) ?? false,
+      tracking: await OrderTracking.isRunning(),
+    );
+    if (!ask || !mounted) return;
+    _batteryAsking = true;
+    await prefs.setBool(kBatteryAskedKey, true);
+    if (!mounted) return;
+    final allow = await showDialog<bool>(
+      context: routeContext,
+      builder: (c) => AlertDialog(
+        title: const Text('Keep order alerts coming'),
+        content: const Text(
+          kBatteryPromptText,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(c, false),
+            child: const Text('Not now'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(c, true),
+            child: const Text('Allow'),
+          ),
+        ],
+      ),
+    );
+    _batteryAsking = false;
+    if (allow == true) await OrderTracking.requestBatteryExemption();
   }
 
   /// Customer only: re-reads the menu so availability is never stale.
@@ -607,6 +651,7 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
     if (widget.role == null) {
       unawaited(OrderAlerts.start());
       unawaited(_alertsForeground(true));
+      OrderTracking.listen(widget.backend.client);
       for (final id
           in widget.store.prefs.getStringList('demo_orders') ??
               const <String>[]) {
@@ -650,6 +695,10 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
             notify: life != null && life != AppLifecycleState.resumed,
           ),
         );
+        // Live tracking with the app closed: on while an order is open.
+        if (life == null || life == AppLifecycleState.resumed) {
+          unawaited(_syncTracking(rows));
+        }
       }
       if (mounted) setState(() => orderRows = rows);
       if (widget.role == null && mounted) loadItems();

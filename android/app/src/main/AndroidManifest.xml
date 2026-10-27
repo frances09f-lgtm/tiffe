@@ -4,11 +4,24 @@
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" android:maxSdkVersion="32" />
     <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
         <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES"/>
+    <!-- Live order tracking while an order is open (foreground service). -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_REMOTE_MESSAGING" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     <application
         android:label="Tiffe"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <receiver android:name=".DeliveryNotificationReceiver" android:exported="false" />
+        <service
+            android:name="com.pravera.flutter_foreground_task.service.ForegroundService"
+            android:foregroundServiceType="remoteMessaging"
+            android:exported="false" />
+        <meta-data
+            android:name="com.ambi.tiffe.TRACKING_ICON"
+            android:resource="@drawable/ic_tiffe_notification" />
         <activity
             android:name=".MainActivity"
             android:exported="true"

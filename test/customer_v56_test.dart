@@ -45,7 +45,7 @@ void main() {
       final code = File('lib/live/order_alerts.dart').readAsStringSync();
       expect(code, isNot(contains("getBool('order_alert_permission_asked')")));
       expect(code, contains('prefs.remove(kOldPermissionFlag)'));
-      expect(code, contains("kPermissionStateKey, now ? 'granted' : 'denied'"));
+      expect(code, contains("now ? 'granted' : 'denied'"));
     });
 
     test('settings page keeps the manual repair and settings buttons', () {
@@ -56,7 +56,7 @@ void main() {
       expect(page, contains('Open app notification settings'));
       expect(page, contains('You said no to notifications'));
       // Honest about timing: polling, not push.
-      expect(page, contains('not instant'));
+      expect(page, contains('While you have an open order'));
     });
   });
 

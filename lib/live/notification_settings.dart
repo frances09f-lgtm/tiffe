@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../ui/gemini/auth_screens.dart';
 import 'order_alerts.dart';
+import 'order_tracking.dart';
 
 class NotificationSettingsPage extends StatefulWidget {
   const NotificationSettingsPage({super.key});
@@ -17,6 +18,7 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage>
   static const channel = MethodChannel('tiffe/order_notification_settings');
   Map<dynamic, dynamic> device = {};
   String result = 'Checking…', scheduled = 'Unknown', lastRun = 'Not run yet';
+  String tracking = 'Not started yet';
   String setup = 'Not run yet', statusError = '';
   String? permission;
   bool busy = false;
@@ -68,6 +70,7 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage>
           when(prefs.getInt('order_alert_scheduled_at'));
       lastRun = when(prefs.getInt('order_alert_last_run'));
       permission = prefs.getString(kPermissionStateKey);
+      tracking = prefs.getString(kTrackerResultKey) ?? 'Not started yet';
     });
   }
 
@@ -108,12 +111,12 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage>
         ),
         const SizedBox(height: 12),
         Text(
-          'Alerts use real status changes from the kitchen. This app never advances an order by time. Tiffe has no push server: while the app is closed, Android checks your orders about every 15 minutes (plus once about 5 minutes after you leave the app), and battery saving can delay that. Alerts are not instant.',
+          'Alerts use real status changes from the kitchen. This app never advances an order by time. While you have an open order, Tiffe shows a quiet "Tracking your order" notification and gets every status change live, also when the app is closed, so you hear about each step right away. It stops by itself once the order is delivered. If your phone stops it, Tiffe still checks about every 15 minutes.',
           style: gText(14, c: GColors.charcoal, height: 1.4),
         ),
         const SizedBox(height: 16),
         SelectableText(
-          'Android API: ${device['sdk'] ?? 'Unknown'}\nPhone: ${device['manufacturer'] ?? 'Unknown'}\nApp notifications: ${device['enabled'] == true ? 'Allowed' : 'Blocked or unknown'}\nOrder channel: ${device['channelEnabled'] == true ? 'Allowed' : 'Blocked or not created'}\nBattery: ${device['batteryExempt'] == true ? 'Unrestricted' : 'Optimized or unknown'}\nBackground scheduled: $scheduled\nLast background run: $lastRun\nSetup: $setup\nResult: $result${statusError.isEmpty ? '' : '\nSettings read: $statusError'}',
+          'Android API: ${device['sdk'] ?? 'Unknown'}\nPhone: ${device['manufacturer'] ?? 'Unknown'}\nApp notifications: ${device['enabled'] == true ? 'Allowed' : 'Blocked or unknown'}\nOrder channel: ${device['channelEnabled'] == true ? 'Allowed' : 'Blocked or not created'}\nBattery: ${device['batteryExempt'] == true ? 'Unrestricted' : 'Optimized or unknown'}\nBackground scheduled: $scheduled\nLast background run: $lastRun\nSetup: $setup\nResult: $result\nLive tracking: $tracking${statusError.isEmpty ? '' : '\nSettings read: $statusError'}',
           style: gText(14, c: GColors.ink, height: 1.6),
         ),
         if (device['enabled'] != true && permission == 'denied') ...[
@@ -139,8 +142,11 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage>
           child: const Text('Open Order updates channel'),
         ),
         TextButton(
-          onPressed: () => action('battery'),
-          child: const Text('Open battery settings'),
+          onPressed: () async {
+            await OrderTracking.requestBatteryExemption();
+            await refresh();
+          },
+          child: const Text('Let Tiffe run in the background'),
         ),
         TextButton(
           onPressed: refresh,

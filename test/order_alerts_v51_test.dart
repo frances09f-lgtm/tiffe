@@ -16,10 +16,16 @@ void main() {
         'Packed',
         'Out for Delivery',
         'Delivered',
+        'Cancelled',
+        'Failed',
+        'Refunded',
       ]);
       final code = File('lib/live/order_alerts.dart').readAsStringSync();
       expect(
-        code.contains('was == null || was == e.value || text == null'),
+        // 1.0.57: the same rule lives in orderAlertChange (tested in
+        // customer_v57_test): no alert unless the server status changed.
+        code.contains('orderAlertChange(before[e.key], e.value)') &&
+            code.contains('if (was == now) return null;'),
         isTrue,
       );
       expect(code.contains(".from('orders')"), isTrue);

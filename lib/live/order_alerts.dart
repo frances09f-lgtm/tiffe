@@ -11,6 +11,7 @@ import 'package:workmanager/workmanager.dart';
 
 import 'backend.dart';
 import 'order_status.dart';
+import 'order_tracking.dart';
 
 /// True on a real Android phone. False in tests and everywhere else.
 bool get onAndroid {
@@ -27,7 +28,14 @@ const orderAlertText = {
   'Packed': 'Your order is packed and ready for dispatch',
   'Out for Delivery': 'Your order is out for delivery',
   'Delivered': 'Your order was delivered',
+  'Cancelled': 'Your order was cancelled',
+  'Failed': 'Your order could not be completed',
+  'Refunded': 'Your order was refunded',
 };
+
+/// Shown when a new order shows up for the first time (placed while the
+/// app was not watching, e.g. from another phone).
+const kNewOrderAlertText = 'Order placed. Waiting for the kitchen to accept it';
 
 /// Full error text for the diagnostics page: type, code and message.
 String orderAlertErrorDetail(Object e) {
@@ -48,6 +56,14 @@ String orderAlertErrorDetail(Object e) {
 String orderAlertErrorKind(Object e) {
   if (e is PostgrestException) return 'Server ${e.code ?? 'error'}';
   return e.runtimeType.toString();
+}
+
+/// Notification text for one order between two looks, or null for none.
+/// A brand-new order only alerts while it still waits for the kitchen.
+String? orderAlertChange(String? was, String now) {
+  if (was == now) return null;
+  if (was == null) return now == kOrderPlaced ? kNewOrderAlertText : null;
+  return orderAlertText[now];
 }
 
 /// What to do about the notification permission on this start.
@@ -248,10 +264,14 @@ class OrderAlerts {
         );
         if (step == PermissionStep.ask) {
           final granted = await android?.requestNotificationsPermission();
-          final now = granted == true ||
+          final now =
+              granted == true ||
               await android?.areNotificationsEnabled() == true;
           // Respect a "no": the app does not ask again by itself.
-          await prefs.setString(kPermissionStateKey, now ? 'granted' : 'denied');
+          await prefs.setString(
+            kPermissionStateKey,
+            now ? 'granted' : 'denied',
+          );
         } else if (step == PermissionStep.openSettings) {
           await _settings.invokeMethod<void>('notifications');
         }
@@ -324,10 +344,12 @@ class OrderAlerts {
   ) async {
     if (!onAndroid) return;
     try {
-      final token = client.auth.currentSession?.refreshToken;
+      final session = client.auth.currentSession;
+      final token = session?.refreshToken;
       if (token == null) return;
       await prefs.setString(_tokenKey, token);
       await prefs.setString(_tokenByKey, 'fg');
+      await prefs.setString(kSessionKey, jsonEncode(session!.toJson()));
     } catch (_) {}
   }
 
@@ -365,10 +387,8 @@ class OrderAlerts {
       if (notify && !first) {
         final pending = <String, String>{};
         for (final e in now.entries) {
-          final was = before[e.key];
-          final text = orderAlertText[e.value];
-          if (was == null || was == e.value || text == null) continue;
-          pending[e.key] = text;
+          final text = orderAlertChange(before[e.key], e.value);
+          if (text != null) pending[e.key] = text;
         }
         if (pending.isNotEmpty) {
           if (!await canNotify()) {
@@ -450,6 +470,14 @@ class OrderAlerts {
       await prefs.setString(_resultKey, 'Skipped while the app is open');
       return;
     }
+    if (trackerAlive(
+      prefs.getInt(kTrackerBeatKey) ?? 0,
+      DateTime.now().millisecondsSinceEpoch,
+    )) {
+      // The live tracking service is on it (and owns the login now).
+      await prefs.setString(_resultKey, 'Skipped: live tracking is running');
+      return;
+    }
     final client = await BackendConfig.initialize();
     if (client == null) throw StateError('Backend unavailable');
     final uid = await _customerId(client);
@@ -470,10 +498,14 @@ class OrderAlerts {
     ];
     await prefs.setString(_resultKey, 'Checked ${list.length} order(s)');
     await record(prefs, uid, list, notify: true);
-    final token = client.auth.currentSession?.refreshToken;
+    final session = client.auth.currentSession;
+    final token = session?.refreshToken;
     if (token != null && token != prefs.getString(_tokenKey)) {
       await prefs.setString(_tokenKey, token);
       await prefs.setString(_tokenByKey, 'bg');
+      await prefs.setString(kSessionKey, jsonEncode(session!.toJson()));
     }
+    // Restart live tracking if the phone killed it while an order is open.
+    await OrderTracking.watchdog(list);
   }
 }

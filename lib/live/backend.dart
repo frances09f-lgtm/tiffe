@@ -18,10 +18,17 @@ class BackendConfig {
   static const publishableKey = String.fromEnvironment('TIFFE_SUPABASE_KEY');
   static bool get configured => url.isNotEmpty && publishableKey.isNotEmpty;
   static bool _initialized = false;
-  static Future<SupabaseClient?> initialize() async {
+
+  /// [autoRefresh] false is for the order tracking service: it refreshes the
+  /// login itself, only while the app is not on screen.
+  static Future<SupabaseClient?> initialize({bool autoRefresh = true}) async {
     if (!configured) return null;
     if (_initialized) return Supabase.instance.client;
-    await Supabase.initialize(url: url, publishableKey: publishableKey);
+    await Supabase.initialize(
+      url: url,
+      publishableKey: publishableKey,
+      authOptions: FlutterAuthClientOptions(autoRefreshToken: autoRefresh),
+    );
     _initialized = true;
     return Supabase.instance.client;
   }
