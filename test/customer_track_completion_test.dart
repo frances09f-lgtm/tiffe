@@ -66,6 +66,9 @@ void main() {
 
     // The kitchen marks it delivered while the tracker is open.
     b.controller.add([order('Delivered')]);
+    // One frame for the stream event, one for the tracker rebuild, and one
+    // for the post-frame pop + toast insertion to build.
+    await t.pump();
     await t.pump();
     await t.pump();
     expect(find.textContaining('delivered. Enjoy your meal'), findsOneWidget);
