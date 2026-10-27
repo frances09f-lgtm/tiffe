@@ -249,17 +249,6 @@ class _PartnerHubState extends State<PartnerHub> {
         );
     } catch (_) {}
     try {
-      // Order status must change only when staff tap it. If the server still
-      // has auto-accept switched on, the owner session switches it off.
-      final v = await widget.backend.currentSettings();
-      if (widget.role == 'owner' && v?['kitchen_auto_accept'] == true) {
-        await widget.backend.client.rpc(
-          'set_kitchen_auto_accept',
-          params: {'p_enabled': false},
-        );
-      }
-    } catch (_) {}
-    try {
       final r = await Future.wait([
         widget.role == 'owner'
             ? widget.backend.allSubscriptions()
@@ -1427,12 +1416,55 @@ class _KitchenHubState extends State<KitchenHub> {
   Timer? clock;
   String? error;
   bool busy = false;
+  bool? autoConfirm;
   @override
   void initState() {
     super.initState();
     clock = Timer.periodic(const Duration(minutes: 1), (_) {
       if (mounted) setState(() {});
     });
+    widget.b.currentSettings().then((v) {
+      if (mounted) setState(() => autoConfirm = v?['kitchen_auto_accept'] == true);
+    }).catchError((_) {});
+  }
+
+  /// Owner-controlled switch for automatic confirmation of new orders. Staff
+  /// tap statuses by hand while this is off (the default).
+  Future<void> setAutoConfirm(bool on) async {
+    final prev = autoConfirm;
+    setState(() {
+      autoConfirm = on;
+      error = null;
+    });
+    try {
+      await widget.b.client
+          .rpc('set_kitchen_auto_accept', params: {'p_enabled': on});
+    } catch (_) {
+      if (mounted)
+        setState(() {
+          autoConfirm = prev;
+          error = 'Could not update auto-confirm. Check the connection and try again.';
+        });
+    }
+  }
+
+  /// Assign a rider straight from the Ready card so the kitchen need not open
+  /// All Orders. Payment verification stays a prerequisite.
+  Future<void> assign(Map<String, dynamic> o, String riderId) async {
+    setState(() {
+      busy = true;
+      error = null;
+    });
+    try {
+      await widget.b.assignRider(o['id'] as String, riderId);
+    } catch (_) {
+      if (mounted)
+        setState(
+          () => error = 'Could not assign the rider. Refresh and try again.',
+        );
+    } finally {
+      if (mounted) setState(() => busy = false);
+    }
   }
 
   @override
@@ -1616,6 +1648,11 @@ class _KitchenHubState extends State<KitchenHub> {
                   ),
                 ],
               ),
+              const SizedBox(height: 6),
+              Text(
+                "Counts today's deliveries (${d.today}) only - resets at midnight IST. Upcoming orders stay visible in the queue below.",
+                style: const TextStyle(fontSize: 10, color: _muted),
+              ),
               const SizedBox(height: 14),
               Wrap(
                 spacing: 8,
@@ -1627,6 +1664,20 @@ class _KitchenHubState extends State<KitchenHub> {
                     _saffron,
                     const Color(0xFF4A2D17),
                   ),
+                  if (widget.role == 'owner' && autoConfirm != null)
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Text(
+                          'Auto-confirm new orders',
+                          style: TextStyle(fontSize: 11, color: _muted),
+                        ),
+                        Switch(
+                          value: autoConfirm!,
+                          onChanged: busy ? null : setAutoConfirm,
+                        ),
+                      ],
+                    ),
                   TextButton.icon(
                     onPressed: widget.onSync,
                     icon: const Icon(Icons.sync, size: 14),
@@ -1896,6 +1947,41 @@ class _KitchenHubState extends State<KitchenHub> {
                                 style: const TextStyle(
                                   fontSize: 11,
                                   color: _muted,
+                                ),
+                              ),
+                            ),
+                          if (state == 'Packed' &&
+                              widget.role == 'owner' &&
+                              o['payment_status'] == 'verified' &&
+                              o['assigned_to'] == null &&
+                              d.riders.isNotEmpty)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 8),
+                              child: PopupMenuButton<String>(
+                                enabled: !busy,
+                                onSelected: (r) => assign(o, r),
+                                itemBuilder: (_) => [
+                                  for (final r in d.riders)
+                                    PopupMenuItem(
+                                      value: r['user_id'] as String,
+                                      child: Text(d.riderName(r['user_id'])),
+                                    ),
+                                ],
+                                child: Container(
+                                  height: 36,
+                                  alignment: Alignment.center,
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(color: _saffron),
+                                  ),
+                                  child: const Text(
+                                    'Assign delivery partner',
+                                    style: TextStyle(
+                                      color: _saffron,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
                                 ),
                               ),
                             ),
