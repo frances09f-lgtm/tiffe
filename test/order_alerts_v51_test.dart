@@ -9,6 +9,9 @@ void main() {
     'only real changed server statuses are eligible, never elapsed time',
     () {
       expect(orderAlertText.keys, [
+        // 1.0.56: staff acceptance (Order placed -> Confirmed) is a real
+        // server change too.
+        'Confirmed',
         'Preparing',
         'Packed',
         'Out for Delivery',

@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'dart:io' show Platform;
 import 'dart:ui' show DartPluginRegistrant;
 
-import 'package:flutter/services.dart' show PlatformException;
+import 'package:flutter/services.dart' show MethodChannel, PlatformException;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -10,6 +10,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:workmanager/workmanager.dart';
 
 import 'backend.dart';
+import 'order_status.dart';
 
 /// True on a real Android phone. False in tests and everywhere else.
 bool get onAndroid {
@@ -21,6 +22,7 @@ bool get onAndroid {
 }
 
 const orderAlertText = {
+  'Confirmed': 'The kitchen accepted your order',
   'Preparing': 'Your meal is being prepared in the kitchen',
   'Packed': 'Your order is packed and ready for dispatch',
   'Out for Delivery': 'Your order is out for delivery',
@@ -46,6 +48,32 @@ String orderAlertErrorDetail(Object e) {
 String orderAlertErrorKind(Object e) {
   if (e is PostgrestException) return 'Server ${e.code ?? 'error'}';
   return e.runtimeType.toString();
+}
+
+/// What to do about the notification permission on this start.
+enum PermissionStep { none, ask, openSettings }
+
+/// Saved permission outcome. Replaces the old one-way
+/// "order_alert_permission_asked" flag, which was set before (or without)
+/// the Android dialog ever showing and then blocked the prompt for good.
+const kPermissionStateKey = 'order_alert_permission_state';
+const kOldPermissionFlag = 'order_alert_permission_asked';
+
+/// Pure decision, so it can be tested without a phone:
+/// - allowed: nothing to do.
+/// - automatic start: ask once unless the customer already said no.
+/// - repair button: ask again; after a recorded "no" Android may not show
+///   the dialog any more, so open the app's notification settings instead.
+PermissionStep permissionStep({
+  required bool allowed,
+  required String? state,
+  required bool manual,
+}) {
+  if (allowed) return PermissionStep.none;
+  if (state == 'denied') {
+    return manual ? PermissionStep.openSettings : PermissionStep.none;
+  }
+  return PermissionStep.ask;
 }
 
 /// Runs in a background isolate about every 15 minutes, also when the app
@@ -79,6 +107,7 @@ class OrderAlerts {
   OrderAlerts._();
 
   static const _channelId = 'tiffe_order_status';
+  static const _settings = MethodChannel('tiffe/order_notification_settings');
   static const _statusKey = 'order_alert_status_';
   static const _beatKey = 'order_alert_fg_ms';
   static const _tokenKey = 'order_alert_rt';
@@ -208,12 +237,23 @@ class OrderAlerts {
         problems.add('channel: ${orderAlertErrorDetail(e)}');
       }
       try {
-        final allowed = await android?.areNotificationsEnabled();
-        if (allowed != true &&
-            (requestPermission ||
-                prefs.getBool('order_alert_permission_asked') != true)) {
-          await prefs.setBool('order_alert_permission_asked', true);
-          await android?.requestNotificationsPermission();
+        // The old flag could hide the prompt forever; it is not read any more.
+        await prefs.remove(kOldPermissionFlag);
+        final allowed = await android?.areNotificationsEnabled() == true;
+        if (allowed) await prefs.setString(kPermissionStateKey, 'granted');
+        final step = permissionStep(
+          allowed: allowed,
+          state: prefs.getString(kPermissionStateKey),
+          manual: requestPermission,
+        );
+        if (step == PermissionStep.ask) {
+          final granted = await android?.requestNotificationsPermission();
+          final now = granted == true ||
+              await android?.areNotificationsEnabled() == true;
+          // Respect a "no": the app does not ask again by itself.
+          await prefs.setString(kPermissionStateKey, now ? 'granted' : 'denied');
+        } else if (step == PermissionStep.openSettings) {
+          await _settings.invokeMethod<void>('notifications');
         }
       } catch (e) {
         problems.add('permission: ${orderAlertErrorDetail(e)}');
@@ -227,6 +267,23 @@ class OrderAlerts {
       } else {
         await prefs.setString(_setupKey, problems.join(' | '));
       }
+    } catch (_) {}
+  }
+
+  /// When the app leaves the screen, ask Android for one extra check in
+  /// about 5 minutes on top of the 15-minute periodic one, so a status
+  /// change soon after leaving is not left for the next periodic slot.
+  /// Android may still delay it (battery saver); this is not instant push.
+  static Future<void> checkSoon() async {
+    if (!onAndroid) return;
+    try {
+      await Workmanager().registerOneOffTask(
+        'tiffe-order-alerts-soon',
+        'tiffe.order.alerts.soon',
+        initialDelay: const Duration(minutes: 5),
+        constraints: Constraints(networkType: NetworkType.connected),
+        existingWorkPolicy: ExistingWorkPolicy.replace,
+      );
     } catch (_) {}
   }
 
@@ -400,12 +457,17 @@ class OrderAlerts {
       await prefs.setString(_resultKey, 'No saved customer login');
       return;
     }
+    // All columns: works before and after the tiffe-v56 database update
+    // (awaiting_acceptance), so "Order placed" -> "Confirmed" is noticed.
     final rows = await client
         .from('orders')
-        .select('id,status')
+        .select()
         .eq('customer_id', uid)
         .timeout(const Duration(seconds: 20));
-    final list = List<Map<String, dynamic>>.from(rows);
+    final list = [
+      for (final o in List<Map<String, dynamic>>.from(rows))
+        customerOrderView(o),
+    ];
     await prefs.setString(_resultKey, 'Checked ${list.length} order(s)');
     await record(prefs, uid, list, notify: true);
     final token = client.auth.currentSession?.refreshToken;

@@ -18,6 +18,7 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage>
   Map<dynamic, dynamic> device = {};
   String result = 'Checking…', scheduled = 'Unknown', lastRun = 'Not run yet';
   String setup = 'Not run yet', statusError = '';
+  String? permission;
   bool busy = false;
   @override
   void initState() {
@@ -66,6 +67,7 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage>
           prefs.getString('order_alert_schedule_error') ??
           when(prefs.getInt('order_alert_scheduled_at'));
       lastRun = when(prefs.getInt('order_alert_last_run'));
+      permission = prefs.getString(kPermissionStateKey);
     });
   }
 
@@ -106,7 +108,7 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage>
         ),
         const SizedBox(height: 12),
         Text(
-          'Alerts use real status changes from the kitchen. This app never advances an order by time. Android background checks run at least 15 minutes apart and may be delayed by battery saving.',
+          'Alerts use real status changes from the kitchen. This app never advances an order by time. Tiffe has no push server: while the app is closed, Android checks your orders about every 15 minutes (plus once about 5 minutes after you leave the app), and battery saving can delay that. Alerts are not instant.',
           style: gText(14, c: GColors.charcoal, height: 1.4),
         ),
         const SizedBox(height: 16),
@@ -114,6 +116,13 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage>
           'Android API: ${device['sdk'] ?? 'Unknown'}\nPhone: ${device['manufacturer'] ?? 'Unknown'}\nApp notifications: ${device['enabled'] == true ? 'Allowed' : 'Blocked or unknown'}\nOrder channel: ${device['channelEnabled'] == true ? 'Allowed' : 'Blocked or not created'}\nBattery: ${device['batteryExempt'] == true ? 'Unrestricted' : 'Optimized or unknown'}\nBackground scheduled: $scheduled\nLast background run: $lastRun\nSetup: $setup\nResult: $result${statusError.isEmpty ? '' : '\nSettings read: $statusError'}',
           style: gText(14, c: GColors.ink, height: 1.6),
         ),
+        if (device['enabled'] != true && permission == 'denied') ...[
+          const SizedBox(height: 12),
+          Text(
+            'You said no to notifications, so Tiffe will not ask again by itself. Tap the button below to turn them on in Android settings.',
+            style: gText(14, w: FontWeight.w600, c: GColors.ink, height: 1.4),
+          ),
+        ],
         const SizedBox(height: 16),
         FilledButton(
           onPressed: busy ? null : enable,

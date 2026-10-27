@@ -16,6 +16,7 @@ import '../ui/gemini/toast.dart';
 import '../ui/tracking_map.dart';
 import 'bug_report.dart';
 import 'order_alerts.dart';
+import 'order_status.dart';
 import 'notification_settings.dart';
 import 'update_check.dart';
 import '../ui/gemini/auth_screens.dart';
@@ -503,6 +504,8 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
     } else {
       await OrderAlerts.heartbeat(prefs, false);
       await OrderAlerts.saveSession(widget.backend.client, prefs);
+      // Outside the foreground: one extra background check ~5 min later.
+      await OrderAlerts.checkSoon();
     }
   }
 
@@ -660,6 +663,7 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
   Map<String, dynamic> _simOne(Map<String, dynamic> order) => order;
 
   static const _alertText = {
+    'Confirmed': 'The kitchen accepted your order',
     'Preparing': 'Meal is being prepared in the kitchen',
     'Packed': 'Packed and ready for dispatch',
     'Out for Delivery': 'Out for delivery',
@@ -2670,6 +2674,7 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
   );
   Widget orderProgress(Map<String, dynamic> order) {
     const statuses = [
+      kOrderPlaced,
       'Confirmed',
       'Preparing',
       'Packed',
@@ -4538,6 +4543,7 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
               );
             }
             const order = [
+              kOrderPlaced,
               'Confirmed',
               'Preparing',
               'Packed',
@@ -4549,6 +4555,7 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
             final out = status == 'Out for Delivery';
             final rider = _riderName(row);
             String label(String st, bool done) => switch (st) {
+              kOrderPlaced => 'Order placed',
               'Confirmed' => 'Order Confirmed',
               'Preparing' =>
                 done
@@ -4574,11 +4581,20 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
                         GTrackStep(
                           label(
                             order[i],
-                            i != at || i == 0 || order[i] == 'Delivered',
+                            i != at ||
+                                const {
+                                  kOrderPlaced,
+                                  'Confirmed',
+                                  'Delivered',
+                                }.contains(order[i]),
                           ),
                           i < at ||
                                   (i == at &&
-                                      (i == 0 || order[i] == 'Delivered'))
+                                      const {
+                                        kOrderPlaced,
+                                        'Confirmed',
+                                        'Delivered',
+                                      }.contains(order[i]))
                               ? GStepState.done
                               : i == at
                               ? GStepState.current
@@ -4603,7 +4619,12 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
   bool _isSlotOrder(Map<String, dynamic> o) =>
       o['subscription_id'] != null &&
       (o['meal'] == 'lunch' || o['meal'] == 'dinner') &&
-      const ['Confirmed', 'Preparing', 'Packed'].contains(o['status']);
+      const [
+        kOrderPlaced,
+        'Confirmed',
+        'Preparing',
+        'Packed',
+      ].contains(o['status']);
 
   static const _lunchCutoffHour = 12;
   static const _dinnerCutoffHour = 20;

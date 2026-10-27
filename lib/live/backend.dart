@@ -3,6 +3,8 @@ import 'dart:convert';
 
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'order_status.dart';
+
 class BackendConfig {
   static const ownerEmail = String.fromEnvironment('TIFFE_OWNER_EMAIL');
   static String loginEmail(String input, {required bool admin}) {
@@ -53,8 +55,12 @@ class TiffeBackend {
     return List<Map<String, dynamic>>.from(rows);
   }
 
-  Stream<List<Map<String, dynamic>>> menu() =>
-      client.from('menu_items').stream(primaryKey: ['id']).order('sort_order');
+  /// Live menu without removed (archived) bhajis.
+  Stream<List<Map<String, dynamic>>> menu() => client
+      .from('menu_items')
+      .stream(primaryKey: ['id'])
+      .order('sort_order')
+      .map(activeMenu);
 
   /// One fresh read of the menu. The live stream can lag on a sleeping phone.
   Future<List<Map<String, dynamic>>> menuNow() async {
@@ -63,7 +69,7 @@ class TiffeBackend {
         .select()
         .order('sort_order')
         .timeout(const Duration(seconds: 10));
-    return List<Map<String, dynamic>>.from(rows);
+    return activeMenu(List<Map<String, dynamic>>.from(rows));
   }
 
   Stream<List<Map<String, dynamic>>> settings() =>
@@ -80,7 +86,9 @@ class TiffeBackend {
     StreamSubscription<List<Map<String, dynamic>>>? sub;
     Timer? timer;
     String? last;
-    void emit(List<Map<String, dynamic>> rows) {
+    void emit(List<Map<String, dynamic>> raw) {
+      // "Order placed" until the kitchen accepts, then the real status.
+      final rows = [for (final o in raw) customerOrderView(o)];
       final key = jsonEncode(rows);
       if (key == last || out.isClosed) return;
       last = key;
