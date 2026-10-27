@@ -4506,10 +4506,6 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
 
     String? firstSeen;
     final nav = Navigator.of(routeContext);
-    assert(() {
-      debugPrint('TRACKPUSH id=$id state=${identityHashCode(this)}');
-      return true;
-    }());
     nav.push(
       MaterialPageRoute<void>(
         builder: (c) => ValueListenableBuilder<int>(
@@ -4526,19 +4522,7 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
                   firstSeen != 'Delivered' &&
                   seen == 'Delivered') {
                 _deliveredHandledIds.add(id);
-                assert(() {
-                  debugPrint(
-                    'TRACKREG id=$id state=${identityHashCode(this)} firstSeen=$firstSeen',
-                  );
-                  return true;
-                }());
                 WidgetsBinding.instance.addPostFrameCallback((_) {
-                  assert(() {
-                    debugPrint(
-                      'TRACKFIRE id=$id state=${identityHashCode(this)}',
-                    );
-                    return true;
-                  }());
                   if (!mounted) return;
                   if (nav.canPop()) nav.pop();
                   setState(() => tab = 3);
@@ -4817,7 +4801,7 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
             ],
           ],
           showWeekly: false,
-          maxPick: 8,
+          unlimited: true,
           extraRupees: ((cfg?['extra_bhaji_paise'] as num?) ?? 0) ~/ 100,
           onTab: go,
           onOrder: (sel) => _orderBhajis([for (final i in sel) i.title]),
@@ -5317,7 +5301,7 @@ class _OrderSheetState extends State<OrderSheet> {
             ],
           ],
           showWeekly: false,
-          maxPick: 8,
+          unlimited: true,
           extraRupees: extraR,
           initialSelected: [
             for (final id in tiffins[i]) avail.indexWhere((m) => m['id'] == id),
@@ -5384,8 +5368,8 @@ class _OrderSheetState extends State<OrderSheet> {
 
   bool _valid() {
     for (final t in tiffins) {
-      if (t.length < 2 || t.length > 8) {
-        setState(() => error = 'Pick 2 to 8 bhajis for each tiffin.');
+      if (t.length < 2) {
+        setState(() => error = 'Pick at least 2 bhajis for each tiffin.');
         return false;
       }
     }
