@@ -134,6 +134,22 @@ class TiffeBackend {
     }
   }
 
+  /// Remove a bhaji from every current menu without deleting it: past
+  /// orders keep their history. Needs the tiffe-v56 archived_at column; the
+  /// server refuses the update before that and nothing changes.
+  Future<void> archiveMenuItem(String id) async {
+    final now = DateTime.now().toUtc().toIso8601String();
+    await client
+        .from('menu_items')
+        .update({'archived_at': now, 'available': false, 'updated_at': now})
+        .eq('id', id);
+  }
+
+  /// Staff accept a new order; the customer then sees Confirmed. Server
+  /// function from the tiffe-v56 migration (owner or kitchen role only).
+  Future<void> acceptOrder(String id) async =>
+      client.rpc('accept_order', params: {'p_order': id});
+
   Future<Map<String, dynamic>?> currentSettings() async =>
       client.from('settings').select().eq('id', true).maybeSingle();
 

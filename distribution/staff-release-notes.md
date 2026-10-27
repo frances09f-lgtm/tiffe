@@ -1,6 +1,7 @@
-Tiffe Staff 1.0.10 adds a light mode.
-The sun/moon button in the hub header switches between dark and light; the choice is remembered on the device. Kitchen summary, order cards, controls and the header stay readable in both.
-The kitchen summary now also shows a labeled Updates button next to Sync: it checks for a new version and downloads it inside the app, no browser needed.
-Everything from 1.0.9 is unchanged: today's-only kitchen summary with midnight reset, the Auto-confirm new orders switch, and Ready-card rider assignment with Confirm Handover after verified payment.
-Update from inside the app with Check for updates.
+Tiffe Staff 1.0.10: light mode, Updates button, clearer kitchen cards, accept step and Remove bhaji.
+Light mode: the sun/moon button in the hub header switches between light and dark, and the choice is remembered. Every screen repaints when you switch, including the kitchen totals, which were white-on-white in light mode before. Dark mode is still available.
+Updates: a labelled Updates button sits next to Sync in the kitchen summary. It says Checking… while it looks, then shows either "You have the latest version" or the in-app update window (download inside the app, then the Android installer). Sync and Updates text is now bright in both themes.
+Ready for Pickup: a disabled Confirm Handover button now has readable text. The hint under it no longer sends you to All Orders for rider assignment; it says to assign the delivery partner on the same card, and only points to All Orders when payment still needs verifying.
+New orders: once the owner runs the one-time database update (tiffe-v56 SQL), new orders arrive as "Order placed" and the customer sees "Confirmed" only after you tap Accept Order. Then tap Start Preparing. Existing orders are unchanged and show Start Preparing straight away.
+Menu: each bhaji has a Remove button, separate from the availability switch, with a confirmation. A removed bhaji leaves every menu but stays in old orders' history. Needs the same database update.
 Not tested on a phone. Analyze, the full test suite and the signed build passed in CI before publishing.

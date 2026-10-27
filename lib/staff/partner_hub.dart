@@ -47,6 +47,65 @@ Color get _liveBg =>
     staffDark.value ? const Color(0xFF14372A) : const Color(0xFFD1FAE5);
 const _font = 'PlusJakartaSans';
 
+/// True for a new order the kitchen has not accepted yet. Works with the
+/// database before and after the tiffe-v56 migration: older rows have no
+/// awaiting_acceptance value and count as already confirmed.
+bool awaitingAcceptance(Map o) =>
+    o['status'] == 'Placed' ||
+    (o['status'] == 'Confirmed' && o['awaiting_acceptance'] == true);
+
+/// Status words staff see. A not-yet-accepted order reads "Order placed".
+String staffStatusLabel(Map o) =>
+    awaitingAcceptance(o) ? 'Order placed' : '${o['status']}';
+
+/// Why Confirm Handover is not available on a Ready for Pickup card, or null
+/// when it is. Rider assignment is offered on the same card, so the hint only
+/// points to All Orders for payment verification.
+String? handoverHint(Map o, {required String role, required bool hasRiders}) {
+  final verified = o['payment_status'] == 'verified';
+  final rider = o['assigned_to'] != null;
+  if (role != 'owner') {
+    return verified && rider
+        ? 'Ready for the owner to confirm handover.'
+        : 'The owner confirms handover once payment is verified and a delivery partner is assigned.';
+  }
+  if (verified && rider) return null;
+  if (!verified) {
+    return rider
+        ? 'Verify payment in All Orders to enable Confirm Handover.'
+        : 'Verify payment in All Orders, then assign a delivery partner on this card.';
+  }
+  return hasRiders
+      ? 'Assign a delivery partner above to enable Confirm Handover.'
+      : 'No delivery partners enrolled yet. Add one in Delivery Fleet, then assign here.';
+}
+
+/// Plain words for a failed accept. Before the tiffe-v56 database update the
+/// server has no accept_order function.
+String acceptErrorText(Object e) {
+  final t = '$e';
+  if (t.contains('accept_order') || t.contains('PGRST202')) {
+    return 'Accepting needs the one-time database update (tiffe-v56). Nothing was changed.';
+  }
+  if (t.contains('not waiting')) {
+    return 'This order was already accepted. Refresh to see its status.';
+  }
+  return 'Could not accept the order. Check the connection and try again.';
+}
+
+/// Plain words for a failed bhaji removal.
+String removeBhajiErrorText(Object e) {
+  final t = '$e';
+  if (t.contains('archived_at') || t.contains('PGRST204')) {
+    return 'Remove needs the one-time database update (tiffe-v56). Nothing was changed.';
+  }
+  return 'Could not remove the bhaji. Check the connection and try again.';
+}
+
+/// Menu rows customers and staff still see. Removed (archived) bhajis stay in
+/// the table so old orders keep their history, but leave every menu.
+bool menuItemActive(Map m) => m['archived_at'] == null;
+
 /// Snapshot of everything the admin website shows. Built from the same
 /// Supabase tables as the phone app.
 class AdminData {
@@ -106,6 +165,7 @@ class AdminData {
         if (day != 0) return day;
         return '${b['created_at'] ?? ''}'.compareTo('${a['created_at'] ?? ''}');
       });
+
   /// IST calendar day (yyyy-MM-dd) an order was placed on.
   static String placedDay(Map o) {
     final t = DateTime.tryParse('${o['created_at'] ?? ''}');
@@ -128,7 +188,9 @@ class AdminData {
   List<Map<String, dynamic>> queueFor(String status) =>
       [
         for (final o in orders)
-          if (o['status'] == status) o,
+          if (o['status'] == status ||
+              (status == 'Confirmed' && o['status'] == 'Placed'))
+            o,
       ]..sort((a, b) {
         final day = '${a['delivery_date']}'.compareTo('${b['delivery_date']}');
         if (day != 0) return day;
@@ -138,7 +200,13 @@ class AdminData {
   /// Later-dated orders that are not in a kitchen queue.
   List<Map<String, dynamic>> get laterOrders => [
     for (final o in upcomingOrders)
-      if (!const {'Confirmed', 'Preparing', 'Packed'}.contains(o['status'])) o,
+      if (!const {
+        'Placed',
+        'Confirmed',
+        'Preparing',
+        'Packed',
+      }.contains(o['status']))
+        o,
   ];
 
   bool isActive(Map s) =>
@@ -193,6 +261,7 @@ class _PartnerHubState extends State<PartnerHub> {
   @override
   void initState() {
     super.initState();
+    staffDark.addListener(_onTheme);
     loadStaffTheme();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) maybePromptStaffUpdate(context);
@@ -309,8 +378,15 @@ class _PartnerHubState extends State<PartnerHub> {
     } catch (_) {}
   }
 
+  /// Rebuilds every screen when the sun/moon switch flips, so widgets that
+  /// read the theme colours directly repaint too.
+  void _onTheme() {
+    if (mounted) setState(() {});
+  }
+
   @override
   void dispose() {
+    staffDark.removeListener(_onTheme);
     ordersPoll?.cancel();
     os?.cancel();
     ms?.cancel();
@@ -394,7 +470,10 @@ class _PartnerHubState extends State<PartnerHub> {
                 ),
               ),
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 4,
+                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
@@ -503,6 +582,23 @@ Widget _card({required Widget child, EdgeInsets? pad}) => Container(
     border: Border.all(color: _creamMuted),
   ),
   child: Material(color: Colors.transparent, child: child),
+);
+
+/// Bright, clearly labelled summary actions (Sync, Updates) in both themes.
+ButtonStyle _hubAction() => OutlinedButton.styleFrom(
+  foregroundColor: _forest,
+  disabledForegroundColor: _muted,
+  side: BorderSide(
+    color: staffDark.value ? const Color(0xFF71717A) : const Color(0xFFA8A29E),
+  ),
+  textStyle: const TextStyle(
+    fontFamily: _font,
+    fontSize: 13,
+    fontWeight: FontWeight.w700,
+  ),
+  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+  minimumSize: const Size(0, 40),
+  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
 );
 
 Widget _chip(String t, Color fg, Color bg) => Container(
@@ -708,7 +804,7 @@ Widget _orderTableBody(AdminData d, List<Map<String, dynamic>> rows) {
           Text(_slot(o), style: const TextStyle(fontSize: 13)),
           Align(
             alignment: Alignment.centerLeft,
-            child: statusChip('${o['status']}'),
+            child: statusChip(staffStatusLabel(o)),
           ),
           Text(
             d.riderName(o['assigned_to']),
@@ -835,8 +931,11 @@ class _LiveOrdersState extends State<_LiveOrders> {
 
   Widget _orderCard(BuildContext context, Map<String, dynamic> o) {
     final verified = o['payment_status'] == 'verified';
-    final i = flow.indexOf('${o['status']}');
-    final next = i >= 0 && i < flow.length - 1 ? flow[i + 1] : null;
+    final awaiting = awaitingAcceptance(o);
+    final i = flow.indexOf(awaiting ? 'Confirmed' : '${o['status']}');
+    final next = awaiting
+        ? null
+        : (i >= 0 && i < flow.length - 1 ? flow[i + 1] : null);
     return _card(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -855,7 +954,7 @@ class _LiveOrdersState extends State<_LiveOrders> {
                   fontWeight: FontWeight.w700,
                 ),
               ),
-              statusChip('${o['status']}'),
+              statusChip(staffStatusLabel(o)),
             ],
           ),
           const SizedBox(height: 10),
@@ -933,7 +1032,23 @@ class _LiveOrdersState extends State<_LiveOrders> {
                 ),
                 const SizedBox(width: 8),
               ],
-              if (!verified && next != null) const SizedBox(width: 8),
+              if (!verified && (next != null || awaiting))
+                const SizedBox(width: 8),
+              if (awaiting)
+                Expanded(
+                  child: FilledButton(
+                    style: FilledButton.styleFrom(
+                      backgroundColor: _saffron,
+                      foregroundColor: Colors.white,
+                    ),
+                    onPressed: () => confirmAdminAction(
+                      context,
+                      'Accept order (customer sees Confirmed)',
+                      () => b.acceptOrder(o['id'] as String),
+                    ),
+                    child: const Text('Accept order'),
+                  ),
+                ),
               if (next != null)
                 Expanded(
                   child: FilledButton(
@@ -1188,6 +1303,48 @@ class _MenuManager extends StatelessWidget {
   final AdminData d;
   final TiffeBackend b;
   const _MenuManager(this.d, this.b);
+
+  /// Remove (archive) a bhaji after a confirmation. It disappears from every
+  /// current menu; past orders keep their bhaji names. The availability
+  /// switch is separate and unchanged.
+  Future<void> removeBhaji(BuildContext context, Map m) async {
+    final yes = await showDialog<bool>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: Text('Remove ${m['name']}?'),
+        content: const Text(
+          'It disappears from the menu in the customer and staff apps. Past orders keep it in their history. To only hide it for today, use the availability switch instead.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(c, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xFFB91C1C),
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () => Navigator.pop(c, true),
+            child: const Text('Remove'),
+          ),
+        ],
+      ),
+    );
+    if (yes != true) return;
+    try {
+      await b.archiveMenuItem(m['id'] as String);
+      if (context.mounted)
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('${m['name']} removed from the menu.')),
+        );
+    } catch (e) {
+      if (context.mounted)
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(removeBhajiErrorText(e))));
+    }
+  }
+
   Future<void> addBhaji(BuildContext context) => showDialog<void>(
     context: context,
     builder: (c) => _AddBhajiDialog(backend: b),
@@ -1198,7 +1355,7 @@ class _MenuManager extends StatelessWidget {
     children: [
       _title(
         'Menu & Daily Item Stock Status',
-        'Toggle bhaji availability in customer apps.',
+        'Toggle availability for today, or Remove a bhaji from every menu. Old orders keep their history.',
         FilledButton.icon(
           onPressed: () => addBhaji(context),
           icon: const Icon(Icons.add, size: 16),
@@ -1209,7 +1366,7 @@ class _MenuManager extends StatelessWidget {
         spacing: 16,
         runSpacing: 16,
         children: [
-          for (final m in d.menu)
+          for (final m in d.menu.where(menuItemActive))
             SizedBox(
               width: _cw(context),
               child: _card(
@@ -1256,6 +1413,12 @@ class _MenuManager extends StatelessWidget {
                             );
                         }
                       },
+                    ),
+                    IconButton(
+                      key: Key('remove-bhaji-${m['id']}'),
+                      tooltip: 'Remove ${m['name']}',
+                      icon: Icon(Icons.delete_outline, color: _dangerFg),
+                      onPressed: () => removeBhaji(context, m),
                     ),
                   ],
                 ),
@@ -1331,7 +1494,7 @@ class _Customers extends StatelessWidget {
               hintText: 'Search name, phone or area',
               prefixIcon: const Icon(Icons.search),
               filled: true,
-              fillColor: Colors.white,
+              fillColor: _surface,
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(16),
                 borderSide: BorderSide(color: _creamMuted),
@@ -1445,7 +1608,11 @@ class KitchenHub extends StatefulWidget {
     required this.items,
     this.error,
     required this.onSync,
+    this.updateChecker,
   });
+
+  /// Injected in tests; the app uses the real update feed.
+  final StaffUpdateChecker? updateChecker;
   @override
   State<KitchenHub> createState() => _KitchenHubState();
 }
@@ -1455,15 +1622,44 @@ class _KitchenHubState extends State<KitchenHub> {
   String? error;
   bool busy = false;
   bool? autoConfirm;
+  bool syncing = false;
+  bool checkingUpdate = false;
+
+  /// Sync re-reads orders and items; the button says so while it runs.
+  Future<void> sync() async {
+    setState(() => syncing = true);
+    try {
+      await widget.onSync();
+    } catch (_) {
+    } finally {
+      if (mounted) setState(() => syncing = false);
+    }
+  }
+
+  /// Updates: same in-app check, download and installer flow as the menu
+  /// item. The button reads "Checking…" until the feed answers.
+  Future<void> checkUpdates() async {
+    setState(() => checkingUpdate = true);
+    try {
+      await checkStaffUpdateManually(context, checker: widget.updateChecker);
+    } finally {
+      if (mounted) setState(() => checkingUpdate = false);
+    }
+  }
+
   @override
   void initState() {
     super.initState();
     clock = Timer.periodic(const Duration(minutes: 1), (_) {
       if (mounted) setState(() {});
     });
-    widget.b.currentSettings().then((v) {
-      if (mounted) setState(() => autoConfirm = v?['kitchen_auto_accept'] == true);
-    }).catchError((_) {});
+    widget.b
+        .currentSettings()
+        .then((v) {
+          if (mounted)
+            setState(() => autoConfirm = v?['kitchen_auto_accept'] == true);
+        })
+        .catchError((_) {});
   }
 
   /// Owner-controlled switch for automatic confirmation of new orders. Staff
@@ -1475,8 +1671,10 @@ class _KitchenHubState extends State<KitchenHub> {
       error = null;
     });
     try {
-      await widget.b.client
-          .rpc('set_kitchen_auto_accept', params: {'p_enabled': on});
+      await widget.b.client.rpc(
+        'set_kitchen_auto_accept',
+        params: {'p_enabled': on},
+      );
     } catch (_) {
       if (mounted)
         setState(() {
@@ -1543,6 +1741,42 @@ class _KitchenHubState extends State<KitchenHub> {
         setState(
           () => error = 'Server refused the update. Refresh and check payment, rider and current status.',
         );
+    } finally {
+      if (mounted) setState(() => busy = false);
+    }
+  }
+
+  /// Staff accept a new order: the customer then sees Confirmed. The order
+  /// stays in New Orders until someone taps Start Preparing.
+  Future<void> accept(Map<String, dynamic> o) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: const Text('Accept order?'),
+        content: const Text(
+          'The customer will see Confirmed. Tap Start Preparing when cooking begins.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(c, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(c, true),
+            child: const Text('Accept'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    setState(() {
+      busy = true;
+      error = null;
+    });
+    try {
+      await widget.b.acceptOrder(o['id'] as String);
+    } catch (e) {
+      if (mounted) setState(() => error = acceptErrorText(e));
     } finally {
       if (mounted) setState(() => busy = false);
     }
@@ -1716,18 +1950,26 @@ class _KitchenHubState extends State<KitchenHub> {
                         ),
                       ],
                     ),
-                  TextButton.icon(
-                    onPressed: widget.onSync,
-                    icon: const Icon(Icons.sync, size: 14),
-                    label: const Text('Sync', style: TextStyle(fontSize: 11)),
-                  ),
-                  TextButton.icon(
-                    onPressed: () => checkStaffUpdateManually(context),
-                    icon: const Icon(Icons.system_update, size: 14),
-                    label: const Text(
-                      'Updates',
-                      style: TextStyle(fontSize: 11),
-                    ),
+                  // Sync and Updates sit together on one line.
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      OutlinedButton.icon(
+                        key: const Key('kitchen-sync'),
+                        style: _hubAction(),
+                        onPressed: syncing ? null : sync,
+                        icon: const Icon(Icons.sync, size: 16),
+                        label: Text(syncing ? 'Syncing…' : 'Sync'),
+                      ),
+                      const SizedBox(width: 8),
+                      OutlinedButton.icon(
+                        key: const Key('kitchen-updates'),
+                        style: _hubAction(),
+                        onPressed: checkingUpdate ? null : checkUpdates,
+                        icon: const Icon(Icons.system_update, size: 16),
+                        label: Text(checkingUpdate ? 'Checking…' : 'Updates'),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -1761,10 +2003,7 @@ class _KitchenHubState extends State<KitchenHub> {
                               children: [
                                 Text(
                                   m.$1,
-                                  style: TextStyle(
-                                    fontSize: 9,
-                                    color: _muted,
-                                  ),
+                                  style: TextStyle(fontSize: 9, color: _muted),
                                 ),
                                 const SizedBox(height: 6),
                                 Text(
@@ -1772,17 +2011,16 @@ class _KitchenHubState extends State<KitchenHub> {
                                   style: TextStyle(
                                     fontSize: 24,
                                     fontWeight: FontWeight.w800,
+                                    // Was hard-coded white: invisible on
+                                    // the light-mode card.
                                     color: m.$1.startsWith('CHAPATIS')
                                         ? _saffron
-                                        : Colors.white,
+                                        : _forest,
                                   ),
                                 ),
                                 Text(
                                   m.$3,
-                                  style: TextStyle(
-                                    fontSize: 9,
-                                    color: _muted,
-                                  ),
+                                  style: TextStyle(fontSize: 9, color: _muted),
                                 ),
                               ],
                             ),
@@ -1862,9 +2100,7 @@ class _KitchenHubState extends State<KitchenHub> {
                             ? 'PREPARING'
                             : 'READY FOR PICKUP'} (${d.queueFor(state).length})',
                         style: TextStyle(
-                          color: state == 'Packed'
-                              ? _okBright
-                              : _saffron,
+                          color: state == 'Packed' ? _okBright : _saffron,
                           fontWeight: FontWeight.w800,
                           fontSize: 12,
                         ),
@@ -1896,13 +2132,24 @@ class _KitchenHubState extends State<KitchenHub> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           if (state == 'Confirmed')
-                            Align(
-                              alignment: Alignment.centerRight,
-                              child: _chip(
-                                age(o),
-                                Colors.black,
-                                const Color(0xFFF59E0B),
-                              ),
+                            Wrap(
+                              alignment: WrapAlignment.spaceBetween,
+                              spacing: 6,
+                              runSpacing: 6,
+                              children: [
+                                awaitingAcceptance(o)
+                                    ? _chip(
+                                        'ORDER PLACED · NOT ACCEPTED',
+                                        _saffron,
+                                        const Color(0xFF4A2D17),
+                                      )
+                                    : _chip('CONFIRMED', _okBright, _liveBg),
+                                _chip(
+                                  age(o),
+                                  Colors.black,
+                                  const Color(0xFFF59E0B),
+                                ),
+                              ],
                             ),
                           const SizedBox(height: 6),
                           Text(
@@ -1937,10 +2184,7 @@ class _KitchenHubState extends State<KitchenHub> {
                               children: [
                                 Text(
                                   d.nameOf(o),
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: _muted,
-                                  ),
+                                  style: TextStyle(fontSize: 12, color: _muted),
                                 ),
                                 const SizedBox(height: 5),
                                 Text(
@@ -1990,10 +2234,7 @@ class _KitchenHubState extends State<KitchenHub> {
                               padding: const EdgeInsets.only(top: 8),
                               child: Text(
                                 'Partner: ${d.riderName(o['assigned_to'])}',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  color: _muted,
-                                ),
+                                style: TextStyle(fontSize: 11, color: _muted),
                               ),
                             ),
                           if (state == 'Packed' &&
@@ -2036,14 +2277,26 @@ class _KitchenHubState extends State<KitchenHub> {
                             spacing: 8,
                             runSpacing: 8,
                             children: [
-                              if (state == 'Confirmed')
+                              if (state == 'Confirmed' && awaitingAcceptance(o))
+                                FilledButton(
+                                  onPressed: busy ? null : () => accept(o),
+                                  child: const Text(
+                                    'Accept Order',
+                                    style: TextStyle(fontSize: 11),
+                                  ),
+                                ),
+                              if (state == 'Confirmed' &&
+                                  !awaitingAcceptance(o))
                                 FilledButton(
                                   onPressed: busy
                                       ? null
-                                      : () =>
-                                            act(o, 'Accept Order', 'Preparing'),
+                                      : () => act(
+                                          o,
+                                          'Start Preparing',
+                                          'Preparing',
+                                        ),
                                   child: const Text(
-                                    'Accept Order',
+                                    'Start Preparing',
                                     style: TextStyle(fontSize: 11),
                                   ),
                                 ),
@@ -2065,6 +2318,11 @@ class _KitchenHubState extends State<KitchenHub> {
                                 FilledButton(
                                   style: FilledButton.styleFrom(
                                     backgroundColor: const Color(0xFF059669),
+                                    foregroundColor: Colors.white,
+                                    // Disabled stays readable: dark ink on
+                                    // grey in light mode, light ink in dark.
+                                    disabledBackgroundColor: _creamMuted,
+                                    disabledForegroundColor: _forest,
                                   ),
                                   onPressed:
                                       busy ||
@@ -2100,11 +2358,22 @@ class _KitchenHubState extends State<KitchenHub> {
                             ],
                           ),
                           if (state == 'Packed' &&
-                              (o['payment_status'] != 'verified' ||
-                                  o['assigned_to'] == null))
-                            Text(
-                              'Verify payment and assign a rider in All Orders before handover.',
-                              style: TextStyle(fontSize: 10, color: _muted),
+                              handoverHint(
+                                    o,
+                                    role: widget.role,
+                                    hasRiders: d.riders.isNotEmpty,
+                                  ) !=
+                                  null)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 6),
+                              child: Text(
+                                handoverHint(
+                                  o,
+                                  role: widget.role,
+                                  hasRiders: d.riders.isNotEmpty,
+                                )!,
+                                style: TextStyle(fontSize: 11, color: _forest),
+                              ),
                             ),
                         ],
                       ),
@@ -2290,8 +2559,9 @@ class _PartnerHeader extends StatelessWidget {
                 ),
               ),
               IconButton(
-                tooltip:
-                    staffDark.value ? 'Switch to light mode' : 'Switch to dark mode',
+                tooltip: staffDark.value
+                    ? 'Switch to light mode'
+                    : 'Switch to dark mode',
                 icon: Icon(
                   staffDark.value
                       ? Icons.light_mode_outlined
@@ -2357,9 +2627,7 @@ class _PartnerHeader extends StatelessWidget {
                         backgroundColor: screen == i
                             ? _saffron
                             : Colors.transparent,
-                        foregroundColor: screen == i
-                            ? Colors.white
-                            : _muted,
+                        foregroundColor: screen == i ? Colors.white : _muted,
                         padding: const EdgeInsets.symmetric(
                           horizontal: 14,
                           vertical: 12,

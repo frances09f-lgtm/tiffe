@@ -1,3 +1,7 @@
+# v56: Order placed + Remove bhaji (Staff 1.0.10, customer 1.0.56)
+
+Run `tiffe-v56-order-placed-and-menu-archive.sql` once in the Supabase SQL editor as the database owner. It only adds two nullable columns (`orders.awaiting_acceptance`, `menu_items.archived_at`) and the `accept_order` function. No existing order or menu row is changed; older orders read as confirmed exactly as before. Both apps work before it runs (no "Order placed" state, Remove reports that this update is needed).
+
 # v45 same-day order setup
 
 APK installation does not apply database migrations. This draft is based on the SQL the owner ran on 11 October 2026 and needs the current live definitions checked first.

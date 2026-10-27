@@ -67,7 +67,9 @@ void main() {
     expect(find.textContaining('#CCCCCC'), findsNothing);
     expect(find.text('Delivery ${day(1)}'), findsOneWidget);
     expect(find.text('Delivery ${day(0)}'), findsOneWidget);
-    expect(find.text('Accept Order'), findsNWidgets(2));
+    // Legacy Confirmed rows (no awaiting_acceptance) are already confirmed:
+    // the next step is Start Preparing. Accept Order is only for new orders.
+    expect(find.text('Start Preparing'), findsNWidgets(2));
     expect(t.takeException(), isNull);
     await t.pumpWidget(const SizedBox());
   });
