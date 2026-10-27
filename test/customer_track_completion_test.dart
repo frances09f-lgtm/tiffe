@@ -52,7 +52,7 @@ void main() {
     await t.pumpAndSettle();
     await t.tap(
       find.descendant(
-        of: find.byType(GBottomNav),
+        of: find.byType(NavigationBar),
         matching: find.text('Orders'),
       ),
     );
