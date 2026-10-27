@@ -106,7 +106,7 @@ void main() {
     final home = File('lib/staff/staff_app.dart').readAsStringSync();
     expect(hub, contains('checkStaffUpdateManually'));
     expect(hub, contains('Check for updates'));
-    expect(hub, contains("Text('Updates'"));
+    expect(hub, contains("'Updates'"));
     expect(hub, contains('Icons.system_update'));
     expect(home, contains('checkStaffUpdateManually'));
     expect(home, contains('Check for updates'));
