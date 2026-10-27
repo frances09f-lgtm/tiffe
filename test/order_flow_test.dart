@@ -310,4 +310,77 @@ void main() {
     expect(find.text('Order Checkout'), findsOneWidget);
     expect(find.text('Place Order · ₹100 due'), findsOneWidget);
   });
+
+  test('deliveryDateFor: before cutoff stays today, after cutoff tomorrow', () {
+    // 8:30 AM IST wall clock (already shifted): same day.
+    expect(
+      OrderSheet.deliveryDateFor(DateTime.utc(2026, 10, 27, 8, 30), '09:00:00'),
+      '2026-10-27',
+    );
+    // 9:00 AM IST exactly: cutoff reached, order moves to tomorrow.
+    expect(
+      OrderSheet.deliveryDateFor(DateTime.utc(2026, 10, 27, 9, 0), '09:00:00'),
+      '2026-10-28',
+    );
+    // Early morning IST: still today.
+    expect(
+      OrderSheet.deliveryDateFor(DateTime.utc(2026, 10, 27, 0, 5), '09:00:00'),
+      '2026-10-27',
+    );
+    // Explicit requested date always wins.
+    expect(
+      OrderSheet.deliveryDateFor(
+        DateTime.utc(2026, 10, 27, 10, 0),
+        '09:00:00',
+        '2026-10-30',
+      ),
+      '2026-10-30',
+    );
+  });
+
+  testWidgets('same bhaji twice in one tiffin places duplicate portions', (
+    t,
+  ) async {
+    SharedPreferences.setMockInitialValues({});
+    final b = OrderBackend();
+    await t.pumpWidget(
+      MaterialApp(
+        home: OrderSheet(
+          backend: b,
+          cfg: const {
+            'one_time_price_paise': 8000,
+            'one_time_delivery_paise': 2000,
+            'extra_bhaji_paise': 1000,
+            'cutoff_time': '09:00:00',
+          },
+          menuRows: [
+            for (final n in ['Batata Bhaji', 'Matki Usal'])
+              {'id': 'id-$n', 'name': n, 'description': '', 'available': true},
+          ],
+        ),
+      ),
+    );
+    await t.pumpAndSettle();
+    expect(find.text('Pick 2 bhajis to order'), findsOneWidget);
+    // Tapping the same bhaji twice adds a second portion of it.
+    await t.tap(find.text('Batata Bhaji'));
+    await t.tap(find.text('Batata Bhaji'));
+    await t.pumpAndSettle();
+    await t.tap(find.text('Order'));
+    await t.pumpAndSettle();
+    expect(find.text('Order Checkout'), findsOneWidget);
+    expect(find.text('Tiffin 1 (Batata Bhaji x2)'), findsOneWidget);
+    expect(find.text('Place Order · ₹100 due'), findsOneWidget);
+    await t.tap(find.text('Place Order · ₹100 due'));
+    await t.pumpAndSettle();
+    expect(find.text('Select Payment Method'), findsOneWidget);
+    await t.tap(find.textContaining('Continue ·'));
+    await t.pump();
+    await t.pump(const Duration(milliseconds: 600));
+    await t.pump(const Duration(milliseconds: 600));
+    await t.pumpAndSettle();
+    expect(b.placedKey, isNotNull);
+    expect(b.placedTiffins!.single, hasLength(2));
+    expect(b.placedTiffins!.single[0], b.placedTiffins!.single[1]);
+  });
 }
