@@ -4506,6 +4506,10 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
 
     String? firstSeen;
     final nav = Navigator.of(routeContext);
+    assert(() {
+      debugPrint('TRACKPUSH id=$id state=${identityHashCode(this)}');
+      return true;
+    }());
     nav.push(
       MaterialPageRoute<void>(
         builder: (c) => ValueListenableBuilder<int>(
@@ -4522,7 +4526,19 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
                   firstSeen != 'Delivered' &&
                   seen == 'Delivered') {
                 _deliveredHandledIds.add(id);
+                assert(() {
+                  debugPrint(
+                    'TRACKREG id=$id state=${identityHashCode(this)} firstSeen=$firstSeen',
+                  );
+                  return true;
+                }());
                 WidgetsBinding.instance.addPostFrameCallback((_) {
+                  assert(() {
+                    debugPrint(
+                      'TRACKFIRE id=$id state=${identityHashCode(this)}',
+                    );
+                    return true;
+                  }());
                   if (!mounted) return;
                   if (nav.canPop()) nav.pop();
                   setState(() => tab = 3);
