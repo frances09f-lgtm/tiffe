@@ -1705,17 +1705,10 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
   static String ymd(DateTime d) =>
       '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 
-  String get earliestOrderDay {
-    final cutoff = (cfg?['cutoff_time'] as String? ?? '09:00:00')
-        .split(':')
-        .map(int.parse)
-        .toList();
-    var d = DateTime.now().toUtc().add(const Duration(hours: 5, minutes: 30));
-    final cutoffToday = DateTime(d.year, d.month, d.day, cutoff[0], cutoff[1]);
-    final nowLocal = DateTime(d.year, d.month, d.day, d.hour, d.minute);
-    if (!nowLocal.isBefore(cutoffToday)) d = d.add(const Duration(days: 1));
-    return ymd(d);
-  }
+  String get earliestOrderDay => OrderSheet.deliveryDateFor(
+    DateTime.now().toUtc().add(const Duration(hours: 5, minutes: 30)),
+    cfg?['cutoff_time'] as String? ?? '09:00:00',
+  );
 
   Widget mealCalendar(List<Map<String, dynamic>> rows) {
     final dark = uiPalette.dark;
@@ -5142,15 +5135,34 @@ class OrderSheet extends StatefulWidget {
     this.initialBhajis = const [],
     this.oneTime = false,
   });
+  /// The delivery day for a new order: today while before the daily cutoff,
+  /// tomorrow once it has passed. [istNowUtc] is an instant already shifted
+  /// +5:30 into IST wall-clock fields, so the cutoff is built with
+  /// DateTime.utc to compare like with like on any device timezone.
+  @visibleForTesting
+  static String deliveryDateFor(DateTime istNowUtc, String cutoffTime,
+      [String? requested]) {
+    if (requested != null) return requested;
+    final cutoff = cutoffTime.split(':').map(int.parse).toList();
+    var d = istNowUtc;
+    final cutoffToday =
+        DateTime.utc(d.year, d.month, d.day, cutoff[0], cutoff[1]);
+    if (!d.isBefore(cutoffToday)) d = d.add(const Duration(days: 1));
+    return '${d.year}-${d.month.toString().padLeft(2, '0')}-'
+        '${d.day.toString().padLeft(2, '0')}';
+  }
+
   @override
   State<OrderSheet> createState() => _OrderSheetState();
 }
 
 class _OrderSheetState extends State<OrderSheet> {
   final instructions = TextEditingController();
-  late final List<Set<String>> tiffins = [
-    {...widget.initialBhajis},
-    if (!widget.oneTime && widget.subscription?['plan'] == 'double') {},
+  /// Bhaji ids per tiffin; an id may repeat when the customer wants two
+  /// portions of the same bhaji in one tiffin.
+  late final List<List<String>> tiffins = [
+    [...widget.initialBhajis],
+    if (!widget.oneTime && widget.subscription?['plan'] == 'double') [],
   ];
   bool busy = false;
   String? error;
@@ -5201,8 +5213,7 @@ class _OrderSheetState extends State<OrderSheet> {
           maxPick: 8,
           extraRupees: extraR,
           initialSelected: [
-            for (var k = 0; k < avail.length; k++)
-              if (tiffins[i].contains(avail[k]['id'])) k,
+            for (final id in tiffins[i]) avail.indexWhere((m) => m['id'] == id),
           ],
           onTab: (tab) {
             Navigator.of(c).pop();
@@ -5216,7 +5227,7 @@ class _OrderSheetState extends State<OrderSheet> {
     if (chosen == null || !mounted) return false;
     setState(() {
       error = null;
-      tiffins[i] = {...chosen};
+      tiffins[i] = chosen;
     });
     return true;
   }
@@ -5234,17 +5245,11 @@ class _OrderSheetState extends State<OrderSheet> {
   static DateTime istNow() =>
       DateTime.now().toUtc().add(const Duration(hours: 5, minutes: 30));
 
-  String deliveryDate() {
-    if (widget.date != null) return widget.date!;
-    final cutoff = (widget.cfg['cutoff_time'] as String? ?? '09:00:00')
-        .split(':')
-        .map(int.parse)
-        .toList();
-    var d = istNow();
-    final cutoffToday = DateTime(d.year, d.month, d.day, cutoff[0], cutoff[1]);
-    if (!d.isBefore(cutoffToday)) d = d.add(const Duration(days: 1));
-    return '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
-  }
+  String deliveryDate() => OrderSheet.deliveryDateFor(
+    istNow(),
+    widget.cfg['cutoff_time'] as String? ?? '09:00:00',
+    widget.date,
+  );
 
   int get pricePaise {
     final extra = widget.cfg['extra_bhaji_paise'] as int? ?? 0;
@@ -5284,7 +5289,7 @@ class _OrderSheetState extends State<OrderSheet> {
   Future<String> _placeCore() async {
     final newId = await widget.backend.placeOrder(
       date: deliveryDate(),
-      tiffins: tiffins.map((t) => t.toList()).toList(),
+      tiffins: tiffins.map((t) => List.of(t)).toList(),
       idempotencyKey: idempotencyKey,
       instructions: instructions.text.trim(),
       subscriptionId: widget.oneTime
@@ -5364,9 +5369,12 @@ class _OrderSheetState extends State<OrderSheet> {
     );
   }
 
-  String _names(Set<String> ids) => [
+  String _names(List<String> ids) => [
     for (final m in widget.menuRows)
-      if (ids.contains(m['id'])) m['name'] as String,
+      if (ids.contains(m['id']))
+        ids.where((id) => id == m['id']).length > 1
+            ? '${m['name']} x${ids.where((id) => id == m['id']).length}'
+            : m['name'] as String,
   ].join(', ');
 
   @override
@@ -5596,7 +5604,7 @@ class _OrderSheetState extends State<OrderSheet> {
                                 onPressed: busy
                                     ? null
                                     : () async {
-                                        setState(() => tiffins.add({}));
+                                        setState(() => tiffins.add(<String>[]));
                                         final ok = await _pick(1);
                                         if (!ok && mounted) {
                                           setState(() => tiffins.removeLast());
