@@ -229,10 +229,15 @@ void main() {
     expect(find.text('Software Update'), findsNothing);
   });
 
-  test('Staff has no automatic order status switch', () {
+  test('Staff auto-confirm is an owner switch, never a silent force-off', () {
     final hub = File('lib/staff/partner_hub.dart').readAsStringSync();
+    // v9: the owner controls order auto-confirmation with a visible switch
+    // that persists the chosen value; the old silent owner-only force-off
+    // must not come back.
+    expect(hub.contains('Auto-confirm new orders'), isTrue);
+    expect(hub.contains('set_kitchen_auto_accept'), isTrue);
+    expect(hub.contains("'p_enabled': false"), isFalse);
     expect(hub.contains('Auto-Accept'), isFalse);
     expect(hub.contains('onAuto'), isFalse);
-    expect(hub.contains("'p_enabled': false"), isTrue);
   });
 }
