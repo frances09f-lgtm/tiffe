@@ -73,11 +73,13 @@ void main() {
     await t.pump();
     final toastFinder = find.textContaining('delivered. Enjoy your meal');
     // Diagnosis: report where each matching widget lives in the tree.
+    debugPrint('SNACKBARS: ${t.elementList(find.byType(SnackBar)).length}');
+    debugPrint('WORKSPACES: ${t.elementList(find.byType(LiveWorkspace)).length}');
     for (final e in t.elementList(toastFinder)) {
       final chain = <String>[];
       e.visitAncestorElements((a) {
         chain.add(a.widget.runtimeType.toString());
-        return chain.length < 14;
+        return chain.length < 40;
       });
       debugPrint('TOASTPATH: ${chain.join(' < ')}');
     }
