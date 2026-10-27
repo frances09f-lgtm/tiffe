@@ -48,19 +48,19 @@ AdminData dataWith(List<Map<String, dynamic>> orders) => AdminData(
 void main() {
   test('KitchenCounts counts today deliveries only, not upcoming', () {
     final d = dataWith([
-      order('o1', istToday, 'Confirmed', qty: 2),
-      order('o2', istToday, 'Preparing'),
-      order('o3', istTomorrow, 'Confirmed', qty: 5),
-      order('o4', istToday, 'Delivered', qty: 7),
+      order('ord-0001', istToday, 'Confirmed', qty: 2),
+      order('ord-0002', istToday, 'Preparing'),
+      order('ord-0003', istTomorrow, 'Confirmed', qty: 5),
+      order('ord-0004', istToday, 'Delivered', qty: 7),
     ]);
     final items = [
-      {'order_id': 'o1', 'item_name': 'Batata Bhaji'},
-      {'order_id': 'o1', 'item_name': 'Batata Bhaji'},
-      {'order_id': 'o3', 'item_name': 'Aloo Gobi'},
+      {'order_id': 'ord-0001', 'item_name': 'Batata Bhaji'},
+      {'order_id': 'ord-0001', 'item_name': 'Batata Bhaji'},
+      {'order_id': 'ord-0003', 'item_name': 'Aloo Gobi'},
     ];
     final c = KitchenCounts.from(d, items);
-    // Today + active statuses only: o1 (2) + o2 (1) = 3 tiffins; tomorrow's
-    // 5 and today's delivered 7 excluded.
+    // Today + active statuses only: ord-0001 (2) + ord-0002 (1) = 3 tiffins;
+    // tomorrow's 5 and today's delivered 7 excluded.
     expect(c.tiffins, 3);
     expect(c.bhajis, {'Batata Bhaji': 2});
   });
@@ -73,7 +73,7 @@ void main() {
         home: Scaffold(
           body: SingleChildScrollView(
             child: KitchenHub(
-              d: dataWith([order('o1', istToday, 'Packed')]),
+              d: dataWith([order('ord-0001', istToday, 'Packed')]),
               b: b,
               role: 'owner',
               items: const [],
@@ -89,7 +89,7 @@ void main() {
     await t.pumpAndSettle();
     await t.tap(find.text('Vijay').last);
     await t.pumpAndSettle();
-    expect(b.assignedOrder, 'o1');
+    expect(b.assignedOrder, 'ord-0001');
     expect(b.assignedRider, 'rider-1');
   });
 
@@ -101,7 +101,7 @@ void main() {
         home: Scaffold(
           body: SingleChildScrollView(
             child: KitchenHub(
-              d: dataWith([order('o1', istToday, 'Packed', payment: 'unpaid')]),
+              d: dataWith([order('ord-0001', istToday, 'Packed', payment: 'unpaid')]),
               b: b,
               role: 'owner',
               items: const [],
