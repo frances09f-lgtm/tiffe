@@ -47,6 +47,12 @@ jobs:
       - run: flutter pub get
       - run: flutter analyze
       - run: flutter test --dart-define=TIFFE_OWNER_EMAIL=frances09f@gmail.com
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: staff-ui-shots
+          path: /tmp/*.png
+          if-no-files-found: ignore
       - name: Build signed Staff APK and AAB
         env:
           TIFFE_KEYSTORE_BASE64: ${{ secrets.TIFFE_KEYSTORE_BASE64 }}
