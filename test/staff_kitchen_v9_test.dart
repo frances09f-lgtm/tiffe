@@ -85,8 +85,11 @@ void main() {
     );
     await t.pumpAndSettle();
     expect(find.text('Assign delivery partner'), findsOneWidget);
+    await t.ensureVisible(find.text('Assign delivery partner'));
+    await t.pumpAndSettle();
     await t.tap(find.text('Assign delivery partner'));
     await t.pumpAndSettle();
+    expect(find.text('Vijay'), findsWidgets);
     await t.tap(find.text('Vijay').last);
     await t.pumpAndSettle();
     expect(b.assignedOrder, 'ord-0001');
