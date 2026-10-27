@@ -2,15 +2,49 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../live/backend.dart';
 import 'staff_update.dart';
 
-const _forest = Color(0xFFF4F4F5);
-const _cream = Color(0xFF121212);
-const _creamMuted = Color(0xFF383838);
+/// Staff appearance. Dark by default; the hub header toggle flips this and
+/// the choice persists in shared preferences.
+final ValueNotifier<bool> staffDark = ValueNotifier<bool>(true);
+
+const _kStaffDarkPref = 'staff_dark_mode';
+
+Future<void> loadStaffTheme() async {
+  final p = await SharedPreferences.getInstance();
+  staffDark.value = p.getBool(_kStaffDarkPref) ?? true;
+}
+
+Future<void> setStaffDark(bool v) async {
+  staffDark.value = v;
+  final p = await SharedPreferences.getInstance();
+  await p.setBool(_kStaffDarkPref, v);
+}
+
+Color get _forest =>
+    staffDark.value ? const Color(0xFFF4F4F5) : const Color(0xFF18181B);
+Color get _cream =>
+    staffDark.value ? const Color(0xFF121212) : const Color(0xFFFBF9F4);
+Color get _creamMuted =>
+    staffDark.value ? const Color(0xFF383838) : const Color(0xFFDDD5C3);
 const _saffron = Color(0xFFFC8019);
-const _muted = Color(0xFFA1A1AA);
+Color get _muted =>
+    staffDark.value ? const Color(0xFFA1A1AA) : const Color(0xFF71717A);
+Color get _surface =>
+    staffDark.value ? _surface : const Color(0xFFFFFFFF);
+Color get _headerBg =>
+    staffDark.value ? _headerBg : const Color(0xFFFFFFFF);
+Color get _okBright =>
+    staffDark.value ? _okBright : const Color(0xFF059669);
+Color get _dangerBg =>
+    staffDark.value ? _dangerBg : const Color(0xFFFEE2E2);
+Color get _dangerFg =>
+    staffDark.value ? _dangerFg : const Color(0xFFB91C1C);
+Color get _liveBg =>
+    staffDark.value ? _liveBg : const Color(0xFFD1FAE5);
 const _font = 'PlusJakartaSans';
 
 /// Snapshot of everything the admin website shows. Built from the same
@@ -159,6 +193,7 @@ class _PartnerHubState extends State<PartnerHub> {
   @override
   void initState() {
     super.initState();
+    loadStaffTheme();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) maybePromptStaffUpdate(context);
     });
@@ -324,91 +359,94 @@ class _PartnerHubState extends State<PartnerHub> {
       ),
       _ => _Fleet(d),
     };
-    return Theme(
-      data: ThemeData(
-        fontFamily: _font,
-        scaffoldBackgroundColor: _cream,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: _saffron,
-          brightness: Brightness.dark,
-        ),
-        filledButtonTheme: FilledButtonThemeData(
-          style: FilledButton.styleFrom(
-            backgroundColor: _saffron,
-            foregroundColor: Colors.white,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
+    return ValueListenableBuilder<bool>(
+      valueListenable: staffDark,
+      builder: (context, dark, _) => Theme(
+        data: ThemeData(
+          fontFamily: _font,
+          scaffoldBackgroundColor: _cream,
+          colorScheme: ColorScheme.fromSeed(
+            seedColor: _saffron,
+            brightness: dark ? Brightness.dark : Brightness.light,
+          ),
+          filledButtonTheme: FilledButtonThemeData(
+            style: FilledButton.styleFrom(
+              backgroundColor: _saffron,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
             ),
           ),
+          useMaterial3: true,
         ),
-        useMaterial3: true,
-      ),
-      child: Scaffold(
-        body: Column(
-          children: [
-            SafeArea(
-              bottom: false,
-              child: _PartnerHeader(
-                manager: manager,
-                role: widget.role,
-                screen: screen,
-                onTab: (i) => setState(() => screen = i),
-                onSignOut: widget.backend.signOut,
+        child: Scaffold(
+          body: Column(
+            children: [
+              SafeArea(
+                bottom: false,
+                child: _PartnerHeader(
+                  manager: manager,
+                  role: widget.role,
+                  screen: screen,
+                  onTab: (i) => setState(() => screen = i),
+                  onSignOut: widget.backend.signOut,
+                ),
               ),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: TextButton.icon(
-                      onPressed: ordersRefreshing ? null : refreshOrders,
-                      icon: const Icon(Icons.refresh, size: 18),
-                      label: Text(
-                        ordersRefreshing ? 'Refreshing...' : 'Refresh',
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton.icon(
+                        onPressed: ordersRefreshing ? null : refreshOrders,
+                        icon: const Icon(Icons.refresh, size: 18),
+                        label: Text(
+                          ordersRefreshing ? 'Refreshing...' : 'Refresh',
+                        ),
                       ),
                     ),
-                  ),
-                  if (ordersError != null)
-                    Semantics(
-                      liveRegion: true,
-                      child: Padding(
-                        padding: const EdgeInsets.only(bottom: 8),
-                        child: Text(ordersError!),
+                    if (ordersError != null)
+                      Semantics(
+                        liveRegion: true,
+                        child: Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: Text(ordersError!),
+                        ),
                       ),
-                    ),
-                ],
+                  ],
+                ),
               ),
-            ),
-            Expanded(
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Expanded(
-                    child: RefreshIndicator(
-                      onRefresh: refreshOrders,
-                      child: SingleChildScrollView(
-                        physics: const AlwaysScrollableScrollPhysics(),
-                        padding: EdgeInsets.all(wide ? 32 : 16),
-                        child: Align(
-                          alignment: Alignment.topCenter,
-                          child: ConstrainedBox(
-                            constraints: const BoxConstraints(maxWidth: 1180),
-                            child: body,
+              Expanded(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Expanded(
+                      child: RefreshIndicator(
+                        onRefresh: refreshOrders,
+                        child: SingleChildScrollView(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          padding: EdgeInsets.all(wide ? 32 : 16),
+                          child: Align(
+                            alignment: Alignment.topCenter,
+                            child: ConstrainedBox(
+                              constraints: const BoxConstraints(maxWidth: 1180),
+                              child: body,
+                            ),
                           ),
                         ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
+          appBar: null,
+          bottomNavigationBar: null,
         ),
-        appBar: null,
-        bottomNavigationBar: null,
       ),
     );
   }
@@ -439,14 +477,14 @@ Widget _title(String t, String sub, [Widget? trailing]) => LayoutBuilder(
             children: [
               Text(
                 t,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 26,
                   fontWeight: FontWeight.w800,
                   color: _forest,
                 ),
               ),
               const SizedBox(height: 4),
-              Text(sub, style: const TextStyle(color: _muted, fontSize: 13)),
+              Text(sub, style: TextStyle(color: _muted, fontSize: 13)),
             ],
           ),
         ),
@@ -460,7 +498,7 @@ Widget _card({required Widget child, EdgeInsets? pad}) => Container(
   width: double.infinity,
   padding: pad ?? const EdgeInsets.all(20),
   decoration: BoxDecoration(
-    color: const Color(0xFF262626),
+    color: _surface,
     borderRadius: BorderRadius.circular(16),
     border: Border.all(color: _creamMuted),
   ),
@@ -508,7 +546,7 @@ class _Metric extends StatelessWidget {
             Expanded(
               child: Text(
                 label,
-                style: const TextStyle(
+                style: TextStyle(
                   color: _muted,
                   fontSize: 12,
                   fontWeight: FontWeight.w700,
@@ -520,14 +558,14 @@ class _Metric extends StatelessWidget {
         const SizedBox(height: 14),
         Text(
           value,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 30,
             fontWeight: FontWeight.w800,
             color: _forest,
           ),
         ),
         const SizedBox(height: 4),
-        Text(note, style: const TextStyle(color: _muted, fontSize: 12)),
+        Text(note, style: TextStyle(color: _muted, fontSize: 12)),
       ],
     ),
   );
@@ -596,7 +634,7 @@ class _Dashboard extends StatelessWidget {
                 padding: const EdgeInsets.all(20),
                 child: Row(
                   children: [
-                    const Expanded(
+                    Expanded(
                       child: Text(
                         'Live dispatch feed',
                         style: TextStyle(
@@ -639,7 +677,7 @@ Widget _orderTableBody(AdminData d, List<Map<String, dynamic>> rows) {
     padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
     decoration: BoxDecoration(
       color: h ? _cream : null,
-      border: const Border(top: BorderSide(color: _creamMuted)),
+      border: Border(top: BorderSide(color: _creamMuted)),
     ),
     child: Row(
       children: [
@@ -649,7 +687,7 @@ Widget _orderTableBody(AdminData d, List<Map<String, dynamic>> rows) {
     ),
   );
   if (rows.isEmpty) {
-    return const Padding(
+    return Padding(
       padding: EdgeInsets.all(28),
       child: Text('No orders for today yet.', style: TextStyle(color: _muted)),
     );
@@ -674,7 +712,7 @@ Widget _orderTableBody(AdminData d, List<Map<String, dynamic>> rows) {
           ),
           Text(
             d.riderName(o['assigned_to']),
-            style: const TextStyle(fontSize: 13, color: _muted),
+            style: TextStyle(fontSize: 13, color: _muted),
           ),
         ]),
     ],
@@ -811,7 +849,7 @@ class _LiveOrdersState extends State<_LiveOrders> {
             children: [
               Text(
                 '#${(o['id'] as String).substring(0, 6).toUpperCase()} · ${dayLabel(o)} ${_slot(o)}',
-                style: const TextStyle(
+                style: TextStyle(
                   color: _muted,
                   fontSize: 12,
                   fontWeight: FontWeight.w700,
@@ -823,7 +861,7 @@ class _LiveOrdersState extends State<_LiveOrders> {
           const SizedBox(height: 10),
           Text(
             d.nameOf(o),
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 17,
               fontWeight: FontWeight.w800,
               color: _forest,
@@ -832,12 +870,12 @@ class _LiveOrdersState extends State<_LiveOrders> {
           const SizedBox(height: 4),
           Text(
             '${rupees((o['total_paise'] as num?) ?? 0)} · ${verified ? 'Paid' : 'Payment pending'}',
-            style: const TextStyle(color: _muted, fontSize: 13),
+            style: TextStyle(color: _muted, fontSize: 13),
           ),
           const SizedBox(height: 4),
           Text(
             'Rider: ${d.riderName(o['assigned_to'])}',
-            style: const TextStyle(color: _muted, fontSize: 13),
+            style: TextStyle(color: _muted, fontSize: 13),
           ),
           const SizedBox(height: 14),
           Row(
@@ -883,7 +921,7 @@ class _LiveOrdersState extends State<_LiveOrders> {
                         borderRadius: BorderRadius.circular(8),
                         border: Border.all(color: _forest),
                       ),
-                      child: const Text(
+                      child: Text(
                         'Assign rider',
                         style: TextStyle(
                           color: _forest,
@@ -1058,7 +1096,7 @@ class _Subscriptions extends StatelessWidget {
                   horizontal: 20,
                   vertical: 14,
                 ),
-                decoration: const BoxDecoration(
+                decoration: BoxDecoration(
                   border: Border(bottom: BorderSide(color: _creamMuted)),
                 ),
                 child: Row(
@@ -1080,7 +1118,7 @@ class _Subscriptions extends StatelessWidget {
                       flex: 4,
                       child: Text(
                         '${s['starts_on']} to ${s['ends_on']}',
-                        style: const TextStyle(color: _muted),
+                        style: TextStyle(color: _muted),
                       ),
                     ),
                     Expanded(
@@ -1132,7 +1170,7 @@ class _Subscriptions extends StatelessWidget {
                 ),
               ),
             if (d.subs.isEmpty)
-              const Padding(
+              Padding(
                 padding: EdgeInsets.all(28),
                 child: Text(
                   'No subscriptions yet. A plan picked in the phone app demo is not saved here until you add it.',
@@ -1183,7 +1221,7 @@ class _MenuManager extends StatelessWidget {
                         children: [
                           Text(
                             '${m['name']}',
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.w800,
                               color: _forest,
@@ -1192,7 +1230,7 @@ class _MenuManager extends StatelessWidget {
                           const SizedBox(height: 4),
                           Text(
                             '${m['description'] ?? ''}',
-                            style: const TextStyle(color: _muted, fontSize: 13),
+                            style: TextStyle(color: _muted, fontSize: 13),
                           ),
                         ],
                       ),
@@ -1296,7 +1334,7 @@ class _Customers extends StatelessWidget {
               fillColor: Colors.white,
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(16),
-                borderSide: const BorderSide(color: _creamMuted),
+                borderSide: BorderSide(color: _creamMuted),
               ),
             ),
           ),
@@ -1326,7 +1364,7 @@ class _Customers extends StatelessWidget {
                               (c['name'] as String?)?.trim().isNotEmpty == true
                                   ? c['name']
                                   : 'Unnamed',
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.w800,
                                 color: _forest,
@@ -1346,7 +1384,7 @@ class _Customers extends StatelessWidget {
                             if ('${c['area'] ?? ''}'.isNotEmpty) '${c['area']}',
                             joined(c['created_at']),
                           ].where((e) => e.isNotEmpty).join(' · '),
-                          style: const TextStyle(color: _muted, fontSize: 12),
+                          style: TextStyle(color: _muted, fontSize: 12),
                         ),
                       ],
                     ),
@@ -1364,7 +1402,7 @@ class _EmptyNote extends StatelessWidget {
   const _EmptyNote(this.t);
   @override
   Widget build(BuildContext context) => _card(
-    child: Text(t, style: const TextStyle(color: _muted)),
+    child: Text(t, style: TextStyle(color: _muted)),
   );
 }
 
@@ -1526,7 +1564,7 @@ class _KitchenHubState extends State<KitchenHub> {
         children: [
           Row(
             children: [
-              const Icon(Icons.circle, size: 10, color: _muted),
+              Icon(Icons.circle, size: 10, color: _muted),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
@@ -1541,13 +1579,13 @@ class _KitchenHubState extends State<KitchenHub> {
             ],
           ),
           const SizedBox(height: 5),
-          const Text(
+          Text(
             'Other orders for later delivery dates. Not counted in the totals above.',
             style: TextStyle(fontSize: 9, color: _muted),
           ),
-          const Divider(color: _creamMuted, height: 24),
+          Divider(color: _creamMuted, height: 24),
           if (rows.isEmpty)
-            const Text(
+            Text(
               'No upcoming orders.',
               style: TextStyle(fontSize: 12, color: _muted),
             ),
@@ -1561,29 +1599,29 @@ class _KitchenHubState extends State<KitchenHub> {
                   children: [
                     Text(
                       '#${'${o['id']}'.substring(0, 6).toUpperCase()} • ${_slot(o)}',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontWeight: FontWeight.w800,
                         fontSize: 12,
-                        color: Colors.white,
+                        color: _forest,
                       ),
                     ),
                     const SizedBox(height: 4),
                     Text(
                       'Delivery ${o['delivery_date']} • ${o['status']}',
-                      style: const TextStyle(fontSize: 10, color: _muted),
+                      style: TextStyle(fontSize: 10, color: _muted),
                     ),
                     const SizedBox(height: 8),
                     Text(
                       d.nameOf(o),
-                      style: const TextStyle(fontSize: 12, color: _muted),
+                      style: TextStyle(fontSize: 12, color: _muted),
                     ),
                     const SizedBox(height: 5),
                     Text(
                       'Qty: ${o['quantity'] ?? 0} Tiffin (${((o['quantity'] as num?)?.toInt() ?? 0) * 3} Chapatis, ${o['quantity'] ?? 0} Rice)',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w800,
-                        color: Colors.white,
+                        color: _forest,
                       ),
                     ),
                     const SizedBox(height: 8),
@@ -1604,7 +1642,7 @@ class _KitchenHubState extends State<KitchenHub> {
                         padding: const EdgeInsets.only(top: 8),
                         child: Text(
                           'Note: ${o['instructions']}',
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 10,
                             fontStyle: FontStyle.italic,
                             color: _muted,
@@ -1632,7 +1670,7 @@ class _KitchenHubState extends State<KitchenHub> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Row(
+              Row(
                 children: [
                   Icon(Icons.circle, color: Color(0xFF10B981), size: 10),
                   SizedBox(width: 8),
@@ -1642,7 +1680,7 @@ class _KitchenHubState extends State<KitchenHub> {
                       style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w800,
-                        color: Colors.white,
+                        color: _forest,
                       ),
                     ),
                   ),
@@ -1651,7 +1689,7 @@ class _KitchenHubState extends State<KitchenHub> {
               const SizedBox(height: 6),
               Text(
                 "Counts today's deliveries (${d.today}) only - resets at midnight IST. Upcoming orders stay visible in the queue below.",
-                style: const TextStyle(fontSize: 10, color: _muted),
+                style: TextStyle(fontSize: 10, color: _muted),
               ),
               const SizedBox(height: 14),
               Wrap(
@@ -1668,7 +1706,7 @@ class _KitchenHubState extends State<KitchenHub> {
                     Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Text(
+                        Text(
                           'Auto-confirm new orders',
                           style: TextStyle(fontSize: 11, color: _muted),
                         ),
@@ -1683,9 +1721,17 @@ class _KitchenHubState extends State<KitchenHub> {
                     icon: const Icon(Icons.sync, size: 14),
                     label: const Text('Sync', style: TextStyle(fontSize: 11)),
                   ),
+                  TextButton.icon(
+                    onPressed: () => checkStaffUpdateManually(context),
+                    icon: const Icon(Icons.system_update, size: 14),
+                    label: const Text(
+                      'Updates',
+                      style: TextStyle(fontSize: 11),
+                    ),
+                  ),
                 ],
               ),
-              const Divider(color: _creamMuted, height: 26),
+              Divider(color: _creamMuted, height: 26),
               LayoutBuilder(
                 builder: (c, box) {
                   final w = (box.maxWidth - 12) / 2;
@@ -1715,7 +1761,7 @@ class _KitchenHubState extends State<KitchenHub> {
                               children: [
                                 Text(
                                   m.$1,
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     fontSize: 9,
                                     color: _muted,
                                   ),
@@ -1733,7 +1779,7 @@ class _KitchenHubState extends State<KitchenHub> {
                                 ),
                                 Text(
                                   m.$3,
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     fontSize: 9,
                                     color: _muted,
                                   ),
@@ -1749,7 +1795,7 @@ class _KitchenHubState extends State<KitchenHub> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Text(
+                              Text(
                                 'BHAJI PORTIONS BREAKDOWN',
                                 style: TextStyle(fontSize: 9, color: _muted),
                               ),
@@ -1760,7 +1806,7 @@ class _KitchenHubState extends State<KitchenHub> {
                                   style: const TextStyle(fontSize: 10),
                                 )
                               else if (count.bhajis.isEmpty)
-                                const Text(
+                                Text(
                                   'No bhajis in active queue',
                                   style: TextStyle(fontSize: 10, color: _muted),
                                 )
@@ -1817,7 +1863,7 @@ class _KitchenHubState extends State<KitchenHub> {
                             : 'READY FOR PICKUP'} (${d.queueFor(state).length})',
                         style: TextStyle(
                           color: state == 'Packed'
-                              ? const Color(0xFF34D399)
+                              ? _okBright
                               : _saffron,
                           fontWeight: FontWeight.w800,
                           fontSize: 12,
@@ -1833,11 +1879,11 @@ class _KitchenHubState extends State<KitchenHub> {
                       : state == 'Preparing'
                       ? 'Cooking & Packing'
                       : 'Awaiting Delivery Partner',
-                  style: const TextStyle(fontSize: 9, color: _muted),
+                  style: TextStyle(fontSize: 9, color: _muted),
                 ),
-                const Divider(color: _creamMuted, height: 24),
+                Divider(color: _creamMuted, height: 24),
                 if (d.queueFor(state).isEmpty)
-                  const Text(
+                  Text(
                     'No orders in this queue.',
                     style: TextStyle(fontSize: 12, color: _muted),
                   ),
@@ -1861,10 +1907,10 @@ class _KitchenHubState extends State<KitchenHub> {
                           const SizedBox(height: 6),
                           Text(
                             '#${'${o['id']}'.substring(0, 6).toUpperCase()} • ${_slot(o)}',
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontWeight: FontWeight.w800,
                               fontSize: 12,
-                              color: Colors.white,
+                              color: _forest,
                             ),
                           ),
                           const SizedBox(height: 4),
@@ -1872,7 +1918,7 @@ class _KitchenHubState extends State<KitchenHub> {
                             o['subscription_id'] == null
                                 ? 'One-time'
                                 : 'Monthly Sub',
-                            style: const TextStyle(fontSize: 10, color: _muted),
+                            style: TextStyle(fontSize: 10, color: _muted),
                           ),
                           const SizedBox(height: 4),
                           Text(
@@ -1891,7 +1937,7 @@ class _KitchenHubState extends State<KitchenHub> {
                               children: [
                                 Text(
                                   d.nameOf(o),
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     fontSize: 12,
                                     color: _muted,
                                   ),
@@ -1899,10 +1945,10 @@ class _KitchenHubState extends State<KitchenHub> {
                                 const SizedBox(height: 5),
                                 Text(
                                   'Qty: ${o['quantity'] ?? 0} Tiffin (${((o['quantity'] as num?)?.toInt() ?? 0) * 3} Chapatis, ${o['quantity'] ?? 0} Rice)',
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     fontSize: 12,
                                     fontWeight: FontWeight.w800,
-                                    color: Colors.white,
+                                    color: _forest,
                                   ),
                                 ),
                                 const SizedBox(height: 8),
@@ -1932,7 +1978,7 @@ class _KitchenHubState extends State<KitchenHub> {
                               padding: const EdgeInsets.only(top: 8),
                               child: Text(
                                 'Note: ${o['instructions']}',
-                                style: const TextStyle(
+                                style: TextStyle(
                                   fontSize: 10,
                                   fontStyle: FontStyle.italic,
                                   color: _muted,
@@ -1944,7 +1990,7 @@ class _KitchenHubState extends State<KitchenHub> {
                               padding: const EdgeInsets.only(top: 8),
                               child: Text(
                                 'Partner: ${d.riderName(o['assigned_to'])}',
-                                style: const TextStyle(
+                                style: TextStyle(
                                   fontSize: 11,
                                   color: _muted,
                                 ),
@@ -2039,8 +2085,8 @@ class _KitchenHubState extends State<KitchenHub> {
                               if (state != 'Packed' && widget.role == 'owner')
                                 TextButton(
                                   style: TextButton.styleFrom(
-                                    backgroundColor: const Color(0xFF4C2424),
-                                    foregroundColor: const Color(0xFFF87171),
+                                    backgroundColor: _dangerBg,
+                                    foregroundColor: _dangerFg,
                                   ),
                                   onPressed: busy
                                       ? null
@@ -2056,7 +2102,7 @@ class _KitchenHubState extends State<KitchenHub> {
                           if (state == 'Packed' &&
                               (o['payment_status'] != 'verified' ||
                                   o['assigned_to'] == null))
-                            const Text(
+                            Text(
                               'Verify payment and assign a rider in All Orders before handover.',
                               style: TextStyle(fontSize: 10, color: _muted),
                             ),
@@ -2102,7 +2148,7 @@ class _Fleet extends StatelessWidget {
                   children: [
                     Text(
                       d.riderName(r['user_id']),
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.w800,
                         color: _forest,
@@ -2182,7 +2228,7 @@ class _PartnerHeader extends StatelessWidget {
   });
   @override
   Widget build(BuildContext c) => Container(
-    color: const Color(0xFF1F1F1F),
+    color: _headerBg,
     child: Column(
       children: [
         Padding(
@@ -2207,11 +2253,11 @@ class _PartnerHeader extends StatelessWidget {
                       spacing: 8,
                       crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
-                        const Text(
+                        Text(
                           'Tiffie Central Kitchen',
                           style: TextStyle(
                             fontWeight: FontWeight.w800,
-                            color: Colors.white,
+                            color: _forest,
                             fontSize: 14,
                           ),
                         ),
@@ -2221,13 +2267,13 @@ class _PartnerHeader extends StatelessWidget {
                             vertical: 3,
                           ),
                           decoration: BoxDecoration(
-                            color: const Color(0xFF14372A),
+                            color: _liveBg,
                             borderRadius: BorderRadius.circular(6),
                           ),
-                          child: const Text(
+                          child: Text(
                             'LIVE',
                             style: TextStyle(
-                              color: Color(0xFF34D399),
+                              color: _okBright,
                               fontSize: 9,
                               fontWeight: FontWeight.bold,
                             ),
@@ -2236,12 +2282,23 @@ class _PartnerHeader extends StatelessWidget {
                       ],
                     ),
                     const SizedBox(height: 3),
-                    const Text(
+                    Text(
                       'Pune Kitchen Hub • Pune, MH',
                       style: TextStyle(fontSize: 10, color: _muted),
                     ),
                   ],
                 ),
+              ),
+              IconButton(
+                tooltip:
+                    staffDark.value ? 'Switch to light mode' : 'Switch to dark mode',
+                icon: Icon(
+                  staffDark.value
+                      ? Icons.light_mode_outlined
+                      : Icons.dark_mode_outlined,
+                  color: _muted,
+                ),
+                onPressed: () => setStaffDark(!staffDark.value),
               ),
               PopupMenuButton<String>(
                 icon: CircleAvatar(
@@ -2302,7 +2359,7 @@ class _PartnerHeader extends StatelessWidget {
                             : Colors.transparent,
                         foregroundColor: screen == i
                             ? Colors.white
-                            : const Color(0xFFD4D4D8),
+                            : _muted,
                         padding: const EdgeInsets.symmetric(
                           horizontal: 14,
                           vertical: 12,
