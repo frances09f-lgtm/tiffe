@@ -4135,6 +4135,11 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
   // ---- Redesigned customer shell (Home, Menu, Orders, Profile) ----
   final ValueNotifier<int> _rev = ValueNotifier<int>(0);
 
+  /// Orders whose delivery completion has already popped the tracker and
+  /// shown the completion message, so a duplicate route or stream event can
+  /// never fire it twice.
+  final Set<String> _deliveredHandledIds = <String>{};
+
   @override
   void setState(VoidCallback fn) {
     super.setState(fn);
@@ -4499,7 +4504,6 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
       return null;
     }
 
-    var deliveredHandled = false;
     String? firstSeen;
     final nav = Navigator.of(routeContext);
     nav.push(
@@ -4514,10 +4518,10 @@ class _LiveWorkspaceState extends State<LiveWorkspace>
               // Delivery completed while this page is open: leave the tracker
               // and land on the Orders tab with the completion message. An
               // already-delivered order opened from history stays put.
-              if (!deliveredHandled &&
+              if (!_deliveredHandledIds.contains(id) &&
                   firstSeen != 'Delivered' &&
                   seen == 'Delivered') {
-                deliveredHandled = true;
+                _deliveredHandledIds.add(id);
                 WidgetsBinding.instance.addPostFrameCallback((_) {
                   if (!mounted) return;
                   if (nav.canPop()) nav.pop();
