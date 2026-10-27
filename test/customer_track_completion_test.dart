@@ -71,7 +71,17 @@ void main() {
     await t.pump();
     await t.pump();
     await t.pump();
-    expect(find.textContaining('delivered. Enjoy your meal'), findsOneWidget);
+    final toastFinder = find.textContaining('delivered. Enjoy your meal');
+    // Diagnosis: report where each matching widget lives in the tree.
+    for (final e in t.elementList(toastFinder)) {
+      final chain = <String>[];
+      e.visitAncestorElements((a) {
+        chain.add(a.widget.runtimeType.toString());
+        return chain.length < 14;
+      });
+      print('TOASTPATH: ${chain.join(' < ')}');
+    }
+    expect(toastFinder, findsOneWidget);
     await t.pumpAndSettle();
     // Tracker popped; Orders tab is showing again with its Track Details row
     // replaced by the delivered history section.
